@@ -36,7 +36,7 @@
     "turbo": "^2.8.11",
     "typescript": "^5.7.2",
     "viem": "^2.46.3",
-    "vitest": "^2.1.9"
+    "vitest": "^4.0.18"
   },
   "pnpm": {
     "overrides": {
