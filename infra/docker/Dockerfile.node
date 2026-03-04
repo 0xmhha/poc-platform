@@ -1,0 +1,66 @@
+# Node.js Service Dockerfile
+FROM node:20-alpine AS base
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY turbo.json tsconfig.json biome.json ./
+
+# Copy packages
+COPY packages/ ./packages/
+
+# Build argument for service path
+ARG SERVICE
+
+# Copy the specific service
+COPY ${SERVICE}/ ./${SERVICE}/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile || pnpm install
+
+# Build the service
+RUN pnpm turbo build --filter=@stablenet/$(basename ${SERVICE})
+
+# Production stage
+FROM node:20-alpine AS production
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+ARG SERVICE
+
+# Copy workspace configuration
+COPY --from=base /app/package.json ./
+COPY --from=base /app/pnpm-workspace.yaml ./
+COPY --from=base /app/pnpm-lock.yaml ./
+
+# Copy all node_modules (including .pnpm store)
+COPY --from=base /app/node_modules ./node_modules
+
+# Copy packages (shared libraries)
+COPY --from=base /app/packages ./packages
+
+# Copy service with its node_modules
+COPY --from=base /app/${SERVICE} ./${SERVICE}
+
+WORKDIR /app/${SERVICE}
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Change ownership to non-root user
+RUN chown -R nodejs:nodejs /app
+
+# Run as non-root user
+USER nodejs
+
+CMD ["node", "dist/index.js"]

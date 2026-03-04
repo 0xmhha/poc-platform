@@ -1,0 +1,65 @@
+/**
+ * @stablenet/sdk-addresses
+ *
+ * @deprecated Use @stablenet/contracts instead.
+ * This package re-exports everything from @stablenet/contracts for backward compatibility.
+ */
+
+export {
+  assertNotZeroAddress,
+  CHAIN_ADDRESSES,
+  DEFAULT_TOKENS,
+  getChainAddresses,
+  getChainConfig,
+  getContractAddress,
+  getDefaultDelegatePreset,
+  getDefaultTokens,
+  getDelegatePresets,
+  getEcdsaValidator,
+  getEntryPoint,
+  getErc20Paymaster,
+  getFactoryStaker,
+  getKernel,
+  getKernelFactory,
+  getLegacyContractAddresses,
+  getLendingPool,
+  getMultiChainValidator,
+  getMultiSigValidator,
+  getPermissionManager,
+  getPriceOracle,
+  getRecurringPaymentExecutor,
+  getServiceUrls,
+  getSponsorPaymaster,
+  getStakingVault,
+  getStealthAnnouncer,
+  getStealthRegistry,
+  getSubscriptionManager,
+  getUniswapFactory,
+  getUniswapQuoter,
+  getUniswapRouter,
+  getUsdc,
+  getVerifyingPaymaster,
+  getWebAuthnValidator,
+  getWkrc,
+  isChainSupported,
+  isZeroAddress,
+  SERVICE_URLS,
+  SUPPORTED_CHAIN_IDS,
+  ZERO_ADDRESS,
+} from '@stablenet/contracts'
+
+export type {
+  ChainAddresses,
+  ChainConfig,
+  ComplianceAddresses,
+  CoreAddresses,
+  DelegatePreset,
+  ExecutorAddresses,
+  HookAddresses,
+  PaymasterAddresses,
+  PrivacyAddresses,
+  ServiceUrls,
+  SubscriptionAddresses,
+  TokenDefinition,
+  ValidatorAddresses,
+} from '@stablenet/contracts'
