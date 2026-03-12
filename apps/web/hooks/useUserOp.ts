@@ -1,23 +1,28 @@
 'use client'
 
+import { createBundlerClient, detectProvider, type StableNetProvider } from '@stablenet/wallet-sdk'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Address, Hex } from 'viem'
 import { parseEther } from 'viem'
 import { useStableNetContext } from '@/providers'
-import {
-  detectProvider,
-  type StableNetProvider,
-  createBundlerClient,
-} from '@stablenet/wallet-sdk'
 
 // ============================================================================
 // Types
 // ============================================================================
 
+export type GasPaymentType = 'none' | 'sponsor' | 'erc20' | 'permit2'
+
+export interface GasPaymentContext {
+  type: GasPaymentType
+  tokenAddress?: Address
+  permitSignature?: Hex
+}
+
 interface SendUserOpParams {
   to: Address
   value?: bigint
   data?: Hex
+  gasPayment?: GasPaymentContext
 }
 
 type UserOpStatus = 'submitted' | 'confirmed' | 'failed'
@@ -105,11 +110,9 @@ export function useUserOp() {
   /**
    * Send a transaction through the wallet extension.
    *
-   * For smart accounts (delegated via EIP-7702), the extension automatically:
-   * 1. Wraps {to, value, data} into Kernel execute calldata
-   * 2. Builds a UserOperation with correct nonce and gas
-   * 3. Signs and submits to the bundler
-   * 4. Waits for on-chain confirmation
+   * When gasPayment is provided (sponsor/erc20/permit2), sends via
+   * eth_sendUserOperation which triggers the extension's ERC-7677
+   * sponsorAndSign flow. Otherwise falls back to eth_sendTransaction.
    */
   const sendUserOp = useCallback(
     async (sender: Address, params: SendUserOpParams): Promise<UserOpResult | null> => {
@@ -122,6 +125,34 @@ export function useUserOp() {
       setError(null)
 
       try {
+        const hasPaymaster = params.gasPayment && params.gasPayment.type !== 'none'
+
+        if (hasPaymaster) {
+          // Use eth_sendUserOperation — extension handles Kernel calldata wrapping,
+          // nonce, gas estimation, sponsorAndSign, and bundler submission
+          const hash = await provider.request<Hex>({
+            method: 'eth_sendUserOperation',
+            params: [
+              {
+                sender,
+                target: params.to,
+                value: params.value ? `0x${params.value.toString(16)}` : '0x0',
+                data: params.data ?? '0x',
+                gasPayment: params.gasPayment,
+              },
+              entryPoint,
+            ],
+          })
+
+          return {
+            userOpHash: hash as Hex,
+            transactionHash: hash as Hex,
+            success: true,
+            status: 'confirmed',
+          }
+        }
+
+        // Fallback: regular eth_sendTransaction (extension auto-detects smart account)
         const txHash = await provider.sendTransaction(
           {
             from: sender,
@@ -146,18 +177,24 @@ export function useUserOp() {
         setIsLoading(false)
       }
     },
-    [provider]
+    [provider, entryPoint]
   )
 
   /**
    * Simple ETH transfer helper
    */
   const sendTransaction = useCallback(
-    async (sender: Address, to: Address, value: string): Promise<UserOpResult | null> => {
+    async (
+      sender: Address,
+      to: Address,
+      value: string,
+      gasPayment?: GasPaymentContext
+    ): Promise<UserOpResult | null> => {
       return sendUserOp(sender, {
         to,
         value: parseEther(value),
         data: '0x',
+        gasPayment,
       })
     },
     [sendUserOp]

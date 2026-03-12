@@ -1,4 +1,5 @@
 import type { PackedUserOperation, UserOperation } from '@stablenet/sdk-types'
+import { ENTRY_POINT_ADDRESS, ENTRY_POINT_V07_ADDRESS } from '@stablenet/sdk-types'
 import type { Address, Hex } from 'viem'
 import { concat, encodeAbiParameters, pad, stringToHex, toHex } from 'viem'
 
@@ -51,28 +52,68 @@ export function packUserOperation(userOp: UserOperation): PackedUserOperation {
 }
 
 /**
+ * Byte-offset constants for packed field slicing.
+ *
+ * All packed fields use the "0x" prefix (2 hex chars) followed by fixed-size
+ * segments. Addresses are 20 bytes (40 hex chars), uint128 fields are 16 bytes
+ * (32 hex chars).
+ *
+ * initCode:           [0x prefix (2)] [address (40)] [factoryData (remaining)]
+ * accountGasLimits:   [0x prefix (2)] [verificationGasLimit uint128 (32)] [callGasLimit uint128 (32)]
+ * gasFees:            [0x prefix (2)] [maxPriorityFeePerGas uint128 (32)] [maxFeePerGas uint128 (32)]
+ * paymasterAndData:   [0x prefix (2)] [address (40)] [verificationGas uint128 (32)] [postOpGas uint128 (32)] [data (remaining)]
+ */
+const PREFIX_LEN = 2 // "0x"
+const ADDRESS_HEX = 40 // 20 bytes
+const UINT128_HEX = 32 // 16 bytes
+
+// initCode: 0x + address(40) = 42 chars for factory, rest is factoryData
+const INIT_CODE_FACTORY_END = PREFIX_LEN + ADDRESS_HEX // 42
+
+// accountGasLimits / gasFees: 0x + uint128(32) + uint128(32)
+const GAS_FIELD1_END = PREFIX_LEN + UINT128_HEX // 34
+const GAS_FIELD2_END = GAS_FIELD1_END + UINT128_HEX // 66
+
+// paymasterAndData: 0x + address(40) + uint128(32) + uint128(32) + data
+const PM_ADDRESS_END = PREFIX_LEN + ADDRESS_HEX // 42
+const PM_VER_GAS_END = PM_ADDRESS_END + UINT128_HEX // 74
+const PM_POST_GAS_END = PM_VER_GAS_END + UINT128_HEX // 106
+
+/**
  * Unpack a PackedUserOperation from bundler RPC response
  */
 export function unpackUserOperation(packed: Record<string, Hex>): UserOperation {
   // Parse initCode
   let factory: Address | undefined
   let factoryData: Hex | undefined
-  if (packed.initCode && packed.initCode !== '0x' && packed.initCode.length > 42) {
-    factory = `0x${packed.initCode.slice(2, 42)}` as Address
-    factoryData = `0x${packed.initCode.slice(42)}` as Hex
+  if (
+    packed.initCode &&
+    packed.initCode !== '0x' &&
+    packed.initCode.length > INIT_CODE_FACTORY_END
+  ) {
+    factory = `0x${packed.initCode.slice(PREFIX_LEN, INIT_CODE_FACTORY_END)}` as Address
+    factoryData = `0x${packed.initCode.slice(INIT_CODE_FACTORY_END)}` as Hex
   }
 
   // Parse accountGasLimits
   const accountGasLimits = packed.accountGasLimits || '0x'
   const verificationGasLimit =
-    accountGasLimits.length >= 34 ? BigInt(`0x${accountGasLimits.slice(2, 34)}`) : 0n
+    accountGasLimits.length >= GAS_FIELD1_END
+      ? BigInt(`0x${accountGasLimits.slice(PREFIX_LEN, GAS_FIELD1_END)}`)
+      : 0n
   const callGasLimit =
-    accountGasLimits.length >= 66 ? BigInt(`0x${accountGasLimits.slice(34, 66)}`) : 0n
+    accountGasLimits.length >= GAS_FIELD2_END
+      ? BigInt(`0x${accountGasLimits.slice(GAS_FIELD1_END, GAS_FIELD2_END)}`)
+      : 0n
 
   // Parse gasFees
   const gasFees = packed.gasFees || '0x'
-  const maxPriorityFeePerGas = gasFees.length >= 34 ? BigInt(`0x${gasFees.slice(2, 34)}`) : 0n
-  const maxFeePerGas = gasFees.length >= 66 ? BigInt(`0x${gasFees.slice(34, 66)}`) : 0n
+  const maxPriorityFeePerGas =
+    gasFees.length >= GAS_FIELD1_END ? BigInt(`0x${gasFees.slice(PREFIX_LEN, GAS_FIELD1_END)}`) : 0n
+  const maxFeePerGas =
+    gasFees.length >= GAS_FIELD2_END
+      ? BigInt(`0x${gasFees.slice(GAS_FIELD1_END, GAS_FIELD2_END)}`)
+      : 0n
 
   // Parse paymasterAndData
   let paymaster: Address | undefined
@@ -83,14 +124,18 @@ export function unpackUserOperation(packed: Record<string, Hex>): UserOperation 
   if (
     packed.paymasterAndData &&
     packed.paymasterAndData !== '0x' &&
-    packed.paymasterAndData.length > 42
+    packed.paymasterAndData.length > PM_ADDRESS_END
   ) {
-    paymaster = `0x${packed.paymasterAndData.slice(2, 42)}` as Address
-    if (packed.paymasterAndData.length >= 106) {
-      paymasterVerificationGasLimit = BigInt(`0x${packed.paymasterAndData.slice(42, 74)}`)
-      paymasterPostOpGasLimit = BigInt(`0x${packed.paymasterAndData.slice(74, 106)}`)
-      if (packed.paymasterAndData.length > 106) {
-        paymasterData = `0x${packed.paymasterAndData.slice(106)}` as Hex
+    paymaster = `0x${packed.paymasterAndData.slice(PREFIX_LEN, PM_ADDRESS_END)}` as Address
+    if (packed.paymasterAndData.length >= PM_POST_GAS_END) {
+      paymasterVerificationGasLimit = BigInt(
+        `0x${packed.paymasterAndData.slice(PM_ADDRESS_END, PM_VER_GAS_END)}`
+      )
+      paymasterPostOpGasLimit = BigInt(
+        `0x${packed.paymasterAndData.slice(PM_VER_GAS_END, PM_POST_GAS_END)}`
+      )
+      if (packed.paymasterAndData.length > PM_POST_GAS_END) {
+        paymasterData = `0x${packed.paymasterAndData.slice(PM_POST_GAS_END)}` as Hex
       }
     }
   }
@@ -128,9 +173,7 @@ const PACKED_USEROP_TYPEHASH = keccak256(
 )
 
 const EIP712_DOMAIN_TYPEHASH = keccak256(
-  stringToHex(
-    'EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'
-  )
+  stringToHex('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
 )
 
 const EIP712_DOMAIN_NAME_HASH = keccak256(stringToHex('ERC4337'))
@@ -271,4 +314,43 @@ export function buildUserOpTypedData(
  */
 export function signUserOpForKernel(rawSignature: Hex): Hex {
   return concat(['0x02', rawSignature]) as Hex
+}
+
+// ============================================================================
+// Version-aware Hash Selection
+// ============================================================================
+
+export type EntryPointVersion = 'v0.9' | 'v0.7' | 'unknown'
+
+/**
+ * Detect EntryPoint version from address.
+ */
+export function detectEntryPointVersion(entryPoint: Address): EntryPointVersion {
+  const normalized = entryPoint.toLowerCase()
+  if (normalized === ENTRY_POINT_ADDRESS.toLowerCase()) return 'v0.9'
+  if (normalized === ENTRY_POINT_V07_ADDRESS.toLowerCase()) return 'v0.7'
+  return 'unknown'
+}
+
+/**
+ * Version-aware UserOperation hash.
+ * Only supports v0.9 (EIP-712). Throws for v0.7 or unrecognized EntryPoint addresses.
+ *
+ * @throws Error if EntryPoint version is not v0.9
+ */
+export function getUserOperationHashVersioned(
+  userOp: UserOperation,
+  entryPoint: Address,
+  chainId: bigint
+): Hex {
+  const version = detectEntryPointVersion(entryPoint)
+  if (version === 'v0.7') {
+    throw new Error('EntryPoint v0.7 hash is not supported. Use the v0.7 SDK or upgrade to v0.9.')
+  }
+  if (version === 'unknown') {
+    throw new Error(
+      `Unrecognized EntryPoint address: ${entryPoint}. Only v0.9 EntryPoint is supported.`
+    )
+  }
+  return getUserOperationHash(userOp, entryPoint, chainId)
 }

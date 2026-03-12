@@ -1,13 +1,13 @@
-import type { Address, Hex } from 'viem'
 import {
-  PaymasterType as PaymasterTypeEnum,
+  encodeErc20Payload,
   encodePaymasterData,
   encodeSponsorPayload,
-  encodeErc20Payload,
   encodeVerifyingPayload,
+  PaymasterType as PaymasterTypeEnum,
   // encodePermit2Payload intentionally not imported: Permit2 stub returns
   // empty paymasterData; user builds the full envelope client-side via SDK.
 } from '@stablenet/core'
+import type { Address, Hex } from 'viem'
 import type { SponsorPolicyManager } from '../policy/sponsorPolicy'
 import type { PaymasterSigner } from '../signer/paymasterSigner'
 import type {
@@ -18,13 +18,42 @@ import type {
   PaymasterType,
 } from '../types'
 import { normalizeUserOp } from '../utils/userOpNormalizer'
-import { toPolicyIdBytes32, validateChainId, validateEntryPoint, validateTimeRange } from '../utils/validation'
+import {
+  toPolicyIdBytes32,
+  validateChainId,
+  validateEntryPoint,
+  validateTimeRange,
+} from '../utils/validation'
 
 export type { GetPaymasterStubDataParams }
 
 /** Default validity window for non-signed envelope types (ERC20) */
 const DEFAULT_VALID_UNTIL_SECONDS = 300
 const DEFAULT_CLOCK_SKEW_SECONDS = 60
+
+/**
+ * Fallback KRWC→USDC conversion rate for display purposes.
+ * 1 USDC = 1500 KRWC → 1 KRWC = 1/1500 USDC.
+ * To avoid precision loss with integer division, we multiply by a scale factor first.
+ *
+ * Formula: usdcAmount = gasCostWei * USDC_SCALE / (KRWC_PER_USDC * NATIVE_DECIMALS_FACTOR)
+ * where USDC_SCALE = 1e6 (USDC has 6 decimals)
+ */
+const KRWC_PER_USDC = 1500n
+const USDC_SCALE = 10n ** 6n
+const NATIVE_DECIMALS_FACTOR = 10n ** 18n
+/** Buffer for price volatility + paymaster markup (30%) */
+const PRICE_BUFFER_PERCENT = 30n
+
+/**
+ * Estimate maxTokenCost (USDC, 6 decimals) from gas cost in native wei (KRWC).
+ * Adds a 30% buffer over the base estimate for price safety.
+ */
+function estimateMaxTokenCostFromGas(gasCostWei: bigint): bigint {
+  if (gasCostWei <= 0n) return 0n
+  const baseCost = (gasCostWei * USDC_SCALE) / (KRWC_PER_USDC * NATIVE_DECIMALS_FACTOR)
+  return baseCost + (baseCost * PRICE_BUFFER_PERCENT) / 100n
+}
 
 /**
  * Base gas limits for paymaster operations.
@@ -210,10 +239,7 @@ function handleVerifyingStubData(
     verifierExtra: '0x' as Hex,
   })
 
-  const { paymasterData } = signer.generateStubData(
-    PaymasterTypeEnum.VERIFYING,
-    payload
-  )
+  const { paymasterData } = signer.generateStubData(PaymasterTypeEnum.VERIFYING, payload)
   const gasLimits = estimateGasLimits('verifying', userOp)
 
   const response: PaymasterStubDataResponse = {
@@ -251,17 +277,14 @@ function handleSponsorStubData(
   }
 
   const payload = encodeSponsorPayload({
-    campaignId: context?.campaignId ?? ('0x' + '00'.repeat(32)) as Hex,
+    campaignId: context?.campaignId ?? (('0x' + '00'.repeat(32)) as Hex),
     perUserLimit: BigInt(context?.perUserLimit ?? 0),
-    targetContract: context?.targetContract ?? ('0x' + '00'.repeat(20)) as Address,
-    targetSelector: context?.targetSelector ?? '0x00000000' as Hex,
+    targetContract: context?.targetContract ?? (('0x' + '00'.repeat(20)) as Address),
+    targetSelector: context?.targetSelector ?? ('0x00000000' as Hex),
     sponsorExtra: '0x' as Hex,
   })
 
-  const { paymasterData } = signer.generateStubData(
-    PaymasterTypeEnum.SPONSOR,
-    payload
-  )
+  const { paymasterData } = signer.generateStubData(PaymasterTypeEnum.SPONSOR, payload)
   const gasLimits = estimateGasLimits('sponsor', userOp)
 
   const response: PaymasterStubDataResponse = {
@@ -300,9 +323,28 @@ function handleErc20StubData(
     }
   }
 
+  // Estimate maxTokenCost from gas limits for display purposes.
+  // Stub phase: use base gas limits + userOp gas fields for a rough estimate.
+  const contextMaxTokenCost = context?.maxTokenCost ? BigInt(context.maxTokenCost) : 0n
+  let maxTokenCost = contextMaxTokenCost
+  if (maxTokenCost === 0n && params.userOp) {
+    const normalized = normalizeUserOp(params.userOp)
+    const gasLimits = estimateGasLimits('erc20', params.userOp)
+    const maxFeePerGas = BigInt(normalized.maxFeePerGas)
+    if (maxFeePerGas > 0n) {
+      const totalGas =
+        gasLimits.verification +
+        gasLimits.postOp +
+        BigInt(normalized.callGasLimit) +
+        BigInt(normalized.preVerificationGas)
+      const gasCostWei = totalGas * maxFeePerGas
+      maxTokenCost = estimateMaxTokenCostFromGas(gasCostWei)
+    }
+  }
+
   const payload = encodeErc20Payload({
     token: tokenAddress,
-    maxTokenCost: BigInt(context?.maxTokenCost ?? 0),
+    maxTokenCost,
     quoteId: BigInt(context?.quoteId ?? 0),
     erc20Extra: '0x' as Hex,
   })

@@ -1,7 +1,8 @@
 import type { Hex } from 'viem'
+import type { SponsorPolicyManager } from '../policy/sponsorPolicy'
+import { getGlobalLogger } from '../utils/logger'
 import type { BundlerClient } from './bundlerClient'
 import type { ReservationTracker } from './reservationTracker'
-import type { SponsorPolicyManager } from '../policy/sponsorPolicy'
 
 /** Kernel v0.3.3 error selectors for settlement classification */
 const MODULE_ERROR_SELECTORS = {
@@ -10,7 +11,11 @@ const MODULE_ERROR_SELECTORS = {
   DelegatecallTargetNotWhitelisted: '0x7eb83a8a',
 } as const
 
-type FailureReason = 'module_deinit_failed' | 'reentrancy' | 'delegatecall_not_whitelisted' | 'unknown'
+type FailureReason =
+  | 'module_deinit_failed'
+  | 'reentrancy'
+  | 'delegatecall_not_whitelisted'
+  | 'unknown'
 
 /**
  * Settlement worker statistics
@@ -78,7 +83,7 @@ export class SettlementWorker {
 
     this.interval = setInterval(() => {
       this.poll().catch((err) => {
-        console.error('[settlement-worker] Unexpected poll error:', err)
+        getGlobalLogger().error({ err }, 'Unexpected settlement poll error')
         this.stats.errors++
       })
     }, this.pollIntervalMs)
@@ -137,16 +142,11 @@ export class SettlementWorker {
           // Classify failure reason for module-specific errors
           const failureReason = this.classifyFailureReason(receipt.reason)
           if (failureReason === 'module_deinit_failed') {
-            console.warn(
-              `[settlement-worker] Module onUninstall failed for ${hash} — module deInit reverted`
-            )
+            getGlobalLogger().warn({ hash }, 'Module onUninstall failed — module deInit reverted')
           }
 
           // UserOp failed — cancel the reservation (release budget)
-          this.policyManager.cancelReservation(
-            reservation.sender,
-            reservation.reservationId
-          )
+          this.policyManager.cancelReservation(reservation.sender, reservation.reservationId)
           this.stats.cancelled++
         }
 
@@ -158,14 +158,12 @@ export class SettlementWorker {
         this.retryCount.set(hash, retries)
 
         if (retries >= this.maxRetries) {
-          console.error(
-            `[settlement-worker] Max retries reached for ${hash}, leaving to TTL expiry`
-          )
+          getGlobalLogger().error({ hash }, 'Max retries reached, leaving to TTL expiry')
           this.retryCount.delete(hash)
         } else {
-          console.warn(
-            `[settlement-worker] Error querying receipt for ${hash} (retry ${retries}):`,
-            err instanceof Error ? err.message : err
+          getGlobalLogger().warn(
+            { hash, retry: retries, error: err instanceof Error ? err.message : String(err) },
+            'Error querying receipt'
           )
         }
       }

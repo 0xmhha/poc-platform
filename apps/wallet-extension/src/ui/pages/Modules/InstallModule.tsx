@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import type { Address, Hash, Hex } from 'viem'
 import { formatEther, isAddress } from 'viem'
 import { GasPaymentSelector } from '../Send/GasPayment'
+import { useContractAddresses } from './hooks/useContractAddresses'
 import { useModuleInstall } from './hooks/useModuleInstall'
 import { useModuleRegistry } from './hooks/useModuleRegistry'
 import { saveWebAuthnCredential } from './hooks/useWebAuthn'
@@ -80,60 +81,64 @@ export function InstallModuleWizard({
 
   const { availableModules } = useModuleRegistry()
   const { installModule, installCustomModule } = useModuleInstall()
+  const { modules: knownModules } = useContractAddresses()
 
   // Poll for UserOp receipt and status while confirming
-  const pollReceipt = useCallback(async (hash: Hash) => {
-    try {
-      // Check receipt first (on-chain confirmation)
-      const receiptResponse = await chrome.runtime.sendMessage({
-        type: 'RPC_REQUEST',
-        id: `receipt-poll-${Date.now()}`,
-        payload: {
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_getUserOperationReceipt',
-          params: [hash],
-        },
-      })
-      if (receiptResponse?.payload?.result) {
-        if (pollingRef.current) {
-          clearInterval(pollingRef.current)
-          pollingRef.current = null
+  const pollReceipt = useCallback(
+    async (hash: Hash) => {
+      try {
+        // Check receipt first (on-chain confirmation)
+        const receiptResponse = await chrome.runtime.sendMessage({
+          type: 'RPC_REQUEST',
+          id: `receipt-poll-${Date.now()}`,
+          payload: {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'eth_getUserOperationReceipt',
+            params: [hash],
+          },
+        })
+        if (receiptResponse?.payload?.result) {
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current)
+            pollingRef.current = null
+          }
+          if (receiptResponse.payload.result.success === false) {
+            setError(t('operationReverted', 'Transaction reverted on-chain'))
+            setStep('confirm')
+          } else {
+            setStep('success')
+          }
+          return
         }
-        if (receiptResponse.payload.result.success === false) {
-          setError(t('operationReverted', 'Transaction reverted on-chain'))
-          setStep('confirm')
-        } else {
-          setStep('success')
-        }
-        return
-      }
 
-      // Check bundler status (detect pre-chain failures like bundle revert)
-      const statusResponse = await chrome.runtime.sendMessage({
-        type: 'RPC_REQUEST',
-        id: `status-poll-${Date.now()}`,
-        payload: {
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'debug_bundler_getUserOperationStatus',
-          params: [hash],
-        },
-      })
-      const opStatus = statusResponse?.payload?.result
-      if (opStatus && (opStatus.status === 'failed' || opStatus.status === 'dropped')) {
-        if (pollingRef.current) {
-          clearInterval(pollingRef.current)
-          pollingRef.current = null
+        // Check bundler status (detect pre-chain failures like bundle revert)
+        const statusResponse = await chrome.runtime.sendMessage({
+          type: 'RPC_REQUEST',
+          id: `status-poll-${Date.now()}`,
+          payload: {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'debug_bundler_getUserOperationStatus',
+            params: [hash],
+          },
+        })
+        const opStatus = statusResponse?.payload?.result
+        if (opStatus && (opStatus.status === 'failed' || opStatus.status === 'dropped')) {
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current)
+            pollingRef.current = null
+          }
+          setError(opStatus.error ?? t('operationFailed', 'Operation failed during bundling'))
+          setUserOpHash(null)
+          setStep('confirm')
         }
-        setError(opStatus.error ?? t('operationFailed', 'Operation failed during bundling'))
-        setUserOpHash(null)
-        setStep('confirm')
+      } catch {
+        // Silently continue polling
       }
-    } catch {
-      // Silently continue polling
-    }
-  }, [t])
+    },
+    [t]
+  )
 
   useEffect(() => {
     if (step !== 'confirming' || !userOpHash) return
@@ -449,6 +454,7 @@ export function InstallModuleWizard({
         {step === 'custom-address' && (
           <CustomModuleInput
             initialType={selectedType}
+            knownModules={knownModules}
             onSubmit={(address, moduleType, initData, name) => {
               setSelectedModule(null)
               setCustomAddress(address)
@@ -609,7 +615,12 @@ export function InstallModuleWizard({
                 stroke="rgb(var(--primary))"
                 aria-hidden="true"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={3}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             </div>
             <p className="font-medium" style={{ color: 'rgb(var(--foreground))' }}>
@@ -967,11 +978,17 @@ function InstallConfirmation({
 
 interface CustomModuleInputProps {
   initialType: ModuleType | null
+  knownModules: { name: string; address: string; type: ModuleType; description: string }[]
   onSubmit: (address: string, moduleType: ModuleType, initData: Hex, name: string) => void
   onBack: () => void
 }
 
-function CustomModuleInput({ initialType, onSubmit, onBack }: CustomModuleInputProps) {
+function CustomModuleInput({
+  initialType,
+  knownModules,
+  onSubmit,
+  onBack,
+}: CustomModuleInputProps) {
   const { t } = useTranslation('modules')
   const { t: tc } = useTranslation('common')
 
@@ -1030,6 +1047,79 @@ function CustomModuleInput({ initialType, onSubmit, onBack }: CustomModuleInputP
       >
         {t('customModuleWarning')}
       </div>
+
+      {/* Known Modules Quick-Select */}
+      {knownModules.length > 0 && (
+        <div className="mb-4">
+          <p className="text-sm font-medium mb-2" style={{ color: 'rgb(var(--foreground))' }}>
+            {t('knownModules', 'Known Modules')}
+          </p>
+          <div className="space-y-2">
+            {knownModules.map((mod) => {
+              const isSelected = address === mod.address && moduleType === mod.type
+              return (
+                <button
+                  key={mod.address}
+                  type="button"
+                  className="w-full p-3 rounded-lg text-left transition-all"
+                  style={{
+                    backgroundColor: isSelected
+                      ? 'rgb(var(--primary) / 0.1)'
+                      : 'rgb(var(--secondary))',
+                    borderWidth: 1,
+                    borderColor: isSelected ? 'rgb(var(--primary))' : 'transparent',
+                  }}
+                  onClick={() => {
+                    setAddress(mod.address)
+                    setModuleType(mod.type)
+                    setAddressError(null)
+                    setTypeError(null)
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-sm font-medium"
+                        style={{ color: 'rgb(var(--foreground))' }}
+                      >
+                        {mod.name}
+                      </p>
+                      <p
+                        className="text-xs mt-0.5"
+                        style={{ color: 'rgb(var(--muted-foreground))' }}
+                      >
+                        {mod.description}
+                      </p>
+                      <p
+                        className="text-xs mt-1 font-mono truncate"
+                        style={{ color: 'rgb(var(--muted-foreground))' }}
+                      >
+                        {mod.address}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <span
+                        className="text-xs mt-0.5 shrink-0"
+                        style={{ color: 'rgb(var(--primary))' }}
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+          <div
+            className="flex items-center gap-3 my-4"
+            style={{ color: 'rgb(var(--muted-foreground))' }}
+          >
+            <div className="flex-1 h-px" style={{ backgroundColor: 'rgb(var(--border))' }} />
+            <span className="text-xs">{t('orEnterCustomAddress', 'or enter custom address')}</span>
+            <div className="flex-1 h-px" style={{ backgroundColor: 'rgb(var(--border))' }} />
+          </div>
+        </div>
+      )}
 
       {/* Contract Address */}
       <div className="mb-4">

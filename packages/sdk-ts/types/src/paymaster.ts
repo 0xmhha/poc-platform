@@ -35,7 +35,7 @@ export interface SupportedToken {
   /** Token decimals */
   decimals: number
 
-  /** Exchange rate: tokens per 1 ETH (in token's smallest unit) */
+  /** Exchange rate: tokens per 1 native token (in token's smallest unit) */
   exchangeRate: bigint
 
   /** Optional: Token logo URL */
@@ -79,6 +79,19 @@ export interface PaymasterClientConfig {
 /**
  * Paymaster RPC method names
  */
+/**
+ * EIP-4337 v0.9 PostOp mode
+ *
+ * v0.9 behavior change: if postOp reverts, EntryPoint does NOT re-call postOp.
+ * Instead, the execution is reverted and the paymaster is charged from its prefund.
+ */
+export enum PostOpMode {
+  /** UserOp execution succeeded */
+  opSucceeded = 0,
+  /** UserOp execution reverted (paymaster still pays gas) */
+  opReverted = 1,
+}
+
 export const PAYMASTER_RPC_METHODS = {
   /** Get sponsored paymaster data */
   SPONSOR_USER_OPERATION: 'pm_sponsorUserOperation',

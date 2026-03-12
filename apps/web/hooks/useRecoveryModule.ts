@@ -1,11 +1,11 @@
 'use client'
 
+import { MODULE_TYPE } from '@stablenet/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Address, Hex } from 'viem'
 import { encodeFunctionData } from 'viem'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
-
-import { MODULE_TYPES, useModule } from './useModule'
+import { useModule } from './useModule'
 import { useSmartAccount } from './useSmartAccount'
 
 // ============================================================================
@@ -157,7 +157,7 @@ export function useRecoveryModule(): UseRecoveryModuleReturn {
   const checkInstalled = useCallback(async (): Promise<boolean> => {
     if (!address || !status.isSmartAccount) return false
     try {
-      return await isModuleInstalled(address, MODULE_TYPES.VALIDATOR, SOCIAL_RECOVERY_VALIDATOR)
+      return await isModuleInstalled(address, MODULE_TYPE.VALIDATOR, SOCIAL_RECOVERY_VALIDATOR)
     } catch {
       return false
     }
@@ -237,6 +237,20 @@ export function useRecoveryModule(): UseRecoveryModuleReturn {
         return false
       }
 
+      if (guardians.length === 0) {
+        setError('At least one guardian is required')
+        return false
+      }
+      if (threshold <= 0) {
+        setError('Threshold must be greater than zero')
+        return false
+      }
+      const totalWeight = guardians.reduce((sum, g) => sum + g.weight, 0)
+      if (threshold > totalWeight) {
+        setError(`Threshold (${threshold}) exceeds total guardian weight (${totalWeight})`)
+        return false
+      }
+
       setIsInstalling(true)
       setError(null)
 
@@ -244,7 +258,7 @@ export function useRecoveryModule(): UseRecoveryModuleReturn {
         const initData = encodeWeightedECDSAInit(guardians, threshold)
 
         const callData = buildInstallModuleCall(address, {
-          moduleType: MODULE_TYPES.VALIDATOR,
+          moduleType: MODULE_TYPE.VALIDATOR,
           module: SOCIAL_RECOVERY_VALIDATOR,
           initData,
         })

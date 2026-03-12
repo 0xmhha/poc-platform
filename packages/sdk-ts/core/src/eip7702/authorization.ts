@@ -83,6 +83,13 @@ export function parseSignature(signature: Hex): { v: number; r: Hex; s: Hex } {
   // Remove 0x prefix
   const sig = signature.slice(2)
 
+  // ECDSA signature must be exactly 65 bytes (130 hex chars): r(32) + s(32) + v(1)
+  if (sig.length < 130) {
+    throw new Error(
+      `Invalid signature length: expected at least 130 hex chars (65 bytes), got ${sig.length}`
+    )
+  }
+
   // r = first 32 bytes, s = next 32 bytes, v = last byte
   const r = `0x${sig.slice(0, 64)}` as Hex
   const s = `0x${sig.slice(64, 128)}` as Hex
@@ -200,9 +207,7 @@ export function isRevocationAuthorization(authorization: Authorization): boolean
  * @param code - Account bytecode from eth_getCode
  * @returns Account type classification
  */
-export function classifyAccountByCode(
-  code: Hex | undefined | null
-): 'eoa' | 'delegated' | 'smart' {
+export function classifyAccountByCode(code: Hex | undefined | null): 'eoa' | 'delegated' | 'smart' {
   if (!code || code === '0x') return 'eoa'
   if (isDelegatedAccount(code)) return 'delegated'
   return 'smart'
@@ -247,13 +252,10 @@ export function isEIP7702InitCode(initCode: Hex): boolean {
  * @param initCode - The initCode field from a UserOperation
  * @returns Parsed initCode components, or null if not EIP-7702 format
  */
-export function parseEIP7702InitCode(
-  initCode: Hex
-): { isEIP7702: true; initData: Hex } | null {
+export function parseEIP7702InitCode(initCode: Hex): { isEIP7702: true; initData: Hex } | null {
   if (!isEIP7702InitCode(initCode)) return null
 
-  const initData =
-    initCode.length > 42 ? (`0x${initCode.slice(42)}` as Hex) : ('0x' as Hex)
+  const initData = initCode.length > 42 ? (`0x${initCode.slice(42)}` as Hex) : ('0x' as Hex)
 
   return { isEIP7702: true, initData }
 }

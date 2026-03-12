@@ -20,12 +20,13 @@
     "dev": "tsup --watch",
     "lint": "biome lint src/",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "eventemitter3": "^5.0.4"
+    "eventemitter3": "^5.0.4",
+    "zod": "^3.25.76"
   },
   "peerDependencies": {
     "react": ">=18.0.0"
@@ -36,12 +37,12 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.4",
-    "@types/node": "^25.3.2",
+    "@biomejs/biome": "^2.4.6",
+    "@types/node": "^25.3.5",
     "@types/react": "^19.0.0",
     "react": "^19.0.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^4.0.18"
   }
 }

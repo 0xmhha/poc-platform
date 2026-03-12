@@ -7,6 +7,7 @@
  * Uses SDK's Strategy pattern for extensible transaction handling.
  */
 
+import { getEntryPoint, isChainSupported } from '@stablenet/contracts'
 import {
   type Account,
   type BundlerClient,
@@ -26,7 +27,6 @@ import {
   type TransactionRouter,
   type UserOperation,
 } from '@stablenet/core'
-import { getEntryPoint, isChainSupported } from '@stablenet/contracts'
 import type { Address, Hex } from 'viem'
 import { createLogger } from '../../shared/utils/logger'
 import type {
@@ -169,8 +169,11 @@ export class MultiModeTransactionController {
       gasEstimate,
     }
 
-    this.state.transactions[id] = txMeta
-    this.state.pendingTransactions.push(id)
+    this.state = {
+      ...this.state,
+      transactions: { ...this.state.transactions, [id]: txMeta },
+      pendingTransactions: [...this.state.pendingTransactions, id],
+    }
 
     this.emit('transaction:added', txMeta)
 
@@ -332,6 +335,7 @@ export class MultiModeTransactionController {
     this.updateTransaction(updated)
     this.removeFromPending(id)
     this.emit('transaction:rejected', updated)
+    this.removeFromTransactions(id)
 
     logger.debug('Transaction rejected', { id })
   }
@@ -407,7 +411,9 @@ export class MultiModeTransactionController {
         },
       }
       this.updateTransaction(failed)
+      this.removeFromPending(id)
       this.emit('transaction:failed', failed)
+      this.removeFromTransactions(id)
       throw error
     }
   }
@@ -467,7 +473,9 @@ export class MultiModeTransactionController {
         },
       }
       this.updateTransaction(failed)
+      this.removeFromPending(id)
       this.emit('transaction:failed', failed)
+      this.removeFromTransactions(id)
       throw error
     }
   }
@@ -493,8 +501,12 @@ export class MultiModeTransactionController {
 
     this.updateTransaction(updated)
     this.removeFromPending(id)
-    this.state.confirmedTransactions.push(id)
+    this.state = {
+      ...this.state,
+      confirmedTransactions: [...this.state.confirmedTransactions, id],
+    }
     this.emit('transaction:confirmed', updated)
+    this.removeFromTransactions(id)
 
     logger.debug('Transaction confirmed', { id, blockNumber: receipt.blockNumber })
   }
@@ -650,7 +662,11 @@ export class MultiModeTransactionController {
   // ============================================
 
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    const bytes = crypto.getRandomValues(new Uint8Array(8))
+    const hex = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+    return `${Date.now()}-${hex}`
   }
 
   private detectTransactionType(txParams: MultiModeTransactionParams): TransactionType {
@@ -818,14 +834,31 @@ export class MultiModeTransactionController {
   }
 
   private updateTransaction(txMeta: MultiModeTransactionMeta): void {
-    this.state.transactions[txMeta.id] = txMeta
+    this.state = {
+      ...this.state,
+      transactions: { ...this.state.transactions, [txMeta.id]: txMeta },
+    }
     this.emit('transaction:updated', txMeta)
   }
 
   private removeFromPending(id: string): void {
-    const index = this.state.pendingTransactions.indexOf(id)
-    if (index > -1) {
-      this.state.pendingTransactions.splice(index, 1)
+    this.state = {
+      ...this.state,
+      pendingTransactions: this.state.pendingTransactions.filter((tid) => tid !== id),
+    }
+  }
+
+  /**
+   * Remove a terminal-state transaction from in-memory state.
+   * Completed/failed/rejected transactions are already persisted
+   * in walletState.transactions (chrome.storage) by the handler,
+   * so the controller only needs to track active lifecycle entries.
+   */
+  private removeFromTransactions(id: string): void {
+    const { [id]: _removed, ...remaining } = this.state.transactions
+    this.state = {
+      ...this.state,
+      transactions: remaining,
     }
   }
 

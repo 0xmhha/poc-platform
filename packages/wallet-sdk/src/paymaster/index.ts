@@ -7,9 +7,6 @@
 
 import type { Address, Hex } from 'viem'
 
-// Client factory
-export { createPaymasterClient } from '@stablenet/core'
-
 // Types from core
 export type {
   ERC20PaymentEstimate,
@@ -17,6 +14,8 @@ export type {
   PaymasterClientInstance,
   PaymasterResponse,
 } from '@stablenet/core'
+// Client factory
+export { createPaymasterClient } from '@stablenet/core'
 
 // Types from sdk-types
 export type {
@@ -91,6 +90,10 @@ export async function getPaymasterStubData(
     }),
   })
 
+  if (!response.ok) {
+    throw new Error(`pm_getPaymasterStubData HTTP error: ${response.status} ${response.statusText}`)
+  }
+
   const json = await response.json()
 
   if (json.error) {
@@ -134,6 +137,10 @@ export async function getPaymasterData(
       params: [userOp, entryPoint, chainId],
     }),
   })
+
+  if (!response.ok) {
+    throw new Error(`pm_getPaymasterData HTTP error: ${response.status} ${response.statusText}`)
+  }
 
   const json = await response.json()
 

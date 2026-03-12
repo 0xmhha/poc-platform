@@ -1,9 +1,9 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import type { Address } from 'viem'
-import { isAddress, parseUnits } from 'viem'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { Address, Hex } from 'viem'
+import { encodeFunctionData, isAddress, parseEther, parseUnits } from 'viem'
 import {
   Button,
   Card,
@@ -11,85 +11,157 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  PaymasterSelector,
   useToast,
 } from '@/components/common'
+import { PaymasterSelector, type GasPaymentMode } from '@/components/common/PaymasterSelector'
 import { BatchRecipientList } from '@/components/payment/BatchRecipientList'
-import type { SponsorshipPolicy, SupportedToken, WalletToken } from '@/hooks'
-import { usePaymaster, useUserOp, useWallet, useWalletAssets } from '@/hooks'
+import type { SupportedToken, WalletToken } from '@/hooks'
+import { useUserOp, useWallet, useWalletAssets } from '@/hooks'
 import { useBatchTransaction } from '@/hooks/useBatchTransaction'
 import { useEntryPointDeposit } from '@/hooks/useEntryPointDeposit'
+import { usePaymaster } from '@/hooks/usePaymaster'
+import { usePaymasterHealth } from '@/hooks/usePaymasterHealth'
+import { useTokenApproval } from '@/hooks/useTokenApproval'
+import { useTokenGasEstimate } from '@/hooks/useTokenGasEstimate'
+import type { GasPaymentContext } from '@/hooks/useUserOp'
+import { getUserFriendlyError, parseAAError } from '@/lib/aaErrors'
 import { formatTokenAmount } from '@/lib/utils'
+import { useStableNetContext } from '@/providers'
+
+// ============================================================================
+// Types
+// ============================================================================
 
 type SelectedAsset = 'native' | WalletToken
+type SendStep = 'form' | 'review' | 'pending'
+
+const ERC20_TRANSFER_ABI = [
+  {
+    name: 'transfer',
+    type: 'function',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bool' }],
+  },
+] as const
+
+// ============================================================================
+// Component
+// ============================================================================
 
 export default function SendPage() {
   const router = useRouter()
   const { address, isConnected } = useWallet()
+  const { chainId } = useStableNetContext()
   const { native, tokens, isSupported } = useWalletAssets()
-  const { sendTransaction, isLoading, error } = useUserOp()
+  const { sendUserOp, isLoading, error } = useUserOp()
   const { addToast, updateToast } = useToast()
 
-  // Paymaster
+  // Paymaster hooks
   const {
-    selectedType: paymasterType,
-    setSelectedType: setPaymasterType,
-    selectedTokenAddress: paymasterTokenAddress,
-    setSelectedTokenAddress: setPaymasterTokenAddress,
-    selectedPolicyId: paymasterPolicyId,
-    setSelectedPolicyId: setPaymasterPolicyId,
+    paymasterAddress,
     getSupportedTokens,
-    getSponsorshipPolicies,
     checkSponsorshipEligibility,
     isLoading: paymasterLoading,
     error: paymasterError,
   } = usePaymaster()
 
-  // EntryPoint deposit (for self-pay mode)
   const { formattedDeposit, fetchDeposit } = useEntryPointDeposit(address)
+  const {
+    formattedTokenCost,
+    isLoading: isEstimatingGas,
+    estimateTokenCost,
+  } = useTokenGasEstimate()
+  const { isHealthy: paymasterHealthy } = usePaymasterHealth()
+  const {
+    status: erc20ApprovalStatus,
+    error: erc20ApprovalError,
+    checkAllowance,
+    approve: approveToken,
+    reset: resetApproval,
+  } = useTokenApproval()
 
+  // ── Step state ──
+  const [step, setStep] = useState<SendStep>('form')
+
+  // ── Form state ──
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('')
   const [selectedAsset, setSelectedAsset] = useState<SelectedAsset>('native')
   const [isBatchMode, setIsBatchMode] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
 
-  // Paymaster sub-selector state
-  const [supportedTokens, setSupportedTokens] = useState<SupportedToken[] | null>(null)
-  const [sponsorPolicies, setSponsorPolicies] = useState<SponsorshipPolicy[] | null>(null)
-  const [sponsorEligible, setSponsorEligible] = useState<boolean | null>(null)
-  const [isLoadingTokens, setIsLoadingTokens] = useState(false)
-  const [isLoadingPolicies, setIsLoadingPolicies] = useState(false)
+  // ── Gas payment state (3 modes: native, sponsor, erc20) ──
+  const [gasMode, setGasMode] = useState<GasPaymentMode>('sponsor')
+  const [gasTokenAddress, setGasTokenAddress] = useState<Address | undefined>(undefined)
+  const [isDepositing, setIsDepositing] = useState(false)
 
-  // Fetch EntryPoint deposit when self-pay ('none') mode selected
+  // ── Paymaster sub-state ──
+  const [supportedTokens, setSupportedTokens] = useState<SupportedToken[] | null>(null)
+  const [sponsorAvailable, setSponsorAvailable] = useState<boolean | null>(null)
+  const [sponsorReason, setSponsorReason] = useState<string | undefined>(undefined)
+  const [isLoadingTokens, setIsLoadingTokens] = useState(false)
+
+  // ── Derived values ──
+  const isNativeAsset = selectedAsset === 'native'
+  const balance = isNativeAsset
+    ? BigInt(native?.balance || '0')
+    : BigInt(selectedAsset.balance || '0')
+  const decimals = isNativeAsset ? (native?.decimals ?? 18) : selectedAsset.decimals
+  const symbol = isNativeAsset ? (native?.symbol ?? 'ETH') : selectedAsset.symbol
+
+  // ── Effects: fetch data based on gas mode ──
+
+  // Fetch EntryPoint deposit when native mode selected
   useEffect(() => {
-    if (paymasterType === ('none' as string) && address) {
+    if (gasMode === 'native' && address) {
       fetchDeposit()
     }
-  }, [paymasterType, address, fetchDeposit])
+  }, [gasMode, address, fetchDeposit])
 
-  // Fetch tokens when erc20/permit2 selected
+  // Check sponsorship eligibility
   useEffect(() => {
-    if (paymasterType === 'erc20' || paymasterType === 'permit2') {
+    if (gasMode === 'sponsor' && address) {
+      checkSponsorshipEligibility(address).then((r) => {
+        setSponsorAvailable(r?.eligible ?? false)
+        if (r && !r.eligible) {
+          setSponsorReason(r.reason)
+        }
+      })
+    }
+  }, [gasMode, address, checkSponsorshipEligibility])
+
+  // Fetch tokens when erc20 selected
+  useEffect(() => {
+    if (gasMode === 'erc20') {
       setIsLoadingTokens(true)
       getSupportedTokens()
         .then(setSupportedTokens)
         .finally(() => setIsLoadingTokens(false))
     }
-  }, [paymasterType, getSupportedTokens])
+  }, [gasMode, getSupportedTokens])
 
-  // Check eligibility & fetch policies when sponsor selected
+  // Check ERC-20 allowance when token selected
   useEffect(() => {
-    if (paymasterType === 'sponsor' && address) {
-      checkSponsorshipEligibility(address).then((r) => setSponsorEligible(r?.eligible ?? false))
-      setIsLoadingPolicies(true)
-      getSponsorshipPolicies()
-        .then(setSponsorPolicies)
-        .finally(() => setIsLoadingPolicies(false))
+    if (gasMode === 'erc20' && gasTokenAddress && address && paymasterAddress) {
+      checkAllowance(gasTokenAddress, address, paymasterAddress)
     }
-  }, [paymasterType, address, checkSponsorshipEligibility, getSponsorshipPolicies])
+    if (gasMode !== 'erc20') {
+      resetApproval()
+    }
+  }, [gasMode, gasTokenAddress, address, paymasterAddress, checkAllowance, resetApproval])
 
-  // Batch transaction hook
+  // Estimate token gas cost when token selected in erc20 mode
+  useEffect(() => {
+    if (gasMode === 'erc20' && gasTokenAddress && address) {
+      const selectedToken = supportedTokens?.find((t) => t.address === gasTokenAddress)
+      estimateTokenCost(gasTokenAddress, { sender: address }, selectedToken?.decimals ?? 18)
+    }
+  }, [gasMode, gasTokenAddress, address, supportedTokens, estimateTokenCost])
+
+  // ── Batch transaction hook ──
   const {
     recipients: batchRecipients,
     addRecipient,
@@ -102,68 +174,142 @@ export default function SendPage() {
     error: batchError,
   } = useBatchTransaction()
 
-  // Get balance info from selected asset
-  const balance =
-    selectedAsset === 'native'
-      ? BigInt(native?.balance || '0')
-      : BigInt(selectedAsset.balance || '0')
-  const decimals = selectedAsset === 'native' ? (native?.decimals ?? 18) : selectedAsset.decimals
-  const symbol = selectedAsset === 'native' ? (native?.symbol ?? 'ETH') : selectedAsset.symbol
-  const isNativeAsset = selectedAsset === 'native'
-
-  // Single-mode validation
+  // ── Validation ──
   const isValidRecipient = recipient === '' || isAddress(recipient)
   const isValidAmount = amount === '' || (!Number.isNaN(Number(amount)) && Number(amount) > 0)
 
-  let exceedsBalance = false
-  if (!isBatchMode && amount && !Number.isNaN(Number(amount)) && Number(amount) > 0) {
-    try {
-      const parsedAmount = parseUnits(amount, decimals)
-      exceedsBalance = parsedAmount > balance
-    } catch {
-      // parseUnits may throw on invalid input
+  const exceedsBalance = useMemo(() => {
+    if (isBatchMode || !amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+      return false
     }
-  }
+    try {
+      return parseUnits(amount, decimals) > balance
+    } catch {
+      return false
+    }
+  }, [isBatchMode, amount, decimals, balance])
 
-  // Batch-mode validation
-  let batchTotal = 0n
-  let batchExceedsBalance = false
-  if (isBatchMode) {
+  const { batchTotal, batchExceedsBalance } = useMemo(() => {
+    if (!isBatchMode) return { batchTotal: 0n, batchExceedsBalance: false }
+    let total = 0n
     for (const r of batchRecipients) {
       if (r.amount && Number(r.amount) > 0) {
         try {
-          batchTotal += parseUnits(r.amount, decimals)
+          total += parseUnits(r.amount, decimals)
         } catch {
           // skip invalid
         }
       }
     }
-    batchExceedsBalance = batchTotal > balance
-  }
+    return { batchTotal: total, batchExceedsBalance: total > balance }
+  }, [isBatchMode, batchRecipients, decimals, balance])
 
   const batchValidCount = batchRecipients.filter(
     (r) => isAddress(r.address) && r.amount && Number(r.amount) > 0
   ).length
 
   const canSend = isBatchMode
-    ? batchValidCount >= 2 && !batchExceedsBalance && isConnected && address
-    : isAddress(recipient) && Number(amount) > 0 && !exceedsBalance && isConnected && address
+    ? batchValidCount >= 2 && !batchExceedsBalance && isConnected && !!address
+    : isAddress(recipient) && Number(amount) > 0 && !exceedsBalance && isConnected && !!address
 
-  // Gas savings for batch mode
   const gasSavings = estimateGasSavings(Math.max(batchValidCount, 2), isNativeAsset)
 
-  async function handleSend() {
+  // ── Handlers ──
+
+  const buildGasPayment = useCallback((): GasPaymentContext | undefined => {
+    if (gasMode === 'native') {
+      return undefined // Self-pay: no paymaster
+    }
+    if (gasMode === 'sponsor') {
+      return { type: 'sponsor' }
+    }
+    if (gasMode === 'erc20' && gasTokenAddress) {
+      return { type: 'erc20', tokenAddress: gasTokenAddress }
+    }
+    return undefined
+  }, [gasMode, gasTokenAddress])
+
+  const handleDepositTopUp = useCallback(async () => {
+    if (!address) return
+    setIsDepositing(true)
+    try {
+      const { entryPoint } = await import('@/hooks/useSmartAccount').then((m) =>
+        m.getSmartAccountAddresses(chainId)
+      )
+      const depositCalldata = encodeFunctionData({
+        abi: [
+          {
+            type: 'function',
+            name: 'depositTo',
+            inputs: [{ name: 'account', type: 'address' }],
+            outputs: [],
+            stateMutability: 'payable',
+          },
+        ],
+        functionName: 'depositTo',
+        args: [address],
+      })
+      const result = await sendUserOp(address, {
+        to: entryPoint,
+        value: parseEther('0.01'),
+        data: depositCalldata as Hex,
+      })
+      if (result?.success) {
+        addToast({
+          type: 'success',
+          title: 'Deposit Sent',
+          message: '0.01 ETH deposited to EntryPoint',
+        })
+        fetchDeposit()
+      }
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Deposit Failed',
+        message: 'Failed to top up EntryPoint deposit',
+      })
+    } finally {
+      setIsDepositing(false)
+    }
+  }, [address, chainId, sendUserOp, addToast, fetchDeposit])
+
+  const handleReview = useCallback(() => {
+    if (canSend) {
+      setSendError(null)
+      setStep('review')
+    }
+  }, [canSend])
+
+  const handleSend = useCallback(async () => {
     if (!canSend || !address) return
     setSendError(null)
+    setStep('pending')
 
     const toastId = addToast({
       type: 'loading',
       title: 'Sending Transaction',
-      message: `Transferring ${amount} ${symbol} to ${recipient.slice(0, 8)}...`,
+      message: `Transferring ${amount} ${symbol}...`,
       persistent: true,
     })
 
-    const result = await sendTransaction(address, recipient as Address, amount)
+    const gasPayment = buildGasPayment()
+
+    // Build transaction params — handle ERC-20 token transfers
+    const isTokenTransfer = !isNativeAsset
+    const to: Address = isTokenTransfer
+      ? (selectedAsset as WalletToken).address
+      : (recipient as Address)
+    const value: bigint = isTokenTransfer ? 0n : parseEther(amount)
+    const data: Hex = isTokenTransfer
+      ? encodeFunctionData({
+          abi: ERC20_TRANSFER_ABI,
+          functionName: 'transfer',
+          args: [recipient as Address, parseUnits(amount, decimals)],
+        })
+      : '0x'
+
+    const result = await sendUserOp(address, { to, value, data, gasPayment })
+
     if (result?.success && result.status === 'confirmed') {
       updateToast(toastId, {
         type: 'success',
@@ -183,7 +329,9 @@ export default function SendPage() {
       })
       router.push('/payment/history?pending=true')
     } else if (result && !result.success) {
-      const msg = 'Transaction failed on-chain. Please check your balance and try again.'
+      const msg = getUserFriendlyError(
+        'Transaction failed on-chain. Please check your balance and try again.'
+      )
       updateToast(toastId, {
         type: 'error',
         title: 'Transaction Failed',
@@ -192,8 +340,13 @@ export default function SendPage() {
         persistent: false,
       })
       setSendError(msg)
+      setStep('form')
     } else {
-      const msg = error?.message ?? 'Transaction failed. Please try again.'
+      // result === null means sendUserOp failed before submission
+      // (e.g. provider not detected, wallet rejected)
+      const msg = getUserFriendlyError(
+        'Transaction failed. Please check your wallet connection and try again.'
+      )
       updateToast(toastId, {
         type: 'error',
         title: 'Transaction Error',
@@ -201,12 +354,28 @@ export default function SendPage() {
         persistent: false,
       })
       setSendError(msg)
+      setStep('form')
     }
-  }
+  }, [
+    canSend,
+    address,
+    amount,
+    symbol,
+    isNativeAsset,
+    selectedAsset,
+    recipient,
+    decimals,
+    addToast,
+    updateToast,
+    buildGasPayment,
+    sendUserOp,
+    router,
+  ])
 
-  async function handleBatchSend() {
+  const handleBatchSend = useCallback(async () => {
     if (!canSend || !address) return
     setSendError(null)
+    setStep('pending')
 
     const toastId = addToast({
       type: 'loading',
@@ -215,10 +384,14 @@ export default function SendPage() {
       persistent: true,
     })
 
+    const gasPayment = buildGasPayment()
     const result = await executeBatch({
       isNative: isNativeAsset,
-      tokenAddress: !isNativeAsset ? ((selectedAsset as WalletToken).address as Address) : undefined,
+      tokenAddress: !isNativeAsset
+        ? ((selectedAsset as WalletToken).address as Address)
+        : undefined,
       decimals,
+      gasPayment,
     })
 
     if (result.success) {
@@ -241,9 +414,24 @@ export default function SendPage() {
         persistent: false,
       })
       setSendError(msg)
+      setStep('form')
     }
-  }
+  }, [
+    canSend,
+    address,
+    batchValidCount,
+    isNativeAsset,
+    selectedAsset,
+    decimals,
+    addToast,
+    updateToast,
+    buildGasPayment,
+    executeBatch,
+    clearRecipients,
+    router,
+  ])
 
+  // ── Guard: Not connected ──
   if (!isConnected) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -254,6 +442,139 @@ export default function SendPage() {
     )
   }
 
+  // ── Render: Pending Step ──
+  if (step === 'pending') {
+    return (
+      <div className="max-w-lg mx-auto">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <div className="flex justify-center mb-4">
+              <div
+                className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin"
+                style={{ borderColor: 'rgb(var(--primary))', borderTopColor: 'transparent' }}
+              />
+            </div>
+            <h3
+              className="text-lg font-semibold mb-2"
+              style={{ color: 'rgb(var(--foreground))' }}
+            >
+              {isBatchMode ? 'Sending Batch Transaction...' : 'Sending Transaction...'}
+            </h3>
+            <p className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
+              Please confirm in your wallet and wait for on-chain confirmation
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Render: Review Step ──
+  if (step === 'review') {
+    const gasTokenSymbol =
+      supportedTokens?.find((t) => t.address === gasTokenAddress)?.symbol ?? 'Token'
+    const gasLabel =
+      gasMode === 'sponsor'
+        ? 'Free (Sponsored)'
+        : gasMode === 'erc20' && formattedTokenCost
+          ? `~${formattedTokenCost} ${gasTokenSymbol}`
+          : 'Native (Self-Pay)'
+
+    return (
+      <div className="max-w-lg mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: 'rgb(var(--foreground))' }}>
+            Review Transaction
+          </h1>
+          <p style={{ color: 'rgb(var(--muted-foreground))' }}>
+            Confirm the details before sending
+          </p>
+        </div>
+
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            {/* Transaction Summary */}
+            <div className="p-4 rounded-lg" style={{ backgroundColor: 'rgb(var(--secondary))' }}>
+              <div className="space-y-3 text-sm">
+                {!isBatchMode && (
+                  <>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'rgb(var(--muted-foreground))' }}>To</span>
+                      <span className="font-mono" style={{ color: 'rgb(var(--foreground))' }}>
+                        {recipient.slice(0, 6)}...{recipient.slice(-4)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'rgb(var(--muted-foreground))' }}>Amount</span>
+                      <span style={{ color: 'rgb(var(--foreground))' }}>
+                        {amount} {symbol}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {isBatchMode && (
+                  <>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'rgb(var(--muted-foreground))' }}>Recipients</span>
+                      <span style={{ color: 'rgb(var(--foreground))' }}>
+                        {batchValidCount} addresses
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'rgb(var(--muted-foreground))' }}>Total Amount</span>
+                      <span style={{ color: 'rgb(var(--foreground))' }}>
+                        {formatTokenAmount(batchTotal, decimals)} {symbol}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div
+                  className="flex justify-between pt-2 border-t"
+                  style={{ borderColor: 'rgb(var(--border))' }}
+                >
+                  <span style={{ color: 'rgb(var(--muted-foreground))' }}>Gas Payment</span>
+                  <span
+                    style={{
+                      color:
+                        gasMode === 'sponsor'
+                          ? 'rgb(var(--success, 34 197 94))'
+                          : 'rgb(var(--foreground))',
+                    }}
+                  >
+                    {gasLabel}
+                  </span>
+                </div>
+                {!isNativeAsset && (
+                  <div className="flex justify-between">
+                    <span style={{ color: 'rgb(var(--muted-foreground))' }}>Asset</span>
+                    <span style={{ color: 'rgb(var(--foreground))' }}>
+                      {symbol} (ERC-20)
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" onClick={() => setStep('form')} className="flex-1">
+                Back
+              </Button>
+              <Button
+                onClick={isBatchMode ? handleBatchSend : handleSend}
+                isLoading={isBatchMode ? isBatchExecuting : isLoading}
+                className="flex-1"
+              >
+                Confirm & Send
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Render: Form Step ──
   return (
     <div className="max-w-lg mx-auto space-y-6">
       <div>
@@ -296,7 +617,7 @@ export default function SendPage() {
           <CardTitle>{isBatchMode ? 'Batch Transfer' : 'Transfer Details'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Asset Selector (for StableNet wallet) */}
+          {/* Asset Selector */}
           {isSupported && tokens.length > 0 && (
             <div>
               <span
@@ -306,21 +627,20 @@ export default function SendPage() {
                 Select Asset
               </span>
               <div className="grid grid-cols-2 gap-2">
-                {/* Native token option */}
                 <button
                   type="button"
                   onClick={() => setSelectedAsset('native')}
                   className={`p-3 rounded-lg border text-left transition-all ${
-                    selectedAsset === 'native' ? 'ring-2' : ''
+                    isNativeAsset ? 'ring-2' : ''
                   }`}
                   style={{
-                    backgroundColor:
-                      selectedAsset === 'native'
-                        ? 'rgb(var(--primary) / 0.1)'
-                        : 'rgb(var(--secondary))',
-                    borderColor:
-                      selectedAsset === 'native' ? 'rgb(var(--primary))' : 'rgb(var(--border))',
-                    ...(selectedAsset === 'native' &&
+                    backgroundColor: isNativeAsset
+                      ? 'rgb(var(--primary) / 0.1)'
+                      : 'rgb(var(--secondary))',
+                    borderColor: isNativeAsset
+                      ? 'rgb(var(--primary))'
+                      : 'rgb(var(--border))',
+                    ...(isNativeAsset &&
                       ({ '--tw-ring-color': 'rgb(var(--primary) / 0.3)' } as React.CSSProperties)),
                   }}
                 >
@@ -331,36 +651,38 @@ export default function SendPage() {
                     {native?.formattedBalance || '0'}
                   </p>
                 </button>
-                {/* Token options */}
-                {tokens.slice(0, 5).map((token) => (
-                  <button
-                    key={token.address}
-                    type="button"
-                    onClick={() => setSelectedAsset(token)}
-                    className={`p-3 rounded-lg border text-left transition-all ${
-                      selectedAsset !== 'native' && selectedAsset.address === token.address
-                        ? 'ring-2'
-                        : ''
-                    }`}
-                    style={{
-                      backgroundColor:
-                        selectedAsset !== 'native' && selectedAsset.address === token.address
+                {tokens.slice(0, 5).map((token) => {
+                  const isSelected =
+                    !isNativeAsset && (selectedAsset as WalletToken).address === token.address
+                  return (
+                    <button
+                      key={token.address}
+                      type="button"
+                      onClick={() => setSelectedAsset(token)}
+                      className={`p-3 rounded-lg border text-left transition-all ${
+                        isSelected ? 'ring-2' : ''
+                      }`}
+                      style={{
+                        backgroundColor: isSelected
                           ? 'rgb(var(--primary) / 0.1)'
                           : 'rgb(var(--secondary))',
-                      borderColor:
-                        selectedAsset !== 'native' && selectedAsset.address === token.address
+                        borderColor: isSelected
                           ? 'rgb(var(--primary))'
                           : 'rgb(var(--border))',
-                    }}
-                  >
-                    <p className="font-medium truncate" style={{ color: 'rgb(var(--foreground))' }}>
-                      {token.symbol}
-                    </p>
-                    <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
-                      {token.formattedBalance}
-                    </p>
-                  </button>
-                ))}
+                      }}
+                    >
+                      <p
+                        className="font-medium truncate"
+                        style={{ color: 'rgb(var(--foreground))' }}
+                      >
+                        {token.symbol}
+                      </p>
+                      <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
+                        {token.formattedBalance}
+                      </p>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -375,10 +697,9 @@ export default function SendPage() {
             </p>
           </div>
 
-          {/* --- Single Transfer Mode --- */}
+          {/* Single Transfer */}
           {!isBatchMode && (
             <>
-              {/* Recipient */}
               <Input
                 label="Recipient Address"
                 placeholder="0x..."
@@ -386,8 +707,6 @@ export default function SendPage() {
                 onChange={(e) => setRecipient(e.target.value)}
                 error={!isValidRecipient ? 'Invalid address' : undefined}
               />
-
-              {/* Amount */}
               <Input
                 label={`Amount (${symbol})`}
                 type="number"
@@ -415,7 +734,7 @@ export default function SendPage() {
             </>
           )}
 
-          {/* --- Batch Transfer Mode --- */}
+          {/* Batch Transfer */}
           {isBatchMode && (
             <BatchRecipientList
               recipients={batchRecipients}
@@ -428,9 +747,9 @@ export default function SendPage() {
             />
           )}
 
-          {/* Gas Info */}
-          <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgb(var(--secondary))' }}>
-            {isBatchMode && batchValidCount >= 2 ? (
+          {/* Batch Gas Savings */}
+          {isBatchMode && batchValidCount >= 2 && (
+            <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgb(var(--secondary))' }}>
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span style={{ color: 'rgb(var(--muted-foreground))' }}>
@@ -460,40 +779,94 @@ export default function SendPage() {
                   </span>
                 </div>
               </div>
-            ) : (
-              <PaymasterSelector
-                selectedType={paymasterType}
-                onTypeChange={setPaymasterType}
-                supportedTokens={supportedTokens}
-                selectedTokenAddress={paymasterTokenAddress}
-                onTokenSelect={setPaymasterTokenAddress}
-                isLoadingTokens={isLoadingTokens}
-                sponsorshipPolicies={sponsorPolicies}
-                selectedPolicyId={paymasterPolicyId}
-                onPolicySelect={setPaymasterPolicyId}
-                isLoadingPolicies={isLoadingPolicies}
-                sponsorEligible={sponsorEligible}
-                depositBalance={formattedDeposit}
-                isLoading={paymasterLoading}
-                error={paymasterError?.message}
-              />
-            )}
-          </div>
-
-          {/* Error */}
-          {(error || sendError || batchError) && (
-            <div
-              className="p-3 rounded-lg border"
-              style={{
-                backgroundColor: 'rgb(var(--destructive) / 0.1)',
-                borderColor: 'rgb(var(--destructive) / 0.3)',
-              }}
-            >
-              <p className="text-sm" style={{ color: 'rgb(var(--destructive))' }}>
-                {sendError ?? batchError ?? error?.message}
-              </p>
             </div>
           )}
+
+          {/* Gas Payment Selection */}
+          <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgb(var(--secondary))' }}>
+            <PaymasterSelector
+              selectedMode={gasMode}
+              onModeChange={setGasMode}
+              depositBalance={formattedDeposit}
+              onDepositTopUp={handleDepositTopUp}
+              isDepositing={isDepositing}
+              sponsorAvailable={sponsorAvailable}
+              sponsorUnavailableReason={sponsorReason}
+              supportedTokens={supportedTokens}
+              selectedTokenAddress={gasTokenAddress}
+              onTokenSelect={setGasTokenAddress}
+              isLoadingTokens={isLoadingTokens}
+              tokenGasEstimate={
+                formattedTokenCost
+                  ? {
+                      formattedCost: formattedTokenCost,
+                      symbol:
+                        supportedTokens?.find((t) => t.address === gasTokenAddress)?.symbol ??
+                        'Token',
+                    }
+                  : null
+              }
+              isEstimatingGas={isEstimatingGas}
+              erc20ApprovalStatus={erc20ApprovalStatus}
+              onErc20Approve={
+                gasTokenAddress && address && paymasterAddress
+                  ? () => approveToken(gasTokenAddress, address, paymasterAddress)
+                  : undefined
+              }
+              erc20ApprovalError={erc20ApprovalError?.message}
+              paymasterHealthy={paymasterHealthy}
+              isLoading={paymasterLoading}
+              error={paymasterError?.message}
+            />
+          </div>
+
+          {/* Error Display */}
+          {(error || sendError || batchError) &&
+            (() => {
+              const errorMsg = sendError ?? batchError ?? error?.message ?? ''
+              const aaError = parseAAError(errorMsg)
+              return (
+                <div
+                  className="p-3 rounded-lg border space-y-2"
+                  style={{
+                    backgroundColor: 'rgb(var(--destructive) / 0.1)',
+                    borderColor: 'rgb(var(--destructive) / 0.3)',
+                  }}
+                >
+                  <p className="text-sm" style={{ color: 'rgb(var(--destructive))' }}>
+                    {aaError ? aaError.message : errorMsg}
+                  </p>
+                  {aaError?.suggestion && (
+                    <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
+                      {aaError.suggestion}
+                    </p>
+                  )}
+                  {aaError?.action === 'deposit' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGasMode('native')
+                        setSendError(null)
+                      }}
+                      className="text-xs font-medium underline"
+                      style={{ color: 'rgb(var(--primary))' }}
+                    >
+                      Switch to Self-Pay & Top Up Deposit
+                    </button>
+                  )}
+                  {aaError?.action === 'change-mode' && (
+                    <button
+                      type="button"
+                      onClick={() => setSendError(null)}
+                      className="text-xs font-medium underline"
+                      style={{ color: 'rgb(var(--primary))' }}
+                    >
+                      Try a Different Gas Payment Method
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
 
           {/* Actions */}
           <div className="flex gap-3 pt-4">
@@ -501,12 +874,11 @@ export default function SendPage() {
               Cancel
             </Button>
             <Button
-              onClick={isBatchMode ? handleBatchSend : handleSend}
+              onClick={handleReview}
               disabled={!canSend}
-              isLoading={isBatchMode ? isBatchExecuting : isLoading}
               className="flex-1"
             >
-              {isBatchMode ? `Send Batch (${batchValidCount})` : 'Send'}
+              {isBatchMode ? `Review Batch (${batchValidCount})` : 'Review'}
             </Button>
           </div>
         </CardContent>

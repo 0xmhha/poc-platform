@@ -31,8 +31,31 @@
 
   "signatureRequest": "Signature Request",
   "signingWith": "Signing with",
+  "signingStandard": "Signing Standard",
+  "eip712Label": "EIP-712 Typed Data (PackedUserOperation)",
+  "eip191Label": "EIP-191 Personal Sign (UserOperation Hash)",
   "message": "Message",
   "typedData": "Typed Data",
+  "userOpTypedDataDesc": "You are signing a UserOperation with the following EIP-712 structured data. Review the fields carefully before confirming.",
+  "userOpHashDesc": "You are signing a UserOperation hash with EIP-191. This hash represents the packed UserOperation sent to the EntryPoint.",
+
+  "userOpSummary": "Transaction Details",
+  "userOpSender": "From",
+  "userOpNonce": "Nonce",
+  "userOpRecipient": "To",
+  "userOpAmount": "Amount",
+  "userOpGasInfo": "Gas Settings",
+  "userOpVerificationGas": "Verification Gas",
+  "userOpCallGas": "Call Gas",
+  "userOpMaxFee": "Max Fee",
+  "userOpPriorityFee": "Priority Fee",
+  "userOpPreVerGas": "Pre-Verification Gas",
+  "userOpPaymaster": "Gas Payment (Paymaster)",
+  "userOpPaymasterAddr": "Paymaster",
+  "userOpPaymasterType": "Type",
+  "userOpSelfPay": "Self-pay: Gas paid from your account balance",
+  "userOpRawFields": "Raw PackedUserOperation fields",
+
   "securityWarnings": "Security Warnings",
   "sign": "Sign",
 
@@ -68,5 +91,8 @@
   "severityCritical": "CRITICAL",
   "severityHigh": "HIGH",
   "severityWarning": "WARNING",
-  "severityInfo": "INFO"
+  "severityInfo": "INFO",
+
+  "userOpGasToken": "Gas Token",
+  "userOpGasTokenCost": "Max Gas Cost"
 }

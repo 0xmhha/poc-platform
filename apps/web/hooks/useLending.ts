@@ -1,13 +1,18 @@
 'use client'
 
+import { HEALTH_FACTOR_HOOK_ABI, LENDING_EXECUTOR_ABI } from '@stablenet/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Address, Hex } from 'viem'
 import { encodeFunctionData } from 'viem'
 import { useAccount } from 'wagmi'
-import { LENDING_EXECUTOR_ABI, HEALTH_FACTOR_HOOK_ABI } from '@stablenet/core'
 import { useStableNetContext } from '@/providers'
+import type {
+  HealthFactorInfo,
+  LendingAccountConfig,
+  LendingMarket,
+  LendingPosition,
+} from '@/types/defi'
 import { useUserOp } from './useUserOp'
-import type { LendingAccountConfig, LendingMarket, LendingPosition, HealthFactorInfo } from '@/types/defi'
 
 // ============================================================================
 // Types
@@ -39,7 +44,7 @@ export interface UseLendingReturn {
 const LENDING_EXECUTOR_ADDRESS = '0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e' as const
 const HEALTH_FACTOR_HOOK_ADDRESS = '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0' as const
 
-const WAD = 1000000000000000000n // 1e18
+const _WAD = 1000000000000000000n // 1e18
 
 // Default lending markets for demo
 const DEFAULT_MARKETS: LendingMarket[] = [
@@ -106,6 +111,7 @@ export function useLending(): UseLendingReturn {
   const [error, setError] = useState<string | null>(null)
   const [executorInstalled, setExecutorInstalled] = useState(false)
   const fetchIdRef = useRef(0)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const fetchAccountData = useCallback(async () => {
     if (!address || !publicClient) return
@@ -115,12 +121,12 @@ export function useLending(): UseLendingReturn {
     setError(null)
     try {
       // Read lending executor account config
-      const config = await publicClient.readContract({
+      const config = (await publicClient.readContract({
         address: LENDING_EXECUTOR_ADDRESS,
         abi: LENDING_EXECUTOR_ABI,
         functionName: 'getAccountConfig',
         args: [address],
-      }) as [bigint, bigint, bigint, boolean]
+      })) as [bigint, bigint, bigint, boolean]
 
       if (id !== fetchIdRef.current) return
 
@@ -141,12 +147,12 @@ export function useLending(): UseLendingReturn {
 
       // Read health factor from hook
       try {
-        const hfConfig = await publicClient.readContract({
+        const hfConfig = (await publicClient.readContract({
           address: HEALTH_FACTOR_HOOK_ADDRESS,
           abi: HEALTH_FACTOR_HOOK_ABI,
           functionName: 'getAccountConfig',
           args: [address],
-        }) as [bigint, boolean, boolean]
+        })) as [bigint, boolean, boolean]
 
         if (id !== fetchIdRef.current) return
 
@@ -157,12 +163,12 @@ export function useLending(): UseLendingReturn {
         })
 
         if (hfConfig[2]) {
-          const currentHf = await publicClient.readContract({
+          const currentHf = (await publicClient.readContract({
             address: HEALTH_FACTOR_HOOK_ADDRESS,
             abi: HEALTH_FACTOR_HOOK_ABI,
             functionName: 'getCurrentHealthFactor',
             args: [address],
-          }) as bigint
+          })) as bigint
 
           if (id !== fetchIdRef.current) return
 
@@ -180,12 +186,12 @@ export function useLending(): UseLendingReturn {
       // in the ABI, we use asset checking per market.
       const positionPromises = markets.map(async (market) => {
         try {
-          const isAllowed = await publicClient.readContract({
+          const _isAllowed = (await publicClient.readContract({
             address: LENDING_EXECUTOR_ADDRESS,
             abi: LENDING_EXECUTOR_ABI,
             functionName: 'isAssetAllowed',
             args: [address, market.asset.address],
-          }) as boolean
+          })) as boolean
 
           // If the asset is allowed, it may have a position
           // In a real implementation, we'd query the lending pool contract
@@ -215,6 +221,13 @@ export function useLending(): UseLendingReturn {
     fetchAccountData()
   }, [fetchAccountData])
 
+  // Cleanup refresh timer on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(refreshTimerRef.current)
+    }
+  }, [])
+
   const sendExecutorOp = useCallback(
     async (calldata: Hex): Promise<Hex | null> => {
       if (!address) {
@@ -239,7 +252,7 @@ export function useLending(): UseLendingReturn {
           throw new Error('Failed to send UserOperation')
         }
 
-        setTimeout(() => fetchAccountData(), 3000)
+        refreshTimerRef.current = setTimeout(() => fetchAccountData(), 3000)
         return result.userOpHash
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Operation failed'

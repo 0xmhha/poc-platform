@@ -112,33 +112,20 @@ export function SessionKeysView({
 // Sub-Components
 // ============================================================================
 
-function SessionKeyCard({
-  module,
-  onClick,
-}: {
-  module: InstalledModule
-  onClick: () => void
-}) {
+function SessionKeyCard({ module, onClick }: { module: InstalledModule; onClick: () => void }) {
   const truncatedAddress = `${module.address.slice(0, 8)}...${module.address.slice(-6)}`
 
   return (
-    <div
-      className="rounded-xl p-4 transition-colors"
+    <button
+      type="button"
+      className="rounded-xl p-4 transition-colors w-full text-left"
       style={{
         backgroundColor: 'rgb(var(--card))',
         borderWidth: 1,
         borderColor: 'rgb(var(--border))',
         cursor: 'pointer',
       }}
-      role="button"
-      tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onClick()
-        }
-      }}
     >
       <div className="flex items-center gap-3">
         <div
@@ -166,14 +153,11 @@ function SessionKeyCard({
         </span>
       </div>
       {module.metadata.description && (
-        <p
-          className="text-xs mt-2 truncate"
-          style={{ color: 'rgb(var(--muted-foreground))' }}
-        >
+        <p className="text-xs mt-2 truncate" style={{ color: 'rgb(var(--muted-foreground))' }}>
           {module.metadata.description}
         </p>
       )}
-    </div>
+    </button>
   )
 }
 

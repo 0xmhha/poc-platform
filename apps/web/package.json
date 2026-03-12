@@ -11,12 +11,14 @@
     "lint": "biome lint app/ components/ hooks/ lib/",
     "lint:fix": "biome lint --write app/ components/ hooks/ lib/",
     "typecheck": "tsc --noEmit",
-    "test": "vitest",
-    "test:run": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@stablenet/contracts": "workspace:*",
     "@stablenet/core": "workspace:*",
+    "@stablenet/types": "workspace:*",
+    "@stablenet/plugin-defi": "workspace:*",
     "@stablenet/plugin-ecdsa": "workspace:*",
     "@stablenet/plugin-stealth": "workspace:*",
     "@stablenet/wallet-sdk": "workspace:*",
@@ -29,19 +31,20 @@
     "wagmi": "^3.5.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.4",
+    "@biomejs/biome": "^2.4.6",
+    "@tailwindcss/postcss": "^4.2.1",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^16.3.2",
     "@testing-library/react-hooks": "^8.0.1",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^25.3.2",
+    "@types/node": "^25.3.5",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.24",
-    "jsdom": "^27.4.0",
+    "jsdom": "^28.1.0",
     "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.2.1",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"
   }

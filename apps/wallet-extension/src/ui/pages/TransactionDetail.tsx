@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatEther } from 'viem'
+import { formatEther, formatGwei } from 'viem'
 import type { TransactionStepperStatus } from '../components/common/TransactionStepper'
 import { TransactionStepper } from '../components/common/TransactionStepper'
 import { useNetworkCurrency, useSelectedNetwork } from '../hooks'
 import { useWalletStore } from '../hooks/useWalletStore'
+
+type ActionFeedback = 'speedUpSuccess' | 'speedUpError' | 'cancelSuccess' | 'cancelError' | null
 
 /**
  * Transaction Detail Page
@@ -19,6 +21,7 @@ export function TransactionDetail() {
   const { symbol: currencySymbol } = useNetworkCurrency()
   const [isSpeedingUp, setIsSpeedingUp] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback>(null)
 
   // Find transaction from store
   const tx = useMemo(() => {
@@ -67,11 +70,16 @@ export function TransactionDetail() {
     navigator.clipboard.writeText(text)
   }
 
+  function showFeedback(type: ActionFeedback) {
+    setActionFeedback(type)
+    setTimeout(() => setActionFeedback(null), 3000)
+  }
+
   async function handleSpeedUp() {
     if (!tx?.txHash) return
     setIsSpeedingUp(true)
     try {
-      await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage({
         type: 'RPC_REQUEST',
         id: `speedup-${Date.now()}`,
         payload: {
@@ -81,8 +89,14 @@ export function TransactionDetail() {
           params: [{ hash: tx.txHash }],
         },
       })
+      if (response?.payload?.error) {
+        showFeedback('speedUpError')
+      } else {
+        showFeedback('speedUpSuccess')
+        syncWithBackground().catch(() => {})
+      }
     } catch {
-      // Speed up failed
+      showFeedback('speedUpError')
     } finally {
       setIsSpeedingUp(false)
     }
@@ -92,7 +106,7 @@ export function TransactionDetail() {
     if (!tx?.txHash) return
     setIsCancelling(true)
     try {
-      await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage({
         type: 'RPC_REQUEST',
         id: `cancel-${Date.now()}`,
         payload: {
@@ -102,10 +116,24 @@ export function TransactionDetail() {
           params: [{ hash: tx.txHash }],
         },
       })
+      if (response?.payload?.error) {
+        showFeedback('cancelError')
+      } else {
+        showFeedback('cancelSuccess')
+        syncWithBackground().catch(() => {})
+      }
     } catch {
-      // Cancel failed
+      showFeedback('cancelError')
     } finally {
       setIsCancelling(false)
+    }
+  }
+
+  function openExplorer(url: string) {
+    try {
+      chrome.tabs.create({ url })
+    } catch {
+      window.open(url, '_blank')
     }
   }
 
@@ -228,7 +256,7 @@ export function TransactionDetail() {
                 <button
                   type="button"
                   onClick={() =>
-                    chrome.tabs.create({ url: `${currentNetwork.explorerUrl}/tx/${tx.txHash}` })
+                    openExplorer(`${currentNetwork.explorerUrl}/tx/${tx.txHash}`)
                   }
                   className="p-1"
                   style={{ color: 'rgb(var(--primary))' }}
@@ -263,7 +291,10 @@ export function TransactionDetail() {
           <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
             {t('from')}
           </p>
-          <p className="text-sm font-mono mt-0.5 break-all" style={{ color: 'rgb(var(--foreground))' }}>
+          <p
+            className="text-sm font-mono mt-0.5 break-all"
+            style={{ color: 'rgb(var(--foreground))' }}
+          >
             {tx.from}
           </p>
         </div>
@@ -273,7 +304,10 @@ export function TransactionDetail() {
           <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
             {t('to')}
           </p>
-          <p className="text-sm font-mono mt-0.5 break-all" style={{ color: 'rgb(var(--foreground))' }}>
+          <p
+            className="text-sm font-mono mt-0.5 break-all"
+            style={{ color: 'rgb(var(--foreground))' }}
+          >
             {tx.to || '-'}
           </p>
         </div>
@@ -296,7 +330,7 @@ export function TransactionDetail() {
                 {t('gasUsed')}
               </p>
               <p className="text-sm mt-0.5" style={{ color: 'rgb(var(--foreground))' }}>
-                {tx.gasUsed.toString()}
+                {Number(tx.gasUsed).toLocaleString()}
               </p>
             </div>
             {tx.gasPrice && (
@@ -305,7 +339,7 @@ export function TransactionDetail() {
                   {t('gasPrice')}
                 </p>
                 <p className="text-sm mt-0.5" style={{ color: 'rgb(var(--foreground))' }}>
-                  {tx.gasPrice.toString()}
+                  {formatGwei(tx.gasPrice)} Gwei
                 </p>
               </div>
             )}
@@ -401,6 +435,25 @@ export function TransactionDetail() {
         </div>
       )}
 
+      {/* Action Feedback */}
+      {actionFeedback && (
+        <div
+          className="rounded-lg px-3 py-2 text-xs text-center"
+          style={{
+            backgroundColor: actionFeedback.includes('Error')
+              ? 'rgb(var(--destructive) / 0.1)'
+              : 'rgb(var(--success) / 0.1)',
+            color: actionFeedback.includes('Error')
+              ? 'rgb(var(--destructive))'
+              : 'rgb(var(--success))',
+          }}
+        >
+          {actionFeedback === 'speedUpSuccess' && t('speedUpSuccess')}
+          {actionFeedback === 'speedUpError' && t('speedUpFailed')}
+          {actionFeedback === 'cancelSuccess' && t('cancelSuccess')}
+          {actionFeedback === 'cancelError' && t('cancelFailed')}
+        </div>
+      )}
     </div>
   )
 }

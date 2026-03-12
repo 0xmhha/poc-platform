@@ -6,12 +6,21 @@
  */
 export {
   CALL_TYPE,
+  type CallType,
+  decodeExecutionMode,
   ECDSA_VALIDATOR_ADDRESS,
   ENTRY_POINT_ADDRESS,
   ENTRY_POINT_V07_ADDRESS,
+  ENTRY_POINT_V09_ADDRESS,
+  ENTRY_POINT_V09_CANONICAL_ADDRESS,
   EXEC_MODE,
+  EXEC_TYPE,
+  type ExecType,
+  type ExecutionMode,
+  encodeExecutionMode,
   KERNEL_ADDRESSES,
   KERNEL_V3_1_FACTORY_ADDRESS,
+  SENDER_CREATOR_V09_ADDRESS,
 } from '@stablenet/types'
 
 /**

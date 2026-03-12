@@ -19,6 +19,7 @@
     "lint": "biome lint src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:ci": "vitest run",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -26,7 +27,7 @@
     "viem": "^2.46.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.4",
+    "@biomejs/biome": "^2.4.6",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
   }

@@ -1,12 +1,12 @@
-import type { Address, Hex } from 'viem'
 import {
-  PaymasterType as PaymasterTypeEnum,
-  encodePaymasterData,
-  encodeSponsorPayload,
   encodeErc20Payload,
+  encodePaymasterData,
   encodePermit2Payload,
+  encodeSponsorPayload,
   encodeVerifyingPayload,
+  PaymasterType as PaymasterTypeEnum,
 } from '@stablenet/core'
+import type { Address, Hex } from 'viem'
 import type { SponsorPolicyManager } from '../policy/sponsorPolicy'
 import type { ReservationTracker } from '../settlement/reservationTracker'
 import { computeUserOpHash } from '../settlement/userOpHasher'
@@ -20,11 +20,40 @@ import type {
 } from '../types'
 import { estimateGasCost } from '../utils/gasEstimator'
 import { normalizeUserOp } from '../utils/userOpNormalizer'
-import { toPolicyIdBytes32, validateChainId, validateEntryPoint, validateTimeRange } from '../utils/validation'
+import {
+  toPolicyIdBytes32,
+  validateChainId,
+  validateEntryPoint,
+  validateTimeRange,
+} from '../utils/validation'
 
 /** Default validity window for non-signed envelope types (ERC20, Permit2) */
 const DEFAULT_VALID_UNTIL_SECONDS = 300
 const DEFAULT_CLOCK_SKEW_SECONDS = 60
+
+/**
+ * Fallback KRWC→USDC conversion rate for display purposes.
+ * 1 USDC = 1500 KRWC → 1 KRWC = 1/1500 USDC.
+ * To avoid precision loss with integer division, we multiply by a scale factor first.
+ *
+ * Formula: usdcAmount = gasCostWei * USDC_SCALE / (KRWC_PER_USDC * NATIVE_DECIMALS_FACTOR)
+ * where USDC_SCALE = 1e6 (USDC has 6 decimals)
+ */
+const KRWC_PER_USDC = 1500n
+const USDC_SCALE = 10n ** 6n
+const NATIVE_DECIMALS_FACTOR = 10n ** 18n
+/** Buffer for price volatility + paymaster markup (30%) */
+const PRICE_BUFFER_PERCENT = 30n
+
+/**
+ * Estimate maxTokenCost (USDC, 6 decimals) from gas cost in native wei (KRWC).
+ * Adds a 30% buffer over the base estimate for price safety.
+ */
+function estimateMaxTokenCostFromGas(gasCostWei: bigint): bigint {
+  if (gasCostWei <= 0n) return 0n
+  const baseCost = (gasCostWei * USDC_SCALE) / (KRWC_PER_USDC * NATIVE_DECIMALS_FACTOR)
+  return baseCost + (baseCost * PRICE_BUFFER_PERCENT) / 100n
+}
 
 export type { GetPaymasterDataParams }
 
@@ -150,7 +179,10 @@ async function handleVerifyingData(
     entryPoint,
     BigInt(chainId),
     PaymasterTypeEnum.VERIFYING,
-    payload
+    payload,
+    undefined,
+    undefined,
+    paymasterAddress
   )
 
   // Phase 1: Track reservation with userOpHash for receipt-based settlement
@@ -181,10 +213,10 @@ async function handleSponsorData(
   const { userOp, entryPoint, chainId, context } = params
   const { signer, policyManager, reservationTracker } = config
 
-  const campaignId = context?.campaignId ?? ('0x' + '00'.repeat(32)) as Hex
+  const campaignId = context?.campaignId ?? (('0x' + '00'.repeat(32)) as Hex)
   const perUserLimit = BigInt(context?.perUserLimit ?? 0)
-  const targetContract = context?.targetContract ?? ('0x' + '00'.repeat(20)) as Address
-  const targetSelector = context?.targetSelector ?? '0x00000000' as Hex
+  const targetContract = context?.targetContract ?? (('0x' + '00'.repeat(20)) as Address)
+  const targetSelector = context?.targetSelector ?? ('0x00000000' as Hex)
 
   const payload = encodeSponsorPayload({
     campaignId,
@@ -210,7 +242,10 @@ async function handleSponsorData(
     entryPoint,
     BigInt(chainId),
     PaymasterTypeEnum.SPONSOR,
-    payload
+    payload,
+    undefined,
+    undefined,
+    paymasterAddress
   )
 
   // Phase 1: Track reservation with userOpHash for receipt-based settlement
@@ -256,12 +291,20 @@ function handleErc20Data(
   const normalizedUserOp = normalizeUserOp(userOp)
   const estimatedGasCost = estimateGasCost(normalizedUserOp)
   const policyId = context?.policyId ?? 'default'
-  const policyResult = config.policyManager.checkPolicy(normalizedUserOp, policyId, estimatedGasCost)
+  const policyResult = config.policyManager.checkPolicy(
+    normalizedUserOp,
+    policyId,
+    estimatedGasCost
+  )
   if (!policyResult.allowed) {
     return { success: false, error: policyResult.rejection }
   }
 
-  const maxTokenCost = BigInt(context?.maxTokenCost ?? 0)
+  // Calculate maxTokenCost from gas estimate if not provided by context.
+  // This allows the wallet UI to display the estimated USDC cost to the user.
+  const contextMaxTokenCost = context?.maxTokenCost ? BigInt(context.maxTokenCost) : 0n
+  const maxTokenCost =
+    contextMaxTokenCost > 0n ? contextMaxTokenCost : estimateMaxTokenCostFromGas(estimatedGasCost)
   const quoteId = BigInt(context?.quoteId ?? 0)
 
   const payload = encodeErc20Payload({
@@ -285,7 +328,7 @@ function handleErc20Data(
     flags: 0,
     validUntil: BigInt(validUntil),
     validAfter: BigInt(validAfter),
-    nonce: 0n,
+    nonce: generateEnvelopeNonce(),
     payload,
   })
 
@@ -293,6 +336,16 @@ function handleErc20Data(
     success: true,
     data: { paymaster: paymasterAddress, paymasterData },
   }
+}
+
+/**
+ * Generate a cryptographically random nonce for non-signed envelope types.
+ * Uses crypto.getRandomValues to avoid collision risk from Date.now().
+ */
+function generateEnvelopeNonce(): bigint {
+  const bytes = new Uint8Array(8)
+  crypto.getRandomValues(bytes)
+  return bytes.reduce((acc, byte) => (acc << 8n) | BigInt(byte), 0n)
 }
 
 /**
@@ -313,7 +366,11 @@ function handlePermit2Data(
   const normalizedUserOp = normalizeUserOp(userOp)
   const estimatedGasCost = estimateGasCost(normalizedUserOp)
   const policyId = context?.policyId ?? 'default'
-  const policyResult = config.policyManager.checkPolicy(normalizedUserOp, policyId, estimatedGasCost)
+  const policyResult = config.policyManager.checkPolicy(
+    normalizedUserOp,
+    policyId,
+    estimatedGasCost
+  )
   if (!policyResult.allowed) {
     return { success: false, error: policyResult.rejection }
   }
@@ -329,8 +386,8 @@ function handlePermit2Data(
     })
 
     const now = Math.floor(Date.now() / 1000)
-    const validUntil = now + 300
-    const validAfter = now - 60
+    const validUntil = now + DEFAULT_VALID_UNTIL_SECONDS
+    const validAfter = now - DEFAULT_CLOCK_SKEW_SECONDS
 
     const timeError = validateTimeRange(validUntil, validAfter, now)
     if (timeError) {
@@ -342,7 +399,7 @@ function handlePermit2Data(
       flags: 0,
       validUntil: BigInt(validUntil),
       validAfter: BigInt(validAfter),
-      nonce: 0n,
+      nonce: generateEnvelopeNonce(),
       payload,
     })
 

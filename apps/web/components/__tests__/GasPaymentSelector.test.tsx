@@ -13,9 +13,7 @@ vi.mock('wagmi', () => ({
 
 describe('F-03: GasPaymentSelector', () => {
   it('should render all 3 gas payment options for Smart Account', async () => {
-    const { GasPaymentSelector } = await import(
-      '@/components/payment/GasPaymentSelector'
-    )
+    const { GasPaymentSelector } = await import('@/components/payment/GasPaymentSelector')
     const onModeChange = vi.fn()
 
     render(
@@ -33,9 +31,7 @@ describe('F-03: GasPaymentSelector', () => {
   })
 
   it('should disable unavailable modes for EOA', async () => {
-    const { GasPaymentSelector } = await import(
-      '@/components/payment/GasPaymentSelector'
-    )
+    const { GasPaymentSelector } = await import('@/components/payment/GasPaymentSelector')
     const onModeChange = vi.fn()
 
     render(
@@ -47,22 +43,20 @@ describe('F-03: GasPaymentSelector', () => {
     )
 
     // Self-pay should be enabled
-    const selfPayOption = screen.getByTestId('gas-mode-self-pay')
+    const selfPayOption = screen.getByTestId('gas-mode-self-pay') as HTMLButtonElement
     expect(selfPayOption).toBeDefined()
-    expect(selfPayOption.getAttribute('aria-disabled')).not.toBe('true')
+    expect(selfPayOption.disabled).toBe(false)
 
     // ERC-20 and sponsored should be disabled
-    const erc20Option = screen.getByTestId('gas-mode-erc20-paymaster')
-    expect(erc20Option.getAttribute('aria-disabled')).toBe('true')
+    const erc20Option = screen.getByTestId('gas-mode-erc20-paymaster') as HTMLButtonElement
+    expect(erc20Option.disabled).toBe(true)
 
-    const sponsoredOption = screen.getByTestId('gas-mode-sponsored')
-    expect(sponsoredOption.getAttribute('aria-disabled')).toBe('true')
+    const sponsoredOption = screen.getByTestId('gas-mode-sponsored') as HTMLButtonElement
+    expect(sponsoredOption.disabled).toBe(true)
   })
 
   it('should call onModeChange when option clicked', async () => {
-    const { GasPaymentSelector } = await import(
-      '@/components/payment/GasPaymentSelector'
-    )
+    const { GasPaymentSelector } = await import('@/components/payment/GasPaymentSelector')
     const onModeChange = vi.fn()
     const user = userEvent.setup()
 
@@ -80,9 +74,7 @@ describe('F-03: GasPaymentSelector', () => {
   })
 
   it('should NOT call onModeChange when disabled option clicked', async () => {
-    const { GasPaymentSelector } = await import(
-      '@/components/payment/GasPaymentSelector'
-    )
+    const { GasPaymentSelector } = await import('@/components/payment/GasPaymentSelector')
     const onModeChange = vi.fn()
     const user = userEvent.setup()
 
@@ -100,9 +92,7 @@ describe('F-03: GasPaymentSelector', () => {
   })
 
   it('should show deposit balance when provided', async () => {
-    const { GasPaymentSelector } = await import(
-      '@/components/payment/GasPaymentSelector'
-    )
+    const { GasPaymentSelector } = await import('@/components/payment/GasPaymentSelector')
 
     render(
       <GasPaymentSelector
@@ -117,9 +107,7 @@ describe('F-03: GasPaymentSelector', () => {
   })
 
   it('should highlight selected mode', async () => {
-    const { GasPaymentSelector } = await import(
-      '@/components/payment/GasPaymentSelector'
-    )
+    const { GasPaymentSelector } = await import('@/components/payment/GasPaymentSelector')
 
     render(
       <GasPaymentSelector

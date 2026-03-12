@@ -63,8 +63,9 @@ export async function toKernelSmartAccount(
   } = config
 
   // Duck-type detection: ValidatorRouter has getActiveValidator method
-  const isRouter = 'getActiveValidator' in validatorOrRouter
-    && typeof (validatorOrRouter as ValidatorRouterLike).getActiveValidator === 'function'
+  const isRouter =
+    'getActiveValidator' in validatorOrRouter &&
+    typeof (validatorOrRouter as ValidatorRouterLike).getActiveValidator === 'function'
 
   // For initialization, always use the root/primary validator
   const initValidator: Validator = isRouter
@@ -89,9 +90,7 @@ export async function toKernelSmartAccount(
   const getNonce = async (): Promise<bigint> => {
     // Get nonce from EntryPoint
     // The key is validator-specific: 0n for root, encoded key for non-root
-    const nonceKey = isRouter
-      ? (validatorOrRouter as ValidatorRouterLike).getActiveNonceKey()
-      : 0n
+    const nonceKey = isRouter ? (validatorOrRouter as ValidatorRouterLike).getActiveNonceKey() : 0n
 
     const nonce = await client.readContract({
       address: entryPoint,
@@ -197,9 +196,21 @@ async function getKernelAddress(
       args: [initData, salt],
     })
     return address
-  } catch {
-    // If factory call fails, calculate using CREATE2
-    // This is a fallback for when the factory is not deployed yet
+  } catch (error) {
+    // Only fallback to CREATE2 for contract-level errors (factory not deployed).
+    // Re-throw network/transport errors so callers know the RPC is unreachable.
+    const isNetworkError =
+      error instanceof Error &&
+      (error.message.includes('fetch') ||
+        error.message.includes('network') ||
+        error.message.includes('ECONNREFUSED') ||
+        error.message.includes('timeout') ||
+        error.message.includes('ENOTFOUND'))
+    if (isNetworkError) {
+      throw error
+    }
+
+    // Factory not deployed or contract revert — calculate using CREATE2
     const initCodeHash = keccak256(initData)
     return getContractAddress({
       bytecodeHash: initCodeHash,

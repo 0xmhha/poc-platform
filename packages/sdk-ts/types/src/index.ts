@@ -42,24 +42,36 @@ export { BUNDLER_ERROR_CODES, BUNDLER_ERROR_CODES as RPC_BUNDLER_ERROR_CODES } f
 // ============================================================================
 export {
   CALL_TYPE,
+  type CallType,
+  decodeExecutionMode,
   ECDSA_VALIDATOR_ADDRESS,
   ENTRY_POINT_ADDRESS,
   ENTRY_POINT_V07_ADDRESS,
+  ENTRY_POINT_V09_ADDRESS,
+  ENTRY_POINT_V09_CANONICAL_ADDRESS,
   // MODULE_TYPE is exported from ./module with complete 6 types
   EXEC_MODE,
+  EXEC_TYPE,
+  type ExecType,
+  type ExecutionMode,
+  encodeExecutionMode,
   KERNEL_ADDRESSES,
   KERNEL_V3_1_FACTORY_ADDRESS,
+  SENDER_CREATOR_V09_ADDRESS,
 } from './constants'
 // ============================================================================
 // Module types
 // ============================================================================
 export {
   type AuditHookConfig,
+  type DelegatecallWhitelistEnforceRequest,
+  type DelegatecallWhitelistRequest,
   // Validator configs
   type ECDSAValidatorConfig,
   type FieldValidation,
   type FlashLoanConfig,
   getModuleTypeName,
+  type HookGasLimitRequest,
   type InstalledModule,
   isExecutor,
   isFallback,
@@ -84,9 +96,6 @@ export {
   // Types
   type ModuleType,
   type ModuleUninstallRequest,
-  type HookGasLimitRequest,
-  type DelegatecallWhitelistRequest,
-  type DelegatecallWhitelistEnforceRequest,
   type MultiSigValidatorConfig,
   type RecurringPaymentConfig,
   // Executor configs
@@ -112,6 +121,7 @@ export {
   // Constants
   PAYMASTER_RPC_METHODS,
   type PaymasterClientConfig,
+  PostOpMode,
   type SponsorPolicy,
   type SupportedToken,
 } from './paymaster'

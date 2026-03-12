@@ -1,13 +1,13 @@
 'use client'
 
+import { STAKING_EXECUTOR_ABI } from '@stablenet/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Address, Hex } from 'viem'
 import { encodeFunctionData } from 'viem'
 import { useAccount } from 'wagmi'
-import { STAKING_EXECUTOR_ABI } from '@stablenet/core'
 import { useStableNetContext } from '@/providers'
+import type { StakingAccountConfig, StakingPool, StakingPosition } from '@/types/defi'
 import { useUserOp } from './useUserOp'
-import type { StakingAccountConfig, StakingPosition, StakingPool } from '@/types/defi'
 
 // ============================================================================
 // Types
@@ -90,7 +90,7 @@ export function useStaking(): UseStakingReturn {
   const { publicClient } = useStableNetContext()
   const { sendUserOp } = useUserOp()
 
-  const [pools, setPools] = useState<StakingPool[]>(DEFAULT_POOLS)
+  const [pools, _setPools] = useState<StakingPool[]>(DEFAULT_POOLS)
   const [positions, setPositions] = useState<StakingPosition[]>([])
   const [accountConfig, setAccountConfig] = useState<StakingAccountConfig | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -98,6 +98,7 @@ export function useStaking(): UseStakingReturn {
   const [error, setError] = useState<string | null>(null)
   const [executorInstalled, setExecutorInstalled] = useState(false)
   const fetchIdRef = useRef(0)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   // Fetch account config and positions
   const fetchAccountData = useCallback(async () => {
@@ -108,12 +109,12 @@ export function useStaking(): UseStakingReturn {
     setError(null)
     try {
       // Check if staking executor is installed by reading account config
-      const config = await publicClient.readContract({
+      const config = (await publicClient.readContract({
         address: STAKING_EXECUTOR_ADDRESS,
         abi: STAKING_EXECUTOR_ABI,
         functionName: 'getAccountConfig',
         args: [address],
-      }) as [bigint, bigint, bigint, boolean, boolean]
+      })) as [bigint, bigint, bigint, boolean, boolean]
 
       if (id !== fetchIdRef.current) return
 
@@ -136,21 +137,21 @@ export function useStaking(): UseStakingReturn {
       // Fetch positions for each pool
       const positionPromises = pools.map(async (pool) => {
         try {
-          const stakedAmount = await publicClient.readContract({
+          const stakedAmount = (await publicClient.readContract({
             address: STAKING_EXECUTOR_ADDRESS,
             abi: STAKING_EXECUTOR_ABI,
             functionName: 'getStakedAmount',
             args: [address, pool.address],
-          }) as bigint
+          })) as bigint
 
           if (stakedAmount === 0n) return null
 
-          const pendingRewards = await publicClient.readContract({
+          const pendingRewards = (await publicClient.readContract({
             address: STAKING_EXECUTOR_ADDRESS,
             abi: STAKING_EXECUTOR_ABI,
             functionName: 'getPendingRewards',
             args: [address, pool.address],
-          }) as bigint
+          })) as bigint
 
           return {
             pool: pool.address,
@@ -185,6 +186,13 @@ export function useStaking(): UseStakingReturn {
     fetchAccountData()
   }, [fetchAccountData])
 
+  // Cleanup refresh timer on unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(refreshTimerRef.current)
+    }
+  }, [])
+
   // Send a staking executor operation via useUserOp
   const sendExecutorOp = useCallback(
     async (calldata: Hex): Promise<Hex | null> => {
@@ -210,7 +218,7 @@ export function useStaking(): UseStakingReturn {
           throw new Error('Failed to send UserOperation')
         }
 
-        setTimeout(() => fetchAccountData(), 3000)
+        refreshTimerRef.current = setTimeout(() => fetchAccountData(), 3000)
         return result.userOpHash
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Operation failed'

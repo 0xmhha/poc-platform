@@ -123,19 +123,19 @@ export {
 // Constants
 // ============================================================================
 
-/** ERC-7579 Module Types */
+/** ERC-7579 Module Types (uint256 per spec) */
 export const MODULE_TYPE = {
-  VALIDATOR: 1,
-  EXECUTOR: 2,
-  FALLBACK: 3,
-  HOOK: 4,
+  VALIDATOR: 1n,
+  EXECUTOR: 2n,
+  FALLBACK: 3n,
+  HOOK: 4n,
 } as const
 
 /** Default configuration values */
 export const DEFAULTS = {
   /** Default max slippage: 1% (100 basis points) */
   MAX_SLIPPAGE_BPS: 100,
-  /** Default daily limit: 10 ETH */
+  /** Default daily limit: 10 WKRC */
   DAILY_LIMIT: BigInt('10000000000000000000'),
   /** Default max LTV: 80% (8000 basis points) */
   MAX_LTV: 8000,

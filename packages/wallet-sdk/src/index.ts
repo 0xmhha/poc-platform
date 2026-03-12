@@ -15,24 +15,6 @@
  * ```
  */
 
-// EIP-4337 AA Error Framework
-export {
-  AAError,
-  extractAAErrorCode,
-  extractRevertReason,
-  getAAErrorInfo,
-  parseAAError,
-  type AAErrorInfo,
-  type AAErrorSeverity,
-  // Core SDK error types
-  BundlerError,
-  PaymasterError,
-  SdkError,
-  UserOperationError,
-  type BundlerErrorCode,
-  type ErrorContext,
-  type SdkErrorCode,
-} from './errors'
 // Config
 export {
   DEFAULT_NETWORKS,
@@ -46,6 +28,24 @@ export {
   toNetworkConfig,
   toNetworkInfo,
 } from './config'
+// EIP-4337 AA Error Framework
+export {
+  AAError,
+  type AAErrorInfo,
+  type AAErrorSeverity,
+  // Core SDK error types
+  BundlerError,
+  type BundlerErrorCode,
+  type ErrorContext,
+  extractAAErrorCode,
+  extractRevertReason,
+  getAAErrorInfo,
+  PaymasterError,
+  parseAAError,
+  SdkError,
+  type SdkErrorCode,
+  UserOperationError,
+} from './errors'
 // EIP-2255 Permissions
 export {
   type AccountsCaveat,
@@ -143,9 +143,9 @@ export type {
   NativeCurrency,
   NetworkConfig,
   NetworkInfo,
+  ProviderConnectInfo,
   // Provider types
   ProviderEvent,
-  ProviderConnectInfo,
   ProviderRpcError,
   // Utility types
   Result,
@@ -164,99 +164,129 @@ export { RPC_ERROR_CODES } from './types'
 // EIP-4337 UserOperation utilities
 export {
   computeUserOpHash,
-  getUserOperationHash,
-  packUserOperation,
-  unpackUserOperation,
-  UserOperationBuilder,
-  UserOperationValidationError,
   type FactoryConfig,
   type GasFeesConfig,
   type GasLimitsConfig,
+  getUserOperationHash,
   type PackedUserOperation,
   type PaymasterConfig,
+  packUserOperation,
   type UserOperation,
+  UserOperationBuilder,
+  UserOperationValidationError,
+  unpackUserOperation,
 } from './userOp'
 
 // ============================================================================
 // New ERC-4337 Modules (from @stablenet/core integration)
 // ============================================================================
 
+// EIP-4337 v0.9 Gas Penalty
+export {
+  calculateEffectiveGasCost,
+  calculateUnusedGasPenalty,
+  UNUSED_GAS_PENALTY_DIVISOR,
+  UNUSED_GAS_PENALTY_THRESHOLD,
+} from '@stablenet/core'
 // Bundler Client
 export {
+  type BundlerClient,
+  type BundlerClientConfig,
   createBundlerClient,
   ENTRY_POINT_ADDRESS,
   ENTRY_POINT_V07_ADDRESS,
-  type BundlerClient,
-  type BundlerClientConfig,
   type UserOperationGasEstimation,
   type WaitForUserOperationReceiptOptions,
 } from './bundler'
-
-// Paymaster Client
+// EntryPoint
 export {
-  createPaymasterClient,
-  getPaymasterStubData,
-  getPaymasterData,
-  type ERC20PaymentEstimate,
-  type PartialUserOperationForPaymaster,
-  type PaymasterClientInstance,
-  type PaymasterResponse,
-  type PaymasterClientConfig,
-  type SponsorPolicy,
-  type SupportedToken,
-  type PaymasterStubDataResponse,
-  type PaymasterDataResponse,
-  type PaymasterUserOpContext,
-} from './paymaster'
-
-// Nonce Management
-export { getNonce, parseNonce, encodeNonceKey } from './nonce'
-
+  ENTRY_POINT_ABI,
+  ENTRY_POINT_V09_ADDRESS,
+  ENTRY_POINT_V09_CANONICAL_ADDRESS,
+  getEntryPointVersion,
+  isEntryPointV06,
+  isEntryPointV07,
+  isEntryPointV09,
+  SENDER_CREATOR_V09_ADDRESS,
+} from './entrypoint'
+// ERC-7579 Execution Mode
+export { CALL_TYPE, EXEC_MODE } from './execution'
+// Factory / Counterfactual
+export {
+  getSenderAddress,
+  KERNEL_V3_1_FACTORY_ADDRESS,
+  predictCounterfactualAddress,
+} from './factory'
 // Gas Estimation
 export {
   createGasEstimator,
   createSmartAccountGasStrategy,
-  estimateUserOperationGas,
   DEFAULT_CALL_GAS_LIMIT,
-  DEFAULT_VERIFICATION_GAS_LIMIT,
   DEFAULT_PRE_VERIFICATION_GAS,
-  PAYMASTER_VERIFICATION_GAS,
-  PAYMASTER_POST_OP_GAS,
+  DEFAULT_VERIFICATION_GAS_LIMIT,
+  type ERC20GasEstimate,
+  estimateUserOperationGas,
   type GasEstimator,
   type GasEstimatorConfig,
   type GasPriceInfo,
-  type ERC20GasEstimate,
+  PAYMASTER_POST_OP_GAS,
+  PAYMASTER_VERIFICATION_GAS,
 } from './gas'
-
-// Factory / Counterfactual
+// Mempool Monitoring
 export {
-  getSenderAddress,
-  predictCounterfactualAddress,
-  KERNEL_V3_1_FACTORY_ADDRESS,
-} from './factory'
-
-// EntryPoint
+  type MonitorConfig,
+  type StatusChangeCallback,
+  type TrackedUserOp,
+  UserOpMonitor,
+  type UserOpStatus,
+} from './mempool'
+// Nonce Management
+export { encodeNonceKey, getNonce, parseNonce } from './nonce'
+// Paymaster Client
 export {
-  ENTRY_POINT_ABI,
-  getEntryPointVersion,
-  isEntryPointV07,
-  isEntryPointV06,
-} from './entrypoint'
-
+  createPaymasterClient,
+  type ERC20PaymentEstimate,
+  getPaymasterData,
+  getPaymasterStubData,
+  type PartialUserOperationForPaymaster,
+  type PaymasterClientConfig,
+  type PaymasterClientInstance,
+  type PaymasterDataResponse,
+  type PaymasterResponse,
+  type PaymasterStubDataResponse,
+  type PaymasterUserOpContext,
+  type SponsorPolicy,
+  type SupportedToken,
+} from './paymaster'
+// Paymaster Selector (multi-paymaster fallback)
+export {
+  createPaymasterSelector,
+  createPaymasterSelectorFromUrl,
+  type PaymasterEndpoint,
+  type PaymasterSelectionResult,
+  type PaymasterSelector,
+  type PaymasterSelectorConfig,
+  PaymasterSelectorError,
+} from './paymaster/selector'
 // ERC-1271 Signature Verification
 export {
-  isValidSignature,
-  verifySignature,
   isSmartContractAccount,
+  isValidSignature,
   type SignatureVerificationResult,
+  verifySignature,
 } from './signature'
-
 // Simulation
 export {
-  simulateValidation,
-  simulateHandleOp,
-  type SimulationResult,
   type HandleOpSimulationResult,
   type ReturnInfo,
+  type SimulationResult,
   type StakeInfo,
+  simulateHandleOp,
+  simulateValidation,
 } from './simulation'
+// EIP-4337 ValidationData
+export {
+  packValidationData,
+  parseValidationData,
+  usesBlockNumberMode,
+} from './validationData'

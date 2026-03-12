@@ -99,7 +99,7 @@ function getProvider(): {
 
 export function useWalletAssets(): UseWalletAssetsResult {
   const { address, isConnected } = useAccount()
-  const chainId = useChainId()
+  const _chainId = useChainId()
 
   const [isSupported, setIsSupported] = useState(false)
   const [assets, setAssets] = useState<WalletAssetsResponse | null>(null)
@@ -133,9 +133,7 @@ export function useWalletAssets(): UseWalletAssetsResult {
       } catch (err) {
         const error = err as { code?: number; message?: string }
         const isUnsupported =
-          error.code === 4200 ||
-          error.code === -32601 ||
-          error.message?.includes('not supported')
+          error.code === 4200 || error.code === -32601 || error.message?.includes('not supported')
 
         if (!isUnsupported) {
           // Method exists but failed for another reason (e.g. not connected) —
@@ -205,7 +203,7 @@ export function useWalletAssets(): UseWalletAssetsResult {
     } catch (err) {
       if (id !== fetchIdRef.current) return
       setIsError(true)
-      setError((err as Error).message || 'Failed to fetch assets')
+      setError(err instanceof Error ? err.message : 'Failed to fetch assets')
     } finally {
       if (id === fetchIdRef.current) {
         setIsLoading(false)
@@ -241,7 +239,7 @@ export function useWalletAssets(): UseWalletAssetsResult {
       } catch (err) {
         return {
           success: false,
-          error: (err as Error).message || 'Failed to add token',
+          error: err instanceof Error ? err.message : 'Failed to add token',
         }
       }
     },
@@ -256,7 +254,7 @@ export function useWalletAssets(): UseWalletAssetsResult {
       setAssets(null)
       setIsLoading(false)
     }
-  }, [isConnected, address, chainId, fetchAssets])
+  }, [isConnected, address, fetchAssets])
 
   // Listen for wallet events (chain/account/assets changes)
   useEffect(() => {

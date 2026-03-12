@@ -1,5 +1,6 @@
+import type { UserOperation } from '@stablenet/types'
 import type { Address, Hex } from 'viem'
-import type { MempoolEntry, UserOperation } from '../types'
+import type { MempoolEntry } from '../types'
 import type { Logger } from '../utils/logger'
 
 /**
@@ -68,6 +69,7 @@ export class Mempool {
   private pool: Map<Hex, MempoolEntry> = new Map()
   private bySender: Map<Address, Set<Hex>> = new Map()
   private noncesBySender: Map<Address, Set<bigint>> = new Map()
+  private _pendingCount = 0
   private logger: Logger
   private config: Required<MempoolConfig>
   private evictionTimer: ReturnType<typeof setInterval> | null = null
@@ -84,7 +86,10 @@ export class Mempool {
     // Return existing entry if already in mempool (idempotent)
     const existing = this.pool.get(userOpHash)
     if (existing) {
-      this.logger.debug({ userOpHash }, 'UserOperation already in mempool, returning existing entry')
+      this.logger.debug(
+        { userOpHash },
+        'UserOperation already in mempool, returning existing entry'
+      )
       return existing
     }
 
@@ -118,6 +123,7 @@ export class Mempool {
     }
 
     this.pool.set(userOpHash, entry)
+    this._pendingCount++
 
     // Track by sender
     if (!this.bySender.has(userOp.sender)) {
@@ -162,9 +168,13 @@ export class Mempool {
       return false
     }
 
-    // Update the entry
-    existing.userOp = newUserOp
-    existing.addedAt = Date.now()
+    // Replace entry immutably
+    const updatedEntry: MempoolEntry = {
+      ...existing,
+      userOp: newUserOp,
+      addedAt: Date.now(),
+    }
+    this.pool.set(existingHash, updatedEntry)
 
     this.logger.debug(
       { hash: existingHash, newGas: newUserOp.maxFeePerGas.toString() },
@@ -401,16 +411,20 @@ export class Mempool {
     const entry = this.pool.get(userOpHash)
     if (!entry) return false
 
-    entry.status = status
-    if (transactionHash) {
-      entry.transactionHash = transactionHash
-      entry.submittedAt = Date.now()
+    const updatedEntry: MempoolEntry = {
+      ...entry,
+      status,
+      ...(transactionHash && { transactionHash, submittedAt: Date.now() }),
+      ...(blockNumber && { blockNumber }),
+      ...(error && { error }),
     }
-    if (blockNumber) {
-      entry.blockNumber = blockNumber
-    }
-    if (error) {
-      entry.error = error
+    this.pool.set(userOpHash, updatedEntry)
+
+    // Update pending counter
+    if (entry.status === 'pending' && status !== 'pending') {
+      this._pendingCount--
+    } else if (entry.status !== 'pending' && status === 'pending') {
+      this._pendingCount++
     }
 
     this.logger.debug({ userOpHash, status, transactionHash }, 'Updated UserOperation status')
@@ -425,6 +439,9 @@ export class Mempool {
     const entry = this.pool.get(userOpHash)
     if (!entry) return false
 
+    if (entry.status === 'pending') {
+      this._pendingCount--
+    }
     this.pool.delete(userOpHash)
 
     // Remove from sender index
@@ -513,6 +530,7 @@ export class Mempool {
     this.pool.clear()
     this.bySender.clear()
     this.noncesBySender.clear()
+    this._pendingCount = 0
     this.logger.info('Cleared mempool')
   }
 
@@ -542,14 +560,10 @@ export class Mempool {
   }
 
   /**
-   * Get pending count
+   * Get pending count (O(1) via maintained counter)
    */
   get pendingCount(): number {
-    let count = 0
-    for (const entry of this.pool.values()) {
-      if (entry.status === 'pending') count++
-    }
-    return count
+    return this._pendingCount
   }
 
   /**

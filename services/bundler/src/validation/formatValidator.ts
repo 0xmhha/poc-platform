@@ -1,7 +1,7 @@
+import type { UserOperation } from '@stablenet/types'
 import type { Address, Hex } from 'viem'
 import { isAddress, isHex } from 'viem'
 import { z } from 'zod'
-import type { UserOperation } from '../types'
 import { RPC_ERROR_CODES, RpcError } from '../types'
 import type { IFormatValidator } from './types'
 import { VALIDATION_CONSTANTS } from './types'
@@ -319,7 +319,10 @@ export class FormatValidator implements IFormatValidator {
       )
     }
 
-    if (userOp.paymasterVerificationGasLimit && userOp.paymasterVerificationGasLimit > VALIDATION_CONSTANTS.MAX_VERIFICATION_GAS) {
+    if (
+      userOp.paymasterVerificationGasLimit &&
+      userOp.paymasterVerificationGasLimit > VALIDATION_CONSTANTS.MAX_VERIFICATION_GAS
+    ) {
       throw new RpcError(
         `paymasterVerificationGasLimit (${userOp.paymasterVerificationGasLimit}) exceeds maximum (${VALIDATION_CONSTANTS.MAX_VERIFICATION_GAS})`,
         RPC_ERROR_CODES.INVALID_PARAMS

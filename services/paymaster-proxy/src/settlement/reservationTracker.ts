@@ -48,9 +48,7 @@ export class ReservationTracker {
       this.reservationIdIndex.set(reservation.reservationId, reservation.userOpHash)
     }
 
-    if (loaded.length > 0) {
-      console.log(`[reservation-tracker] Loaded ${loaded.length} reservations from disk`)
-    }
+    // loaded.length intentionally not logged — caller can check getStats()
   }
 
   /**
@@ -64,12 +62,7 @@ export class ReservationTracker {
   /**
    * Track a new reservation with its userOpHash
    */
-  track(
-    userOpHash: Hex,
-    sender: Address,
-    reservationId: string,
-    estimatedAmount: bigint
-  ): void {
+  track(userOpHash: Hex, sender: Address, reservationId: string, estimatedAmount: bigint): void {
     const reservation: TrackedReservation = {
       reservationId,
       sender,

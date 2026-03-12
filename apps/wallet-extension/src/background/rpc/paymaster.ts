@@ -4,7 +4,7 @@
  * Extracted from handler.ts to reduce file size and improve maintainability.
  */
 
-import { buildUserOpTypedData, createBundlerClient, type UserOperation } from '@stablenet/core'
+import { createBundlerClient, type UserOperation } from '@stablenet/core'
 import type { Address, Hex } from 'viem'
 import { createLogger } from '../../shared/utils/logger'
 
@@ -192,20 +192,26 @@ export async function sponsorAndSign(params: {
   bundlerUrl: string
   signer: (userOp: UserOperation) => Promise<Hex>
 }): Promise<UserOperation | null> {
-  const { userOp, paymasterUrl, entryPoint, chainId, context, bundlerUrl, signer } = params
+  const { paymasterUrl, entryPoint, chainId, context, bundlerUrl, signer } = params
+  // Work on a shallow copy to avoid mutating the caller's userOp on failure
+  const userOp = { ...params.userOp }
   const chainIdHex = `0x${chainId.toString(16)}`
 
   // ── Step 1: Stub RPC ─────────────────────────────────────────────────
   const userOpHex = serializeUserOpToHex(userOp)
-  logger.info(`[sponsorAndSign] Step 1: stub RPC → ${paymasterUrl} (sender=${userOp.sender}, nonce=${userOp.nonce})`)
+  logger.info(
+    `[sponsorAndSign] Step 1: stub RPC → ${paymasterUrl} (sender=${userOp.sender}, nonce=${userOp.nonce})`
+  )
 
-  let stubResult: {
-    paymaster?: string
-    paymasterData?: string
-    paymasterVerificationGasLimit?: string
-    paymasterPostOpGasLimit?: string
-    isFinal?: boolean
-  } | undefined
+  let stubResult:
+    | {
+        paymaster?: string
+        paymasterData?: string
+        paymasterVerificationGasLimit?: string
+        paymasterPostOpGasLimit?: string
+        isFinal?: boolean
+      }
+    | undefined
 
   try {
     stubResult = (await fetchFromPaymaster(paymasterUrl, 'pm_getPaymasterStubData', [
@@ -215,7 +221,9 @@ export async function sponsorAndSign(params: {
       context,
     ])) as typeof stubResult
   } catch (err) {
-    logger.error(`[sponsorAndSign] Step 1 FAILED (stub RPC): ${err instanceof Error ? err.message : String(err)}`)
+    logger.error(
+      `[sponsorAndSign] Step 1 FAILED (stub RPC): ${err instanceof Error ? err.message : String(err)}`
+    )
     return null
   }
 
@@ -224,7 +232,9 @@ export async function sponsorAndSign(params: {
     return null
   }
 
-  logger.info(`[sponsorAndSign] Step 1 OK: paymaster=${stubResult.paymaster}, isFinal=${stubResult.isFinal ?? false}`)
+  logger.info(
+    `[sponsorAndSign] Step 1 OK: paymaster=${stubResult.paymaster}, isFinal=${stubResult.isFinal ?? false}`
+  )
 
   // Apply stub fields to userOp (needed for accurate gas estimation)
   userOp.paymaster = stubResult.paymaster as Address
@@ -239,7 +249,8 @@ export async function sponsorAndSign(params: {
     const bundlerClient = createBundlerClient({ url: bundlerUrl, entryPoint })
     const gasEstimate = await bundlerClient.estimateUserOperationGas(userOp)
 
-    userOp.preVerificationGas = gasEstimate.preVerificationGas
+    userOp.preVerificationGas =
+      gasEstimate.preVerificationGas + gasEstimate.preVerificationGas / 10n
     userOp.verificationGasLimit =
       gasEstimate.verificationGasLimit + gasEstimate.verificationGasLimit / 5n
     userOp.callGasLimit = gasEstimate.callGasLimit + gasEstimate.callGasLimit / 5n
@@ -248,8 +259,41 @@ export async function sponsorAndSign(params: {
       `[sponsorAndSign] Step 2 OK: preVerif=${userOp.preVerificationGas}, verifLimit=${userOp.verificationGasLimit}, callLimit=${userOp.callGasLimit}`
     )
   } catch (err) {
-    logger.error(`[sponsorAndSign] Step 2 FAILED (gas estimation): ${err instanceof Error ? err.message : String(err)}`)
-    return null
+    const isErc20 = context.paymasterType === 'erc20'
+
+    if (isErc20) {
+      // ERC-20 paymaster: gas estimation fails because the paymaster's
+      // _validatePaymasterUserOp reads token balanceOf/allowance during
+      // EntryPointSimulations, which reverts in simulation context.
+      // Use the stub's gas limits (from Step 1) as reasonable defaults.
+      logger.warn(
+        `[sponsorAndSign] Step 2: ERC-20 gas estimation failed (expected during simulation), using stub gas limits: ${err instanceof Error ? err.message : String(err)}`
+      )
+
+      // Use conservative defaults if stub didn't provide gas limits
+      const FALLBACK_PRE_VERIFICATION_GAS = 60000n
+      const FALLBACK_VERIFICATION_GAS = 500000n
+      const FALLBACK_CALL_GAS = 300000n
+
+      if (userOp.preVerificationGas === 0n) {
+        userOp.preVerificationGas = FALLBACK_PRE_VERIFICATION_GAS
+      }
+      if (userOp.verificationGasLimit === 0n) {
+        userOp.verificationGasLimit = FALLBACK_VERIFICATION_GAS
+      }
+      if (userOp.callGasLimit === 0n) {
+        userOp.callGasLimit = FALLBACK_CALL_GAS
+      }
+
+      logger.info(
+        `[sponsorAndSign] Step 2 (ERC-20 fallback): preVerif=${userOp.preVerificationGas}, verifLimit=${userOp.verificationGasLimit}, callLimit=${userOp.callGasLimit}`
+      )
+    } else {
+      logger.error(
+        `[sponsorAndSign] Step 2 FAILED (gas estimation): ${err instanceof Error ? err.message : String(err)}`
+      )
+      return null
+    }
   }
 
   // ── Step 3: Final RPC (if stub was not final) ────────────────────────
@@ -267,15 +311,21 @@ export async function sponsorAndSign(params: {
       ])) as { paymaster?: string; paymasterData?: string } | undefined
 
       if (!finalResult?.paymaster) {
-        logger.warn('[sponsorAndSign] Step 3: final RPC returned no paymaster, falling back to self-pay')
+        logger.warn(
+          '[sponsorAndSign] Step 3: final RPC returned no paymaster, falling back to self-pay'
+        )
         return null
       }
 
       userOp.paymaster = finalResult.paymaster as Address
       userOp.paymasterData = (finalResult.paymasterData ?? '0x') as Hex
-      logger.info(`[sponsorAndSign] Step 3 OK: paymaster=${finalResult.paymaster}, dataLen=${(finalResult.paymasterData ?? '0x').length}`)
+      logger.info(
+        `[sponsorAndSign] Step 3 OK: paymaster=${finalResult.paymaster}, dataLen=${(finalResult.paymasterData ?? '0x').length}`
+      )
     } catch (err) {
-      logger.error(`[sponsorAndSign] Step 3 FAILED (final RPC): ${err instanceof Error ? err.message : String(err)}`)
+      logger.error(
+        `[sponsorAndSign] Step 3 FAILED (final RPC): ${err instanceof Error ? err.message : String(err)}`
+      )
       return null
     }
   } else {
@@ -290,7 +340,9 @@ export async function sponsorAndSign(params: {
     logger.info(`[sponsorAndSign] Step 4 OK: sigLen=${signature.length} chars`)
     return { ...userOp, signature }
   } catch (err) {
-    logger.error(`[sponsorAndSign] Step 4 FAILED (signing): ${err instanceof Error ? err.message : String(err)}`)
+    logger.error(
+      `[sponsorAndSign] Step 4 FAILED (signing): ${err instanceof Error ? err.message : String(err)}`
+    )
     return null
   }
 }

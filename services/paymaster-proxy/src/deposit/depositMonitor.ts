@@ -1,5 +1,6 @@
 import type { Address, PublicClient, WalletClient } from 'viem'
 import type { PaymasterAddresses, PaymasterType } from '../types'
+import { getGlobalLogger } from '../utils/logger'
 
 /**
  * EntryPoint ABI — balanceOf (IStakeManager)
@@ -33,7 +34,7 @@ export interface DepositMonitorConfig {
   entryPoint: Address
   /** Paymaster addresses by type */
   paymasterAddresses: PaymasterAddresses
-  /** Minimum deposit threshold in wei (default: 0.01 ETH) */
+  /** Minimum deposit threshold in wei (default: 0.01 WKRC) */
   minDepositThreshold: bigint
   /** Polling interval in ms (default: 30000) */
   pollIntervalMs: number
@@ -41,7 +42,7 @@ export interface DepositMonitorConfig {
   rejectOnLowDeposit: boolean
   /** Enable automatic deposit when balance is low (default: false) */
   autoDepositEnabled?: boolean
-  /** Amount to deposit in wei (default: 0.1 ETH) */
+  /** Amount to deposit in wei (default: 0.1 WKRC) */
   autoDepositAmount?: bigint
   /** Cooldown between auto-deposits in ms (default: 300000 = 5 min) */
   autoDepositCooldownMs?: number
@@ -51,12 +52,15 @@ export interface DepositMonitorConfig {
  * Deposit monitor stats for health endpoint
  */
 export interface DepositMonitorStats {
-  deposits: Record<string, {
-    type: PaymasterType
-    deposit: string
-    isLow: boolean
-    lastCheckedAt: string | null
-  }>
+  deposits: Record<
+    string,
+    {
+      type: PaymasterType
+      deposit: string
+      isLow: boolean
+      lastCheckedAt: string | null
+    }
+  >
   anyLow: boolean
   lastPollAt: string | null
 }
@@ -104,12 +108,12 @@ export class DepositMonitor {
 
     // Initial poll
     this.poll().catch((err) => {
-      console.error('[deposit-monitor] Initial poll failed:', err)
+      getGlobalLogger().error({ err }, 'Deposit monitor initial poll failed')
     })
 
     this.timer = setInterval(() => {
       this.poll().catch((err) => {
-        console.error('[deposit-monitor] Poll failed:', err)
+        getGlobalLogger().error({ err }, 'Deposit monitor poll failed')
       })
     }, this.config.pollIntervalMs)
 
@@ -132,24 +136,33 @@ export class DepositMonitor {
    * Poll all paymaster deposits
    */
   async poll(): Promise<void> {
-    const entries = Object.entries(this.config.paymasterAddresses) as [PaymasterType, Address | undefined][]
+    const entries = Object.entries(this.config.paymasterAddresses) as [
+      PaymasterType,
+      Address | undefined,
+    ][]
 
     const promises = entries
       .filter((entry): entry is [PaymasterType, Address] => entry[1] !== undefined)
       .map(async ([type, address]) => {
         try {
-          const deposit = await this.client.readContract({
+          const deposit = (await this.client.readContract({
             address: this.config.entryPoint,
             abi: ENTRY_POINT_BALANCE_ABI,
             functionName: 'balanceOf',
             args: [address],
-          }) as bigint
+          })) as bigint
 
           const isLow = deposit < this.config.minDepositThreshold
 
           if (isLow) {
-            console.warn(
-              `[deposit-monitor] LOW DEPOSIT: ${type} paymaster ${address} has ${deposit} wei (threshold: ${this.config.minDepositThreshold} wei)`
+            getGlobalLogger().warn(
+              {
+                type,
+                address,
+                deposit: deposit.toString(),
+                threshold: this.config.minDepositThreshold.toString(),
+              },
+              'Low paymaster deposit detected'
             )
             this.tryAutoDeposit(address)
           }
@@ -162,7 +175,7 @@ export class DepositMonitor {
             lastCheckedAt: Date.now(),
           })
         } catch (err) {
-          console.error(`[deposit-monitor] Failed to check deposit for ${type} (${address}):`, err)
+          getGlobalLogger().error({ type, address, err }, 'Failed to check deposit')
         }
       })
 
@@ -208,14 +221,13 @@ export class DepositMonitor {
     if (lastDeposit && Date.now() - lastDeposit < cooldown) return
     if (this.autoDepositInFlight.has(key)) return
 
-    const amount = this.config.autoDepositAmount ?? 10n ** 17n // 0.1 ETH
+    const amount = this.config.autoDepositAmount ?? 10n ** 17n // 0.1 WKRC
 
     this.autoDepositInFlight.add(key)
-    console.log(`[deposit-monitor] Auto-depositing ${amount} wei to ${address}`)
 
     const account = this.walletClient.account
     if (!account) {
-      console.error('[deposit-monitor] WalletClient has no account configured')
+      getGlobalLogger().error('WalletClient has no account configured for auto-deposit')
       this.autoDepositInFlight.delete(key)
       return
     }
@@ -231,11 +243,10 @@ export class DepositMonitor {
         account,
       })
       .then((txHash) => {
-        console.log(`[deposit-monitor] Auto-deposit tx sent: ${txHash} for ${address}`)
         this.lastAutoDepositAt.set(key, Date.now())
       })
       .catch((err) => {
-        console.error(`[deposit-monitor] Auto-deposit failed for ${address}:`, err)
+        getGlobalLogger().error({ address, err }, 'Auto-deposit failed')
       })
       .finally(() => {
         this.autoDepositInFlight.delete(key)

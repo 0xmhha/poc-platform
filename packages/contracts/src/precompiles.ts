@@ -6,7 +6,11 @@
  */
 
 import type { Address } from 'viem'
-import type { PrecompiledAddresses, SystemContractAddresses, SystemPrecompileAddresses } from './types'
+import type {
+  PrecompiledAddresses,
+  SystemContractAddresses,
+  SystemPrecompileAddresses,
+} from './types'
 
 // ─── System Contracts (governance, native coin) ─────────────────────────────
 
@@ -61,6 +65,6 @@ export const PRECOMPILED_ADDRESSES: PrecompiledAddresses = {
  * Chain ID → precompiled addresses mapping.
  * Only chain 8283 has precompiles; other chains return undefined.
  */
-export const CHAIN_PRECOMPILES: Record<number, PrecompiledAddresses> = {
+export const CHAIN_PRECOMPILES: Readonly<Record<number, PrecompiledAddresses>> = {
   8283: PRECOMPILED_ADDRESSES,
-}
+} as const

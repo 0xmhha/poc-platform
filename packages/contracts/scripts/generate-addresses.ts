@@ -17,6 +17,8 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const MONOREPO_ROOT = resolve(__dirname, '../../..')
 
+import { GROUP_DEFAULTS, GROUP_ORDER, KEY_MAP } from '../src/keymap'
+
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 /**
@@ -49,96 +51,7 @@ interface ChainDeployment {
   addresses: DeploymentOutput
 }
 
-// ─── Key-to-structure mapping ───────────────────────────────────────────────
-// Maps addresses.json keys to their location in ChainAddresses.
-// Keys not listed here go into `raw` only.
-
-const KEY_MAP: Record<string, { group: string; field: string }> = {
-  // core
-  entryPoint: { group: 'core', field: 'entryPoint' },
-  kernel: { group: 'core', field: 'kernel' },
-  kernelFactory: { group: 'core', field: 'kernelFactory' },
-  factoryStaker: { group: 'core', field: 'factoryStaker' },
-
-  // validators
-  ecdsaValidator: { group: 'validators', field: 'ecdsaValidator' },
-  webAuthnValidator: { group: 'validators', field: 'webAuthnValidator' },
-  multiChainValidator: { group: 'validators', field: 'multiChainValidator' },
-  multiSigValidator: { group: 'validators', field: 'multiSigValidator' },
-  weightedEcdsaValidator: { group: 'validators', field: 'weightedEcdsaValidator' },
-
-  // executors
-  sessionKeyExecutor: { group: 'executors', field: 'sessionKeyExecutor' },
-
-  // hooks
-  spendingLimitHook: { group: 'hooks', field: 'spendingLimitHook' },
-
-  // paymasters
-  verifyingPaymaster: { group: 'paymasters', field: 'verifyingPaymaster' },
-  erc20Paymaster: { group: 'paymasters', field: 'erc20Paymaster' },
-  permit2Paymaster: { group: 'paymasters', field: 'permit2Paymaster' },
-  sponsorPaymaster: { group: 'paymasters', field: 'sponsorPaymaster' },
-
-  // privacy (stealth)
-  erc5564Announcer: { group: 'privacy', field: 'stealthAnnouncer' },
-  erc6538Registry: { group: 'privacy', field: 'stealthRegistry' },
-
-  // compliance
-  kycRegistry: { group: 'compliance', field: 'kycRegistry' },
-  regulatoryRegistry: { group: 'compliance', field: 'regulatoryRegistry' },
-  auditHook: { group: 'compliance', field: 'auditHook' },
-  auditLogger: { group: 'compliance', field: 'auditLogger' },
-
-  // subscriptions
-  subscriptionManager: { group: 'subscriptions', field: 'subscriptionManager' },
-  recurringPaymentExecutor: { group: 'subscriptions', field: 'recurringPaymentExecutor' },
-  erc7715PermissionManager: { group: 'subscriptions', field: 'permissionManager' },
-
-  // tokens
-  wkrc: { group: 'tokens', field: 'wkrc' },
-  usdc: { group: 'tokens', field: 'usdc' },
-
-  // defi
-  lendingPool: { group: 'defi', field: 'lendingPool' },
-  stakingVault: { group: 'defi', field: 'stakingVault' },
-  priceOracle: { group: 'defi', field: 'priceOracle' },
-  proofOfReserve: { group: 'defi', field: 'proofOfReserve' },
-  privateBank: { group: 'defi', field: 'privateBank' },
-  permit2: { group: 'defi', field: 'permit2' },
-
-  // uniswap
-  uniswapV3Factory: { group: 'uniswap', field: 'factory' },
-  uniswapV3SwapRouter: { group: 'uniswap', field: 'swapRouter' },
-  uniswapV3Quoter: { group: 'uniswap', field: 'quoter' },
-  uniswapV3NftPositionManager: { group: 'uniswap', field: 'nftPositionManager' },
-  uniswapV3WkrcUsdcPool: { group: 'uniswap', field: 'wkrcUsdcPool' },
-
-  // fallbacks
-  flashLoanFallback: { group: 'fallbacks', field: 'flashLoanFallback' },
-  tokenReceiverFallback: { group: 'fallbacks', field: 'tokenReceiverFallback' },
-}
-
-// Group definitions with default fields (all default to ZERO_ADDRESS)
-const GROUP_DEFAULTS: Record<string, string[]> = {
-  core: ['entryPoint', 'kernel', 'kernelFactory', 'factoryStaker'],
-  validators: [
-    'ecdsaValidator',
-    'webAuthnValidator',
-    'multiChainValidator',
-    'multiSigValidator',
-    'weightedEcdsaValidator',
-  ],
-  executors: ['sessionKeyExecutor'],
-  hooks: ['spendingLimitHook'],
-  paymasters: ['verifyingPaymaster', 'erc20Paymaster', 'permit2Paymaster', 'sponsorPaymaster'],
-  privacy: ['stealthAnnouncer', 'stealthRegistry'],
-  compliance: ['kycRegistry', 'regulatoryRegistry', 'auditHook', 'auditLogger'],
-  subscriptions: ['subscriptionManager', 'recurringPaymentExecutor', 'permissionManager'],
-  tokens: ['wkrc', 'usdc'],
-  defi: ['lendingPool', 'stakingVault', 'priceOracle', 'proofOfReserve', 'privateBank', 'permit2'],
-  uniswap: ['factory', 'swapRouter', 'quoter', 'nftPositionManager', 'wkrcUsdcPool'],
-  fallbacks: ['flashLoanFallback', 'tokenReceiverFallback'],
-}
+// KEY_MAP and GROUP_DEFAULTS imported from ../src/keymap.ts (single source of truth)
 
 // ─── ENV var mapping ─────────────────────────────────────────────────────────
 // Maps addresses.json key → ENV variable name used in docker-compose and Go services
@@ -241,7 +154,6 @@ function mergeIntoEnv(envContractsPath: string): void {
   }
 
   writeFileSync(dotenvPath, result, 'utf-8')
-  console.log(`Merged ${contractVars.size} contract vars into: ${dotenvPath} (${updated.size} updated, ${newVars.length} added)`)
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -313,10 +225,6 @@ async function loadDeployment(filePath: string): Promise<ChainDeployment | null>
   }
 }
 
-function getAddr(addresses: DeploymentOutput, key: string): string {
-  return addresses[key] || ZERO_ADDRESS
-}
-
 function buildGroupAddresses(
   addresses: DeploymentOutput,
   groupName: string
@@ -361,27 +269,10 @@ function generateAddressesTs(deployments: ChainDeployment[]): string {
     '',
     "import type { ChainAddresses } from '../types'",
     '',
-    `const ZERO = '${ZERO_ADDRESS}' as const`,
-    '',
     '/**',
     ' * Contract addresses by chain ID',
     ' */',
     'export const CHAIN_ADDRESSES: Record<number, ChainAddresses> = {',
-  ]
-
-  const groups = [
-    'core',
-    'validators',
-    'executors',
-    'hooks',
-    'paymasters',
-    'privacy',
-    'compliance',
-    'subscriptions',
-    'tokens',
-    'defi',
-    'uniswap',
-    'fallbacks',
   ]
 
   for (const deployment of deployments) {
@@ -393,7 +284,7 @@ function generateAddressesTs(deployments: ChainDeployment[]): string {
     lines.push(`    chainId: ${chainId},`)
 
     // Generate each group
-    for (const group of groups) {
+    for (const group of GROUP_ORDER) {
       const groupAddrs = buildGroupAddresses(addresses, group)
       lines.push(`    ${group}: {`)
       for (const [field, addr] of Object.entries(groupAddrs)) {
@@ -701,9 +592,7 @@ const PRECOMPILE_ENV: Record<string, { envKey: string; address: string; comment:
 function generatePrecompileEnvSection(chainId: number): string {
   if (chainId !== 8283) return ''
 
-  const lines: string[] = [
-    '# System Contracts (Precompiled)',
-  ]
+  const lines: string[] = ['# System Contracts (Precompiled)']
 
   for (const entry of Object.values(PRECOMPILE_ENV)) {
     lines.push(`${entry.envKey}=${entry.address}`)
@@ -727,9 +616,7 @@ async function main() {
     : resolve(__dirname, '../../../../poc-contract/deployments')
 
   // CHAIN_ID from .env → target single chain
-  const defaultChainId = process.env.CHAIN_ID
-    ? Number.parseInt(process.env.CHAIN_ID, 10)
-    : null
+  const defaultChainId = process.env.CHAIN_ID ? Number.parseInt(process.env.CHAIN_ID, 10) : null
 
   let inputPath = defaultDeploymentDir
   let specificChain = defaultChainId
@@ -747,19 +634,13 @@ async function main() {
     }
   }
 
-  if (specificChain) {
-    console.log(`Target chain: ${specificChain} (from ${process.env.CHAIN_ID ? '.env CHAIN_ID' : '--chain'})`)
-  }
-
   // Find deployment files
   const files = await findDeploymentFiles(inputPath)
 
   if (files.length === 0) {
-    console.log(`No deployment files found in ${inputPath}`)
-    return
+    console.error(`No deployment files found in ${inputPath}`)
+    process.exit(1)
   }
-
-  console.log(`Found ${files.length} deployment file(s)`)
 
   // Load deployments
   const deployments: ChainDeployment[] = []
@@ -769,16 +650,14 @@ async function main() {
     if (deployment) {
       if (specificChain === null || deployment.chainId === specificChain) {
         deployments.push(deployment)
-        console.log(
-          `  Chain ${deployment.chainId}: ${Object.keys(deployment.addresses).length} contracts`
-        )
       }
     }
   }
 
   if (deployments.length === 0) {
-    console.log('No deployments matched')
-    return
+    const chainInfo = specificChain ? ` for chain ${specificChain}` : ''
+    console.error(`No valid deployments found${chainInfo} in ${inputPath}`)
+    process.exit(1)
   }
 
   // Sort by chain ID for consistent output
@@ -788,18 +667,17 @@ async function main() {
   const tsContent = generateAddressesTs(deployments)
   const tsOutputPath = resolve(__dirname, '../src/generated/addresses.ts')
   await writeFile(tsOutputPath, tsContent, 'utf-8')
-  console.log(`\nGenerated: ${tsOutputPath}`)
 
   // Generate .env.contracts file
   const envContent = generateEnvContracts(deployments)
   const envOutputPath = resolve(__dirname, '../../../.env.contracts')
   await writeFile(envOutputPath, envContent, 'utf-8')
-  console.log(`Generated: ${envOutputPath}`)
 
   // Merge contract addresses into .env for docker-compose auto-loading
   mergeIntoEnv(envOutputPath)
-
-  console.log(`\nDone! ${deployments.length} chain(s) processed.`)
 }
 
-main().catch(console.error)
+main().catch((error) => {
+  console.error('Generate failed:', error)
+  process.exit(1)
+})

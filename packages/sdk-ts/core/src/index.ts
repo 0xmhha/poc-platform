@@ -249,9 +249,14 @@ export {
 } from './errors'
 // Gas Module
 export {
+  // EIP-4337 v0.9 unused gas penalty
+  calculateEffectiveGasCost,
+  calculateUnusedGasPenalty,
   createEIP7702GasStrategy,
   createEOAGasStrategy,
   createGasEstimator,
+  // Gas Price Oracle (dynamic fee estimation)
+  createGasPriceOracle,
   createGasStrategyRegistry,
   createSmartAccountGasStrategy,
   type ERC20GasEstimate,
@@ -260,29 +265,20 @@ export {
   type GasEstimator,
   type GasEstimatorConfig,
   type GasPriceInfo,
+  type GasPriceOracle,
+  type GasPriceOracleConfig,
   type GasPrices as GasStrategyPrices,
+  type GasPriceTiers,
   type GasStrategyConfig,
   type GasStrategyRegistry,
+  UNUSED_GAS_PENALTY_DIVISOR,
+  UNUSED_GAS_PENALTY_THRESHOLD,
 } from './gas'
 // Module System
 export {
   type AuditLogEntry,
   BUILT_IN_MODULES,
   type ConflictCheckResult,
-  // Nonce Utils
-  type DecodedNonceKey,
-  decodeValidatorNonceKey,
-  type EncodeValidatorNonceKeyOptions,
-  encodeValidatorNonceKey,
-  isRootValidator,
-  VALIDATION_MODE,
-  type ValidationMode,
-  VALIDATION_TYPE,
-  type ValidationType,
-  // Validator Router
-  createValidatorRouter,
-  type ValidatorRouter,
-  type ValidatorRouterConfig,
   calculateRecurringPaymentStatus,
   calculateSelector,
   calculateSpendingLimitStatus,
@@ -295,13 +291,19 @@ export {
   // Sub-clients (SRP: separated concerns)
   createModuleQueryClient,
   createModuleRegistry,
+  // Validator Router
+  createValidatorRouter,
+  // Nonce Utils
+  type DecodedNonceKey,
   decodeAuditEventFlags,
   decodeECDSAValidatorInit,
   decodeMultiSigValidatorInit,
   decodeTokenReceiverFlags,
+  decodeValidatorNonceKey,
   decodeWebAuthnValidatorInit,
   // Built-in modules
   ECDSA_VALIDATOR,
+  type EncodeValidatorNonceKeyOptions,
   type ExecutorValidationResult,
   encodeAuditHookInit,
   encodeBatchExecutorCalls,
@@ -328,6 +330,7 @@ export {
   encodeSupportsInterfaceCall,
   // Fallback Utilities
   encodeTokenReceiverInit,
+  encodeValidatorNonceKey,
   encodeWebAuthnSignature,
   encodeWebAuthnValidatorInit,
   executorUtils,
@@ -348,6 +351,7 @@ export {
   INTERFACE_SELECTORS,
   identifyValidatorType,
   isFlashLoanAuthorized,
+  isRootValidator,
   isValidSignatureFormat,
   type ModuleCalldata,
   type ModuleClient,
@@ -373,7 +377,13 @@ export {
   suggestSpendingLimit,
   TOKEN_RECEIVER_FALLBACK,
   type TokenReceiverCapability,
+  VALIDATION_MODE,
+  VALIDATION_TYPE,
+  type ValidationMode,
   type ValidationResult,
+  type ValidationType,
+  type ValidatorRouter,
+  type ValidatorRouterConfig,
   type ValidatorValidationResult,
   validateAuditHookConfig,
   validateECDSAValidatorConfig,
@@ -389,7 +399,36 @@ export {
   type WebAuthnSignatureData,
   wouldExceedLimit,
 } from './modules'
-
+// Paymaster Codec & Hasher
+export {
+  computePaymasterDomainSeparator,
+  computePaymasterHash,
+  computeUserOpCoreHash,
+  decodeErc20Payload,
+  decodePaymasterData,
+  decodePermit2Payload,
+  decodeSponsorPayload,
+  decodeVerifyingPayload,
+  type Erc20PayloadData,
+  encodeErc20Payload,
+  encodePaymasterData,
+  encodePaymasterDataWithSignature,
+  encodePermit2Payload,
+  encodeSponsorPayload,
+  encodeVerifyingPayload,
+  envelopeLength,
+  HEADER_SIZE,
+  isPaymasterDataSupported,
+  PAYMASTER_DATA_VERSION,
+  PAYMASTER_DOMAIN_NAME,
+  PAYMASTER_DOMAIN_VERSION,
+  type PaymasterDataEnvelope,
+  PaymasterType,
+  type Permit2PayloadData,
+  type SponsorPayloadData,
+  splitEnvelopeAndSignature,
+  type VerifyingPayloadData,
+} from './paymaster'
 // Paymaster Client
 export {
   createPaymasterClient,
@@ -557,36 +596,6 @@ export {
   // Strategies (for advanced usage)
   type TransactionStrategy,
 } from './transaction'
-// Paymaster Codec & Hasher
-export {
-  PAYMASTER_DATA_VERSION,
-  HEADER_SIZE,
-  PaymasterType,
-  encodePaymasterData,
-  decodePaymasterData,
-  isPaymasterDataSupported,
-  envelopeLength,
-  encodePaymasterDataWithSignature,
-  splitEnvelopeAndSignature,
-  computePaymasterDomainSeparator,
-  computeUserOpCoreHash,
-  computePaymasterHash,
-  PAYMASTER_DOMAIN_NAME,
-  PAYMASTER_DOMAIN_VERSION,
-  encodeVerifyingPayload,
-  decodeVerifyingPayload,
-  encodeSponsorPayload,
-  decodeSponsorPayload,
-  encodeErc20Payload,
-  decodeErc20Payload,
-  encodePermit2Payload,
-  decodePermit2Payload,
-  type PaymasterDataEnvelope,
-  type VerifyingPayloadData,
-  type SponsorPayloadData,
-  type Erc20PayloadData,
-  type Permit2PayloadData,
-} from './paymaster'
 // Utils
 export {
   buildUserOpTypedData,
@@ -597,12 +606,12 @@ export {
   unpackUserOperation,
 } from './utils/userOperation'
 export {
-  SIG_VALIDATION_FAILED,
-  VALIDITY_BLOCK_RANGE_FLAG,
-  VALIDITY_BLOCK_RANGE_MASK,
   isSignatureValidationFailed,
   packValidationData,
   parseValidationData,
+  SIG_VALIDATION_FAILED,
   usesBlockNumberMode,
+  VALIDITY_BLOCK_RANGE_FLAG,
+  VALIDITY_BLOCK_RANGE_MASK,
   type ValidationData,
 } from './utils/validationData'

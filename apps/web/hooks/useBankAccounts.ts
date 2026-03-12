@@ -7,7 +7,7 @@ import type { BankAccountType, BankTransfer, LinkedBankAccount } from '@/types/b
 // Config
 // ============================================================================
 
-const BANK_API_BASE = 'http://localhost:3001/api/v1'
+const BANK_API_BASE = process.env.NEXT_PUBLIC_BANK_API_URL ?? 'http://localhost:3001/api/v1'
 const STORAGE_KEY = 'stablenet:linked-bank-accounts'
 
 // ============================================================================
@@ -151,34 +151,31 @@ export function useBankAccounts(): UseBankAccountsReturn {
     return true
   }, [])
 
-  const syncAccount = useCallback(
-    async (accountNo: string): Promise<LinkedBankAccount | null> => {
-      setError(null)
-      try {
-        const bankData = await apiCall<{ balance?: number }>(`/accounts/${accountNo}`)
+  const syncAccount = useCallback(async (accountNo: string): Promise<LinkedBankAccount | null> => {
+    setError(null)
+    try {
+      const bankData = await apiCall<{ balance?: number }>(`/accounts/${accountNo}`)
 
-        let updated: LinkedBankAccount | null = null
-        setAccounts((prev) => {
-          const next = prev.map((a) => {
-            if (a.accountNo === accountNo) {
-              updated = { ...a, balance: bankData.balance, lastSynced: Date.now() }
-              return updated
-            }
-            return a
-          })
-          saveAccounts(next)
-          return next
+      let updated: LinkedBankAccount | null = null
+      setAccounts((prev) => {
+        const next = prev.map((a) => {
+          if (a.accountNo === accountNo) {
+            updated = { ...a, balance: bankData.balance, lastSynced: Date.now() }
+            return updated
+          }
+          return a
         })
+        saveAccounts(next)
+        return next
+      })
 
-        return updated
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to sync account'
-        setError(msg)
-        return null
-      }
-    },
-    []
-  )
+      return updated
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to sync account'
+      setError(msg)
+      return null
+    }
+  }, [])
 
   const transfer = useCallback(
     async (

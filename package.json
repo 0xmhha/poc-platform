@@ -3,13 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "StableNet PoC Platform - ERC-4337 Account Abstraction with Privacy Features",
-  "keywords": [
-    "stablenet",
-    "erc-4337",
-    "account-abstraction",
-    "smart-account",
-    "stealth-address"
-  ],
+  "keywords": ["stablenet", "erc-4337", "account-abstraction", "smart-account", "stealth-address"],
   "license": "MIT",
   "author": "StableNet Team",
   "type": "module",
@@ -22,6 +16,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "test": "turbo test",
+    "test:ci": "turbo test:ci",
     "test:watch": "turbo test:watch",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e",
@@ -31,28 +26,25 @@
     "generate": "pnpm -F @stablenet/contracts generate && pnpm -F @stablenet/contracts build"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.4",
+    "@biomejs/biome": "^2.4.6",
     "@changesets/cli": "^2.27.10",
-    "turbo": "^2.8.11",
+    "turbo": "^2.8.14",
     "typescript": "^5.7.2",
     "viem": "^2.46.3",
-    "vitest": "^2.1.9"
+    "vitest": "^4.0.18"
   },
   "pnpm": {
     "overrides": {
       "esbuild": ">=0.25.0",
       "axios": ">=1.13.5",
-      "tar": ">=7.5.8",
+      "tar": ">=7.5.11",
       "ajv": ">=8.18.0",
       "minimatch": ">=10.2.3",
       "rollup": ">=4.59.0",
       "elliptic": ">=6.6.1",
       "bn.js": ">=5.2.3"
     },
-    "onlyBuiltDependencies": [
-      "sharp",
-      "unrs-resolver"
-    ]
+    "onlyBuiltDependencies": ["sharp", "unrs-resolver"]
   },
   "packageManager": "pnpm@10.30.3",
   "engines": {

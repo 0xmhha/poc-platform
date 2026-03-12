@@ -44,15 +44,24 @@ export type {
   WaitForUserOperationReceiptOptions,
 } from './bundler'
 export { BUNDLER_ERROR_CODES } from './bundler'
-// Constants
+// Constants & EIP-7579 Execution Mode
 export {
   CALL_TYPE,
+  type CallType,
+  decodeExecutionMode,
   ECDSA_VALIDATOR_ADDRESS,
   ENTRY_POINT_ADDRESS,
   ENTRY_POINT_V07_ADDRESS,
+  ENTRY_POINT_V09_ADDRESS,
+  ENTRY_POINT_V09_CANONICAL_ADDRESS,
   EXEC_MODE,
+  EXEC_TYPE,
+  type ExecType,
+  type ExecutionMode,
+  encodeExecutionMode,
   KERNEL_ADDRESSES,
   KERNEL_V3_1_FACTORY_ADDRESS,
+  SENDER_CREATOR_V09_ADDRESS,
 } from './constants'
 // ============================================================================
 // Module types
@@ -122,7 +131,15 @@ export type {
   UserOperationMiddleware,
   Validator,
 } from './smartAccount'
-export * from './token'
+export {
+  type ERC20Metadata,
+  isNativeToken,
+  NATIVE_ETH_SENTINEL_ADDRESS,
+  NATIVE_TOKEN_ADDRESS,
+  type TokenApproval,
+  type TokenBalance,
+  type TokenDefinition,
+} from './token'
 // ============================================================================
 // Transaction types (new)
 // ============================================================================
@@ -160,3 +177,17 @@ export type {
   UserOperationReceipt,
   UserOperationStatus,
 } from './userOperation'
+// ============================================================================
+// EIP-4337 Validation Data types
+// ============================================================================
+export {
+  isBlockNumberMode,
+  isValidationFailed,
+  packValidationData,
+  SIG_VALIDATION_FAILED,
+  SIG_VALIDATION_SUCCESS,
+  unpackValidationData,
+  VALIDITY_BLOCK_MODE_FLAG,
+  VALIDITY_BLOCK_RANGE_MASK,
+  type ValidationData,
+} from './validation'

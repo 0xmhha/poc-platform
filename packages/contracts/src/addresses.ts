@@ -3,39 +3,45 @@
  */
 
 import type { Address } from 'viem'
-import { CHAIN_ADDRESSES, DEFAULT_TOKENS, SERVICE_URLS } from './generated/addresses'
 import {
+  DEFAULT_TOKENS,
+  CHAIN_ADDRESSES as GENERATED_CHAIN_ADDRESSES,
+  SERVICE_URLS,
+} from './generated/addresses'
+import {
+  ACCOUNT_MANAGER_ADDRESS,
+  BLS_POP_PRECOMPILE_ADDRESS,
   CHAIN_PRECOMPILES,
+  GOV_COUNCIL_ADDRESS,
+  GOV_MASTER_MINTER_ADDRESS,
+  GOV_MINTER_ADDRESS,
+  GOV_VALIDATOR_ADDRESS,
+  NATIVE_COIN_ADAPTER_ADDRESS,
+  NATIVE_COIN_MANAGER_ADDRESS,
   PRECOMPILED_ADDRESSES,
   SYSTEM_CONTRACTS,
   SYSTEM_PRECOMPILES,
-  NATIVE_COIN_ADAPTER_ADDRESS,
-  GOV_VALIDATOR_ADDRESS,
-  GOV_MASTER_MINTER_ADDRESS,
-  GOV_MINTER_ADDRESS,
-  GOV_COUNCIL_ADDRESS,
-  BLS_POP_PRECOMPILE_ADDRESS,
-  NATIVE_COIN_MANAGER_ADDRESS,
-  ACCOUNT_MANAGER_ADDRESS,
 } from './precompiles'
 import type {
   ChainAddresses,
   ChainConfig,
+  DelegatePreset,
   PrecompiledAddresses,
   ServiceUrls,
   TokenDefinition,
 } from './types'
 
-// Merge precompiles into CHAIN_ADDRESSES for chains that have them
-for (const [chainId, precompiles] of Object.entries(CHAIN_PRECOMPILES)) {
-  const chain = CHAIN_ADDRESSES[Number(chainId)]
-  if (chain) {
-    chain.precompiles = precompiles
-  }
-}
+// Merge precompiles into chain addresses immutably (no side-effect mutation)
+export const CHAIN_ADDRESSES: Record<number, ChainAddresses> = Object.fromEntries(
+  Object.entries(GENERATED_CHAIN_ADDRESSES).map(([id, chain]) => {
+    const chainId = Number(id)
+    const precompiles = CHAIN_PRECOMPILES[chainId]
+    return [chainId, precompiles ? { ...chain, precompiles } : chain]
+  })
+)
 
 // Re-export generated data
-export { CHAIN_ADDRESSES, DEFAULT_TOKENS, SERVICE_URLS }
+export { DEFAULT_TOKENS, SERVICE_URLS }
 
 // Re-export precompile constants
 export {
@@ -65,8 +71,18 @@ export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Addr
 // it returns the chain-specific address when available, or falls back to the
 // canonical address below.
 
-/** Canonical EntryPoint address (ERC-4337 v0.9) */
+/** Canonical EntryPoint address (ERC-4337 v0.9, StableNet deployment) */
 export const ENTRY_POINT_ADDRESS: Address = '0xEf6817fe73741A8F10088f9511c64b666a338A14'
+
+/** Explicit v0.9 alias for multi-version codebases */
+export const ENTRY_POINT_V09_ADDRESS: Address = ENTRY_POINT_ADDRESS
+
+/** EIP-4337 spec standard EntryPoint v0.9 address (for reference/interop) */
+export const ENTRY_POINT_V09_CANONICAL_ADDRESS: Address =
+  '0x433709009B8330FDa32311DF1C2AFA402eD8D009'
+
+/** SenderCreator v0.9 address (spec standard) */
+export const SENDER_CREATOR_V09_ADDRESS: Address = '0x0A630a99Df908A81115A3022927Be82f9299987e'
 
 /** @deprecated Use ENTRY_POINT_ADDRESS instead. */
 export const ENTRY_POINT_V07_ADDRESS: Address = '0x0000000071727De22E5E9d8BAf0edAc6f37da032'
@@ -131,11 +147,15 @@ export function getChainAddresses(chainId: number): ChainAddresses {
 
 /**
  * Get a contract address by its raw key name
- * Useful for dynamic access when you know the key from addresses.json
+ * @throws Error if chain is not supported or key is not found
  */
 export function getContractAddress(chainId: number, key: string): Address {
   const addresses = getChainAddresses(chainId)
-  return (addresses.raw[key] as Address) ?? ZERO_ADDRESS
+  const address = addresses.raw[key] as Address | undefined
+  if (!address) {
+    throw new Error(`Contract key "${key}" not found for chain ${chainId}`)
+  }
+  return address
 }
 
 /**
@@ -282,11 +302,11 @@ export function getUniswapQuoter(chainId: number): Address {
 
 // ─── Delegate Presets ────────────────────────────────────────────────────────
 
-export function getDelegatePresets(chainId: number) {
+export function getDelegatePresets(chainId: number): DelegatePreset[] {
   return getChainAddresses(chainId).delegatePresets
 }
 
-export function getDefaultDelegatePreset(chainId: number) {
+export function getDefaultDelegatePreset(chainId: number): DelegatePreset | null {
   const presets = getDelegatePresets(chainId)
   return presets[0] ?? null
 }
@@ -297,56 +317,52 @@ export function getPrecompiles(chainId: number): PrecompiledAddresses | undefine
   return CHAIN_PRECOMPILES[chainId]
 }
 
-export function getNativeCoinAdapter(chainId: number): Address {
+/**
+ * Require precompiles for a chain, throwing if unavailable
+ */
+function requirePrecompiles(chainId: number): PrecompiledAddresses {
   const p = getPrecompiles(chainId)
-  if (!p) throw new Error(`Chain ${chainId} has no precompiled contracts`)
-  return p.systemContracts.nativeCoinAdapter
+  if (!p) {
+    throw new Error(`Chain ${chainId} has no precompiled contracts`)
+  }
+  return p
+}
+
+export function getNativeCoinAdapter(chainId: number): Address {
+  return requirePrecompiles(chainId).systemContracts.nativeCoinAdapter
 }
 
 export function getGovValidator(chainId: number): Address {
-  const p = getPrecompiles(chainId)
-  if (!p) throw new Error(`Chain ${chainId} has no precompiled contracts`)
-  return p.systemContracts.govValidator
+  return requirePrecompiles(chainId).systemContracts.govValidator
 }
 
 export function getGovMasterMinter(chainId: number): Address {
-  const p = getPrecompiles(chainId)
-  if (!p) throw new Error(`Chain ${chainId} has no precompiled contracts`)
-  return p.systemContracts.govMasterMinter
+  return requirePrecompiles(chainId).systemContracts.govMasterMinter
 }
 
 export function getGovMinter(chainId: number): Address {
-  const p = getPrecompiles(chainId)
-  if (!p) throw new Error(`Chain ${chainId} has no precompiled contracts`)
-  return p.systemContracts.govMinter
+  return requirePrecompiles(chainId).systemContracts.govMinter
 }
 
 export function getGovCouncil(chainId: number): Address {
-  const p = getPrecompiles(chainId)
-  if (!p) throw new Error(`Chain ${chainId} has no precompiled contracts`)
-  return p.systemContracts.govCouncil
+  return requirePrecompiles(chainId).systemContracts.govCouncil
 }
 
 export function getBlsPopPrecompile(chainId: number): Address {
-  const p = getPrecompiles(chainId)
-  if (!p) throw new Error(`Chain ${chainId} has no precompiled contracts`)
-  return p.systemPrecompiles.blsPopPrecompile
+  return requirePrecompiles(chainId).systemPrecompiles.blsPopPrecompile
 }
 
 export function getNativeCoinManager(chainId: number): Address {
-  const p = getPrecompiles(chainId)
-  if (!p) throw new Error(`Chain ${chainId} has no precompiled contracts`)
-  return p.systemPrecompiles.nativeCoinManager
+  return requirePrecompiles(chainId).systemPrecompiles.nativeCoinManager
 }
 
 export function getAccountManager(chainId: number): Address {
-  const p = getPrecompiles(chainId)
-  if (!p) throw new Error(`Chain ${chainId} has no precompiled contracts`)
-  return p.systemPrecompiles.accountManager
+  return requirePrecompiles(chainId).systemPrecompiles.accountManager
 }
 
 // ─── Legacy compatibility ────────────────────────────────────────────────────
 
+/** @deprecated Use getChainAddresses() and access specific fields instead */
 export function getLegacyContractAddresses(chainId: number) {
   const addresses = getChainAddresses(chainId)
   return {

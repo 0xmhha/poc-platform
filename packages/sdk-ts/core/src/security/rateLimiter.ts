@@ -107,6 +107,39 @@ export const METHOD_CATEGORIES: Record<string, string> = {
   eth_getUserOperationByHash: 'read',
   eth_getUserOperationReceipt: 'read',
   eth_supportedEntryPoints: 'read',
+
+  // StableNet custom read operations
+  stablenet_getSmartAccountInfo: 'read',
+  stablenet_getRegistryModules: 'read',
+  stablenet_getInstalledModules: 'read',
+  stablenet_estimateGas: 'read',
+  stablenet_getSpendingLimitStatus: 'read',
+  stablenet_getEntryPointBalance: 'read',
+
+  // StableNet custom sensitive operations (send transactions)
+  stablenet_installModule: 'sensitive',
+  stablenet_uninstallModule: 'sensitive',
+  stablenet_forceUninstallModule: 'sensitive',
+  stablenet_replaceModule: 'sensitive',
+  stablenet_setRootValidator: 'sensitive',
+  stablenet_executeSwap: 'sensitive',
+  stablenet_speedUpTransaction: 'sensitive',
+  stablenet_cancelTransaction: 'sensitive',
+  stablenet_depositToEntryPoint: 'sensitive',
+
+  // Wallet custom operations
+  wallet_delegateAccount: 'sensitive',
+  wallet_signAuthorization: 'signing',
+  wallet_getNetworks: 'read',
+  wallet_getAssets: 'read',
+  wallet_addToken: 'connection',
+
+  // Paymaster operations
+  pm_supportedTokens: 'read',
+  pm_sponsorPolicy: 'read',
+  pm_estimateERC20: 'read',
+  pm_accountStatus: 'read',
+  pm_registerAccount: 'connection',
 }
 
 /**
@@ -121,7 +154,8 @@ export class RateLimiter {
 
   constructor(customLimits?: Record<string, RateLimitConfig>) {
     this.limits = { ...DEFAULT_LIMITS, ...(customLimits ?? {}) }
-    this.startCleanup()
+    // Cleanup is started lazily on first checkLimit() call to avoid
+    // leaking timers when RateLimiter is created in short-lived contexts.
   }
 
   /**
@@ -135,6 +169,9 @@ export class RateLimiter {
    * Check if a request is allowed
    */
   checkLimit(origin: string, method: string): RateLimitResult {
+    // Lazily start cleanup on first request
+    this.startCleanup()
+
     const now = Date.now()
     const category = METHOD_CATEGORIES[method] || 'default'
     const config = this.getConfig(category)

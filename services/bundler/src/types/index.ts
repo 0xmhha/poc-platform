@@ -1,3 +1,4 @@
+import type { UserOperation } from '@stablenet/types'
 import type { Address, Hex } from 'viem'
 
 /**
@@ -8,7 +9,7 @@ export interface BundlerConfig {
   network: string
   /** Chain ID (overrides RPC-reported chainId when set) */
   chainId?: number
-  /** Native currency symbol (default: ETH) */
+  /** Native currency symbol (default: WKRC) */
   nativeCurrencySymbol: string
   /** RPC port */
   port: number
@@ -57,30 +58,11 @@ export interface BundlerConfig {
 }
 
 /**
- * UserOperation for ERC-4337 v0.9
+ * Packed UserOperation for JSON-RPC (hex-string format).
+ * Renamed to RpcPackedUserOperation to distinguish from the SDK's
+ * contract-format PackedUserOperation (which uses bigint for nonce/preVerificationGas).
  */
-export interface UserOperation {
-  sender: Address
-  nonce: bigint
-  factory?: Address
-  factoryData?: Hex
-  callData: Hex
-  callGasLimit: bigint
-  verificationGasLimit: bigint
-  preVerificationGas: bigint
-  maxFeePerGas: bigint
-  maxPriorityFeePerGas: bigint
-  paymaster?: Address
-  paymasterVerificationGasLimit?: bigint
-  paymasterPostOpGasLimit?: bigint
-  paymasterData?: Hex
-  signature: Hex
-}
-
-/**
- * Packed UserOperation for RPC
- */
-export interface PackedUserOperation {
+export interface RpcPackedUserOperation {
   sender: Address
   nonce: Hex
   initCode: Hex
@@ -93,25 +75,30 @@ export interface PackedUserOperation {
 }
 
 /**
+ * Backward-compatible alias so existing imports don't break.
+ */
+export type PackedUserOperation = RpcPackedUserOperation
+
+/**
  * UserOperation status in mempool
  */
 export type UserOperationStatus = 'pending' | 'submitted' | 'included' | 'failed' | 'dropped'
 
 /**
- * Mempool entry
+ * Mempool entry (immutable — always create new objects via spread)
  */
 export interface MempoolEntry {
-  userOp: UserOperation
-  userOpHash: Hex
-  entryPoint: Address
-  status: UserOperationStatus
-  addedAt: number
-  submittedAt?: number
-  transactionHash?: Hex
-  blockNumber?: bigint
-  error?: string
+  readonly userOp: UserOperation
+  readonly userOpHash: Hex
+  readonly entryPoint: Address
+  readonly status: UserOperationStatus
+  readonly addedAt: number
+  readonly submittedAt?: number
+  readonly transactionHash?: Hex
+  readonly blockNumber?: bigint
+  readonly error?: string
   /** Aggregator address if this op uses signature aggregation */
-  aggregator?: Address
+  readonly aggregator?: Address
 }
 
 /**

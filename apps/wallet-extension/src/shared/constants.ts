@@ -10,8 +10,8 @@ export const DEFAULT_NETWORKS: Network[] = [
     rpcUrl: 'http://127.0.0.1:8545',
     bundlerUrl: 'http://127.0.0.1:8545',
     currency: {
-      name: 'Ether',
-      symbol: 'ETH',
+      name: 'WKRC Coin',
+      symbol: 'WKRC',
       decimals: 18,
     },
     isTestnet: true,
@@ -139,6 +139,10 @@ export const RPC_ERRORS = {
   CHAIN_DISCONNECTED: {
     code: 4901,
     message: 'The provider is disconnected from the specified chain',
+  },
+  TOKEN_APPROVAL_REQUIRED: {
+    code: -32010,
+    message: 'Token approval required for ERC-20 paymaster',
   },
 } as const
 

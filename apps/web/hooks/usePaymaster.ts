@@ -1,16 +1,19 @@
 'use client'
 
+import type { PaymasterData, PaymasterStubData } from '@stablenet/types'
+import {
+  getPaymasterData as sdkGetPaymasterData,
+  getPaymasterStubData as sdkGetPaymasterStubData,
+} from '@stablenet/wallet-sdk'
 import { useCallback, useMemo, useState } from 'react'
 import type { Address, Hex } from 'viem'
 import { useStableNetContext } from '@/providers'
-import {
-  getPaymasterStubData as sdkGetPaymasterStubData,
-  getPaymasterData as sdkGetPaymasterData,
-} from '@stablenet/wallet-sdk'
 
 // ============================================================================
-// Types
+// Types — PaymasterStubData and PaymasterData from @stablenet/types
 // ============================================================================
+
+export type { PaymasterData, PaymasterStubData }
 
 export type PaymasterType = 'none' | 'verifying' | 'sponsor' | 'erc20' | 'permit2'
 
@@ -23,38 +26,11 @@ export interface PaymasterConfig {
   policyId?: string
 }
 
-export interface PaymasterStubData {
-  paymaster: Address
-  paymasterData: Hex
-  paymasterVerificationGasLimit: bigint
-  paymasterPostOpGasLimit: bigint
-}
-
-export interface PaymasterData {
-  paymaster: Address
-  paymasterData: Hex
-}
-
-export interface SponsorshipPolicy {
-  id: string
-  name: string
-  maxGasPerOp: bigint
-  maxOpsPerDay: number
-  allowedTargets: Address[]
-  active: boolean
-}
-
 export interface SupportedToken {
   address: Address
   symbol: string
   decimals: number
   exchangeRate?: string
-}
-
-export interface PaymasterBalance {
-  balance: bigint
-  deposited: bigint
-  staked: bigint
 }
 
 export interface UsePaymasterConfig {
@@ -70,10 +46,16 @@ export interface UsePaymasterConfig {
 export function usePaymaster(config: UsePaymasterConfig = {}) {
   const { paymasterUrl, paymaster: defaultPaymasterAddress, chainId } = useStableNetContext()
 
-  const [isLoading, setIsLoading] = useState(false)
+  const [loadingCount, setLoadingCount] = useState(0)
   const [error, setError] = useState<Error | null>(null)
+
+  const isLoading = loadingCount > 0
+  const startLoading = useCallback(() => setLoadingCount((c) => c + 1), [])
+  const stopLoading = useCallback(() => setLoadingCount((c) => Math.max(0, c - 1)), [])
   const [selectedType, setSelectedType] = useState<PaymasterType>(config.defaultType ?? 'verifying')
-  const [selectedTokenAddress, setSelectedTokenAddress] = useState<Address | undefined>(config.tokenAddress)
+  const [selectedTokenAddress, setSelectedTokenAddress] = useState<Address | undefined>(
+    config.tokenAddress
+  )
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | undefined>(config.policyId)
 
   // Current paymaster config
@@ -96,7 +78,7 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
       userOp: Record<string, unknown>,
       entryPoint: Address
     ): Promise<PaymasterStubData | null> => {
-      setIsLoading(true)
+      startLoading()
       setError(null)
 
       try {
@@ -119,10 +101,10 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
         setError(paymasterError)
         return null
       } finally {
-        setIsLoading(false)
+        stopLoading()
       }
     },
-    [paymasterUrl, chainId]
+    [paymasterUrl, chainId, startLoading, stopLoading]
   )
 
   /**
@@ -131,7 +113,7 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
    */
   const getPaymasterData = useCallback(
     async (userOp: Record<string, unknown>, entryPoint: Address): Promise<PaymasterData | null> => {
-      setIsLoading(true)
+      startLoading()
       setError(null)
 
       try {
@@ -152,35 +134,36 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
         setError(paymasterError)
         return null
       } finally {
-        setIsLoading(false)
+        stopLoading()
       }
     },
-    [paymasterUrl, chainId]
+    [paymasterUrl, chainId, startLoading, stopLoading]
   )
 
   /**
-   * Check if sender is eligible for sponsorship
+   * Check if sender is eligible for sponsorship via pm_getSponsorPolicy.
+   * Params: [senderAddress, chainId] or [senderAddress, chainId, policyId]
+   * Response: { isAvailable, reason?, dailyLimitRemaining?, perTxLimit? }
    */
   const checkSponsorshipEligibility = useCallback(
     async (sender: Address): Promise<{ eligible: boolean; reason?: string } | null> => {
-      setIsLoading(true)
+      startLoading()
       setError(null)
 
       try {
+        const hexChainId = `0x${chainId.toString(16)}`
+        const params: unknown[] = config.policyId
+          ? [sender, hexChainId, config.policyId]
+          : [sender, hexChainId]
+
         const response = await fetch(paymasterUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             jsonrpc: '2.0',
             id: 1,
-            method: 'pm_checkEligibility',
-            params: [
-              {
-                sender,
-                policyId: config.policyId,
-                chainId: `0x${chainId.toString(16)}`,
-              },
-            ],
+            method: 'pm_getSponsorPolicy',
+            params,
           }),
         })
 
@@ -190,8 +173,12 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
           throw new Error(result.error.message)
         }
 
+        if (!result.result) {
+          return { eligible: false, reason: 'No eligibility data returned' }
+        }
+
         return {
-          eligible: result.result.eligible,
+          eligible: result.result.isAvailable ?? false,
           reason: result.result.reason,
         }
       } catch (err) {
@@ -199,104 +186,19 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
         setError(paymasterError)
         return null
       } finally {
-        setIsLoading(false)
+        stopLoading()
       }
     },
-    [paymasterUrl, chainId, config.policyId]
+    [paymasterUrl, chainId, config.policyId, startLoading, stopLoading]
   )
 
   /**
-   * Get available sponsorship policies
-   */
-  const getSponsorshipPolicies = useCallback(async (): Promise<SponsorshipPolicy[] | null> => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch(paymasterUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'pm_getSponsorshipPolicies',
-          params: [`0x${chainId.toString(16)}`],
-        }),
-      })
-
-      const result = await response.json()
-
-      if (result.error) {
-        throw new Error(result.error.message)
-      }
-
-      return result.result.policies.map((p: Record<string, unknown>) => ({
-        id: p.id,
-        name: p.name,
-        maxGasPerOp: BigInt(p.maxGasPerOp as string),
-        maxOpsPerDay: Number(p.maxOpsPerDay),
-        allowedTargets: p.allowedTargets as Address[],
-        active: p.active as boolean,
-      }))
-    } catch (err) {
-      const paymasterError = err instanceof Error ? err : new Error('Failed to get policies')
-      setError(paymasterError)
-      return null
-    } finally {
-      setIsLoading(false)
-    }
-  }, [paymasterUrl, chainId])
-
-  /**
-   * Get paymaster balance info
-   */
-  const getPaymasterBalance = useCallback(
-    async (paymasterAddress?: Address): Promise<PaymasterBalance | null> => {
-      setIsLoading(true)
-      setError(null)
-
-      try {
-        const targetPaymaster = paymasterAddress ?? defaultPaymasterAddress
-
-        const response = await fetch(paymasterUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'pm_getBalance',
-            params: [targetPaymaster, `0x${chainId.toString(16)}`],
-          }),
-        })
-
-        const result = await response.json()
-
-        if (result.error) {
-          throw new Error(result.error.message)
-        }
-
-        return {
-          balance: BigInt(result.result.balance),
-          deposited: BigInt(result.result.deposited),
-          staked: BigInt(result.result.staked),
-        }
-      } catch (err) {
-        const paymasterError =
-          err instanceof Error ? err : new Error('Failed to get paymaster balance')
-        setError(paymasterError)
-        return null
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [paymasterUrl, chainId, defaultPaymasterAddress]
-  )
-
-  /**
-   * Get supported ERC20 tokens for token paymaster
+   * Get supported ERC20 tokens via pm_supportedTokens.
+   * Params: [chainId (hex)]
+   * Response: SupportedToken[] (array directly, no wrapper)
    */
   const getSupportedTokens = useCallback(async (): Promise<SupportedToken[] | null> => {
-    setIsLoading(true)
+    startLoading()
     setError(null)
 
     try {
@@ -306,7 +208,7 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
         body: JSON.stringify({
           jsonrpc: '2.0',
           id: 1,
-          method: 'pm_getSupportedTokens',
+          method: 'pm_supportedTokens',
           params: [`0x${chainId.toString(16)}`],
         }),
       })
@@ -314,10 +216,16 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
       const result = await response.json()
 
       if (result.error) {
-        throw new Error(result.error.message)
+        throw new Error(result.error.message ?? 'Failed to fetch supported tokens')
       }
 
-      return result.result.tokens.map((t: Record<string, unknown>) => ({
+      // Server returns array directly in result (not wrapped in { tokens: [...] })
+      const tokens = result.result
+      if (!Array.isArray(tokens)) {
+        return []
+      }
+
+      return tokens.map((t: Record<string, unknown>) => ({
         address: t.address as Address,
         symbol: (t.symbol as string) ?? 'Unknown',
         decimals: Number(t.decimals ?? 18),
@@ -329,9 +237,9 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
       setError(paymasterError)
       return null
     } finally {
-      setIsLoading(false)
+      stopLoading()
     }
-  }, [paymasterUrl, chainId])
+  }, [paymasterUrl, chainId, startLoading, stopLoading])
 
   return {
     // Config
@@ -352,15 +260,13 @@ export function usePaymaster(config: UsePaymasterConfig = {}) {
 
     // Sponsorship
     checkSponsorshipEligibility,
-    getSponsorshipPolicies,
 
-    // Balance & tokens
-    getPaymasterBalance,
+    // Tokens
     getSupportedTokens,
 
     // State
     isLoading,
     error,
-    clearError: () => setError(null),
+    clearError: useCallback(() => setError(null), []),
   }
 }

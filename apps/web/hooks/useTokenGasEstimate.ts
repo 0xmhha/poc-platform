@@ -11,11 +11,11 @@ import { useStableNetContext } from '@/providers'
 
 export interface TokenPaymentEstimate {
   tokenAddress: Address
-  tokenAmount: string
-  tokenSymbol: string
-  tokenDecimals: number
+  /** Estimated token amount (raw string, needs formatUnits with token decimals) */
+  estimatedAmount: string
   exchangeRate: string
-  gasCostInWei: string
+  /** Markup in basis points */
+  markup: number
 }
 
 interface TokenGasEstimateState {
@@ -25,7 +25,8 @@ interface TokenGasEstimateState {
   error: Error | null
   estimateTokenCost: (
     tokenAddress: Address,
-    userOpPartial: Record<string, unknown>
+    userOpPartial: Record<string, unknown>,
+    tokenDecimals?: number
   ) => Promise<void>
 }
 
@@ -42,11 +43,13 @@ interface TokenGasEstimateState {
 export function useTokenGasEstimate(): TokenGasEstimateState {
   const { paymasterUrl, entryPoint, chainId } = useStableNetContext()
   const [estimate, setEstimate] = useState<TokenPaymentEstimate | null>(null)
+  const [decimals, setDecimals] = useState(18)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
   const estimateTokenCost = useCallback(
-    async (tokenAddress: Address, userOpPartial: Record<string, unknown>) => {
+    async (tokenAddress: Address, userOpPartial: Record<string, unknown>, tokenDecimals = 18) => {
+      setDecimals(tokenDecimals)
       setIsLoading(true)
       setError(null)
 
@@ -58,28 +61,25 @@ export function useTokenGasEstimate(): TokenGasEstimateState {
             jsonrpc: '2.0',
             id: 1,
             method: 'pm_estimateTokenPayment',
-            params: [
-              userOpPartial,
-              entryPoint,
-              `0x${chainId.toString(16)}` as Hex,
-              tokenAddress,
-            ],
+            params: [userOpPartial, entryPoint, `0x${chainId.toString(16)}` as Hex, tokenAddress],
           }),
         })
 
         const result = await response.json()
 
         if (result.error) {
-          throw new Error(result.error.message)
+          throw new Error(result.error.message ?? 'Token gas estimation failed')
+        }
+
+        if (!result.result) {
+          throw new Error('No estimation data returned')
         }
 
         const data = result.result as TokenPaymentEstimate
         setEstimate(data)
       } catch (err) {
         setEstimate(null)
-        setError(
-          err instanceof Error ? err : new Error('Failed to estimate token gas cost')
-        )
+        setError(err instanceof Error ? err : new Error('Failed to estimate token gas cost'))
       } finally {
         setIsLoading(false)
       }
@@ -88,9 +88,7 @@ export function useTokenGasEstimate(): TokenGasEstimateState {
   )
 
   const formattedTokenCost =
-    estimate != null
-      ? formatUnits(BigInt(estimate.tokenAmount), estimate.tokenDecimals)
-      : null
+    estimate != null ? formatUnits(BigInt(estimate.estimatedAmount), decimals) : null
 
   return {
     estimate,
