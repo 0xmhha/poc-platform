@@ -39,13 +39,13 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
-    "@types/node": "^25.3.5",
+    "@types/node": "^25.5.0",
     "@types/yargs": "^17.0.33",
     "prool": "^0.2.3",
     "tinybench": "^6.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
+    "typescript": "^6.0.2",
     "vitest": "^4.0.18"
   }
 }

@@ -43,10 +43,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
-    "@types/node": "^25.3.5",
+    "@types/node": "^25.5.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.2",
+    "typescript": "^6.0.2",
     "viem": "^2.46.3",
     "vitest": "^4.0.18"
   },
