@@ -26,7 +26,7 @@ serde_json = "1"
 
 # Cryptography
 k256 = { version = "0.13", features = ["ecdh", "arithmetic", "ecdsa"] }
-sha3 = "0.10"
+sha3 = "0.11"
 hex = "0.4"
 elliptic-curve = "0.13"
 
