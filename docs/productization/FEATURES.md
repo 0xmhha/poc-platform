@@ -1,8 +1,6 @@
 # 기능 분석과 고도화 기준
 
-전체 기능 후속 검토와 변경 사항은 [전체 검토 기록](full-review/WORKLOG.md)을 기준으로 한다. 아래 결제 중심 분석은 최초 구현 범위의 기록이다.
-
-대상: stable-platform / poc-contract 현재 작업 트리. 정규식 목록이 아니라 TypeScript compiler API, Go parser, Rust syn, Solidity 0.8.28 compiler AST에서 파일·선언·import·call·inheritance 관계를 추출했다. 전체 124개 계약 소스는 함수만 선언하는 파일까지 compiler standard JSON으로 파싱한다. Go 호출은 구문 수준이며, TS 동적 호출·외부 API·체인 실행은 정적으로 확정된 호출 그래프로 과장하지 않는다.
+대상은 `poc-platform`의 현재 코드다. TypeScript compiler API, Go parser, Rust syn, Solidity compiler AST에서 파일·선언·import·call·inheritance 관계를 추출한다. Go 호출은 구문 수준이며, TypeScript 동적 호출·외부 API·체인 실행은 정적 호출 그래프로 확정하지 않는다.
 
 ## 확인된 기능
 

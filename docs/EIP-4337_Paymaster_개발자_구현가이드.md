@@ -2,8 +2,9 @@
 
 작성일: 2026-02-24  
 참조 문서:
-- `docs/claude/spec/EIP-4337_스펙표준_정리.md` (Paymaster 섹션)
-- `docs/claude/seminar/paymaster/00-paymaster-final-spec-and-implementation.md` (최종 구현 기준)
+- `docs/EIP-4337_스펙표준_정리.md` (Paymaster 섹션)
+- `services/paymaster-proxy/docs/PAYMASTER_SYSTEM_SPEC.md` (현재 구현 명세)
+- `services/paymaster-proxy/PAYMASTER_OPERATIONS_GUIDE.md` (운영 절차)
 
 ## 1. 이 문서의 목적
 

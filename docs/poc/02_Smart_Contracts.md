@@ -1529,7 +1529,7 @@ contract SecureBridge {
 
 ## 9. Compliance Contracts
 
-규제 준수를 위한 스마트 컨트랙트입니다. 상세 구현은 [08_Regulatory_Compliance.md](./08_Regulatory_Compliance.md) 참조.
+규제 준수를 위한 스마트 컨트랙트 개요다. 제품 수준의 요구사항은 [StableNet PRD](../prd/StableNet_PRD.md)를 참조한다.
 
 ### 9.1 Compliance Contracts 개요
 
@@ -1703,9 +1703,8 @@ Phase 8: Compliance
 
 - [00_PoC_Overview.md](./00_PoC_Overview.md) - PoC 개요
 - [01_System_Architecture.md](./01_System_Architecture.md) - 시스템 아키텍처
-- [03_Development_Roadmap.md](./03_Development_Roadmap.md) - 개발 로드맵
 - [04_Secure_Bridge.md](./04_Secure_Bridge.md) - 브릿지 상세 설계
-- [08_Regulatory_Compliance.md](./08_Regulatory_Compliance.md) - 규제 준수 아키텍처
+- [제품 요구사항](../prd/StableNet_PRD.md) - 제품 및 규제 요구사항
 
 ---
 

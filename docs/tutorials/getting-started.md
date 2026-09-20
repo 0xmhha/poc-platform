@@ -503,7 +503,7 @@ main().catch(console.error)
 
 - 📚 [SDK API Reference](../sdk/api/README.md) - 전체 API 문서
 - 🔧 [Service API Reference](../services/README.md) - 서비스 API 문서
-- 🚀 [Deployment Guide](../deployment/README.md) - 배포 가이드
+- 🚀 [Deployment Guide](../operations/deployment.md) - 배포 가이드
 - 📊 [Operations Guide](../operations/README.md) - 운영 가이드
 
 ## Resources

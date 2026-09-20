@@ -130,9 +130,7 @@ CryptoAmount = NetAmount × ExchangeRate
 └─ Crypto: 98.50 × 0.998 = 98.303 USDC
 ```
 
-## 누락 기능
-
-상세 분석: [gap-analysis.md](./gap-analysis.md)
+## 기능 명세
 
 | 기능 | 우선순위 | 상세 스펙 |
 |------|----------|----------|

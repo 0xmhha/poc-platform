@@ -86,9 +86,7 @@ type Transfer struct {
 | LOG_LEVEL | info | 로그 레벨 |
 | LOG_FORMAT | json | 로그 형식 |
 
-## 누락 기능
-
-상세 분석: [gap-analysis.md](./gap-analysis.md)
+## 기능 명세
 
 | 기능 | 우선순위 | 상세 스펙 |
 |------|----------|----------|

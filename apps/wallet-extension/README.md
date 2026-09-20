@@ -125,7 +125,7 @@ src/
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - pnpm (workspace root)
 - Chrome 120+ (for Manifest V3 + Side Panel support)
 

@@ -205,12 +205,8 @@ StableNet PoC는 **EIP-7702 기반 Account Abstraction**을 핵심으로 하는 
 
 - [01_System_Architecture.md](./01_System_Architecture.md) - 시스템 아키텍처
 - [02_Smart_Contracts.md](./02_Smart_Contracts.md) - 스마트 컨트랙트 구조
-- [03_Development_Roadmap.md](./03_Development_Roadmap.md) - 개발 로드맵
 - [04_Secure_Bridge.md](./04_Secure_Bridge.md) - 보안 브릿지 아키텍처
-- [05_Project_Structure.md](./05_Project_Structure.md) - 프로젝트 디렉토리 구조
-- [06_PRD_Framework.md](./06_PRD_Framework.md) - PRD 프레임워크
-- [07_IA_Framework.md](./07_IA_Framework.md) - IA 프레임워크
-- [08_Regulatory_Compliance.md](./08_Regulatory_Compliance.md) - 규제 준수 아키텍처
+- [제품 요구사항](../prd/StableNet_PRD.md) - 제품 범위와 요구사항
 
 ---
 

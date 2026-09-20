@@ -320,8 +320,8 @@ const installed = await isModuleInstalled(publicClient, smartAccountAddress, {
 ## 6. 관련 문서
 
 - [01_CONTRACT_SDK_MAPPING.md](./01_CONTRACT_SDK_MAPPING.md) - Contract ↔ SDK 매핑
-- [02_SDK_REMAINING_TASKS.md](./02_SDK_REMAINING_TASKS.md) - 남은 작업
-- [../contracts/00_CONTRACTS_OVERVIEW.md](../contracts/00_CONTRACTS_OVERVIEW.md) - Contract 개요
+- [api/README.md](./api/README.md) - SDK API 레퍼런스
+- [../../packages/sdk-ts/README.md](../../packages/sdk-ts/README.md) - TypeScript SDK 사용법
 
 ---
 

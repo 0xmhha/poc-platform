@@ -468,12 +468,12 @@ import type {
 } from '@stablenet/types'
 ```
 
-전체 타입 정의는 [TypeScript declarations](../../packages/sdk/packages/types/src/index.ts)를 참조하세요.
+전체 타입 정의는 [TypeScript declarations](../../../packages/types/src/index.ts)를 참조하세요.
 
 ---
 
 ## Related Documentation
 
-- [SDK Tutorial](../tutorials/getting-started.md)
+- [SDK Tutorial](../../tutorials/getting-started.md)
 - [Service API Reference](../../services/README.md)
-- [Deployment Guide](../../deployment/README.md)
+- [Deployment Guide](../../operations/deployment.md)

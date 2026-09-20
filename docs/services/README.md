@@ -605,5 +605,5 @@ http://localhost:3005
 ## Related Documentation
 
 - [SDK API Reference](../sdk/api/README.md)
-- [Deployment Guide](../deployment/README.md)
+- [Deployment Guide](../operations/deployment.md)
 - [Operations Guide](../operations/README.md)

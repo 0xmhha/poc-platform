@@ -1,14 +1,11 @@
-# StableNet 전체 기능 검토 및 고도화
+# StableNet 결제 기능과 사업자 연동
 
-기준 저장소: `stable-platform` + 형제 디렉터리 `poc-contract`의 현재 작업 트리.
+이 문서는 `poc-platform`의 결제 시뮬레이션과 실제 사업자 연동 경계를 설명한다.
 
-- [전체 기능 검토·변경·운영 조건](full-review/WORKLOG.md)
-- [기능 분석](FEATURES.md): 기존 기능, 확인한 한계, 변경 범위
-- [AST 목록](graph/INVENTORY.md), [그래프 탐색기](graph/explorer.html): 파일·선언·의존성·호출 관계
+- [기능 범위](FEATURES.md)
 - [구조와 상태 흐름](ARCHITECTURE.md)
 - [API 및 사업자 어댑터 계약](PROVIDER-CONTRACT.md)
 - [실행·복구 절차](RUNBOOK.md)
-- [검증 결과](VERIFICATION.md)
 
 ## 바로 실행
 
@@ -27,7 +24,7 @@ pnpm dev:payments
 GOCACHE=/tmp/stablenet-code-graph pnpm graph:code
 ```
 
-Rust/Cargo, Go, Python 3.11+, Foundry의 Solidity 0.8.28 바이너리와 `poc-contract/lib` 의존성이 필요하다. 자동 검색이 안 되면 `SOLC_BINARY`를 해당 native solc 실행 파일로 지정한다. 결과 JSON은 크기가 커 git에서 제외했지만 로컬에 생성된다. 탐색기는 JSON 데이터가 포함된 독립 HTML이다.
+Rust/Cargo, Go, Python 3.11+, Foundry의 Solidity 바이너리와 계약 소스 의존성이 필요하다. 자동 검색이 안 되면 `SOLC_BINARY`를 해당 native solc 실행 파일로 지정한다. 결과 JSON과 HTML 탐색기는 로컬에 생성되며 git에서 제외한다.
 
 TypeScript compiler API는 선언 및 해석 가능한 호출, Go parser는 구문 관계, Solidity compiler AST는 선언 참조·상속·호출을 수집한다. TS/Go의 동적 호출, 원격 API, 실제 체인 실행을 정적으로 증명하지 않는다. 소스 디렉터리의 파일 목록과 compiler 결과를 독립 비교하여 Solidity 누락을 검사한다. `node_modules`, 빌드 결과, 외부 vendor는 제외하며 계약 `src` 안의 vendor 소스는 포함한다. 테스트도 분석에 포함한다.
 

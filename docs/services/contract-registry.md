@@ -293,6 +293,5 @@ pnpm --filter @stablenet/contract-registry test:watch
 
 ## 관련 문서
 
-- [SRS - Software Requirements Specification](../registry/SRS_Contract_Registry_Service.md)
-- [11. Remaining Tasks](../poc/11_Remaining_Tasks.md)
-- [12. Development Progress Report](../poc/12_Development_Progress_Report.md)
+- [서비스 API 안내](README.md)
+- [배포 가이드](../operations/deployment.md)

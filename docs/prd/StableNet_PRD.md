@@ -1098,11 +1098,10 @@ Success_Metrics:
 
 ### B. 참조 문서
 
-- StableNet_Key.md: 원본 기획서
-- StableNet_기술_로드맵.md: 기술 로드맵
-- StableNet_기술_스택.md: 상세 기술 스택
-- EIP-7702 Specification
-- ERC-5564 Specification
+- `docs/architecture/StableNet_IA.md`: 정보 아키텍처
+- `apps/wallet-extension/docs/ARCHITECTURE.md`: 스마트 월렛 아키텍처
+- `docs/EIP-7702_스펙표준_정리.md`: EIP-7702 정리
+- `docs/EIP-4337_스펙표준_정리.md`: EIP-4337 정리
 
 ### C. 변경 이력
 

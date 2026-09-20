@@ -1190,6 +1190,6 @@ DR_Configuration:
 - **WBFT**: Weighted Byzantine Fault Tolerance
 
 ### C. 참조 문서
-- StableNet_기술_로드맵.md
-- StableNet_기술_스택.md
-- StableNet_PRD.md
+- `docs/prd/StableNet_PRD.md`
+- `apps/wallet-extension/docs/ARCHITECTURE.md`
+- `docs/poc/01_System_Architecture.md`

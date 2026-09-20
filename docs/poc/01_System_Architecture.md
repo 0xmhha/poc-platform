@@ -775,7 +775,7 @@
 - [00_PoC_Overview.md](./00_PoC_Overview.md) - PoC 종합 개요
 - [02_Smart_Contracts.md](./02_Smart_Contracts.md) - 스마트 컨트랙트 구조
 - [04_Secure_Bridge.md](./04_Secure_Bridge.md) - 보안 브릿지 아키텍처
-- [08_Regulatory_Compliance.md](./08_Regulatory_Compliance.md) - 규제 준수 아키텍처
+- [제품 요구사항](../prd/StableNet_PRD.md) - 제품 및 규제 요구사항
 
 ---
 

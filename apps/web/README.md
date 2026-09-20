@@ -4,7 +4,7 @@ The frontend interface for the **StableNet PoC Platform** — a KRW stablecoin e
 
 ## Overview
 
-StableNet Web is a Next.js 15 App Router application that serves as the user-facing dashboard for the StableNet protocol. It acts as a **thin orchestration layer** — delegating all blockchain logic (UserOperation construction, gas estimation, bundler submission) to the StableNet wallet extension, while providing a rich UI for account management, payments, DeFi, and enterprise features.
+StableNet Web is a Next.js 16 App Router application that serves as the user-facing dashboard for the StableNet protocol. It delegates wallet signing and UserOperation submission to the StableNet wallet extension and provides account, payment, DeFi, and enterprise interfaces.
 
 ### Key Features
 
@@ -16,17 +16,18 @@ StableNet Web is a Next.js 15 App Router application that serves as the user-fac
 - **Module Marketplace** — Browse and install ERC-7579 modules (validators, executors, hooks)
 - **Session Keys** — Delegated signing with time-bound permissions
 - **Multi-Chain Support** — StableNet Devnet (8283), Anvil Local (82830), Sepolia
+- **Payment Lab** — Persistent PG, on-ramp, and off-ramp simulation through Payment Hub
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 15.5 (App Router) |
+| Framework | Next.js 16.3 (App Router) |
 | UI | React 19, Tailwind CSS 4.2 |
-| Blockchain | Wagmi 3.5, Viem 2.46 |
+| Blockchain | Wagmi 3.6, Viem 2.47 |
 | State | TanStack React Query 5.90 |
 | Linting | Biome 2.4 |
-| Testing | Vitest 4.0, Testing Library |
+| Testing | Vitest 4.1, Testing Library |
 | Package Manager | pnpm (workspace) |
 
 ## Project Structure
@@ -91,10 +92,10 @@ apps/web/
 
 ## Monorepo Context
 
-This app is part of the `stable-platform` monorepo:
+This app is part of the `poc-platform` monorepo:
 
 ```
-stable-platform/
+poc-platform/
 ├── apps/web/                   # This application
 ├── packages/
 │   ├── sdk-ts/                 # TypeScript SDK (core, accounts, crypto, plugins)
@@ -112,6 +113,7 @@ stable-platform/
 │   ├── subscription-executor/  # Subscription execution (Go)
 │   ├── bridge-relayer/         # Cross-chain relay (Go)
 │   ├── order-router/           # Order routing (Go)
+│   ├── payment-hub/            # Persistent payment orchestration and provider adapters
 │   ├── bank-simulator/         # Bank simulation (Go)
 │   ├── onramp-simulator/       # Fiat on-ramp simulation (Go)
 │   └── pg-simulator/           # Payment gateway simulation (Go)
@@ -194,8 +196,8 @@ The web app is a **thin client** — it does NOT construct UserOperations or int
 | `pnpm lint` | Run Biome linter |
 | `pnpm lint:fix` | Auto-fix lint issues |
 | `pnpm typecheck` | Run TypeScript type checking |
-| `pnpm test` | Run tests (watch mode) |
-| `pnpm test:run` | Run tests (single run) |
+| `pnpm test` | Run tests once |
+| `pnpm test:ci` | Run tests once for CI |
 
 ## Supported Standards
 

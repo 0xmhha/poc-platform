@@ -526,8 +526,8 @@ encodePolicyHookInitData(policies: PolicyConfig[])
 ## 11. 관련 문서
 
 - [00_SDK_OVERVIEW.md](./00_SDK_OVERVIEW.md) - SDK 개요
-- [02_SDK_REMAINING_TASKS.md](./02_SDK_REMAINING_TASKS.md) - 남은 작업
-- [../contracts/00_CONTRACTS_OVERVIEW.md](../contracts/00_CONTRACTS_OVERVIEW.md) - Contract 개요
+- [api/README.md](./api/README.md) - SDK API 레퍼런스
+- [../../packages/contracts/README.md](../../packages/contracts/README.md) - Contract 패키지
 
 ---
 
