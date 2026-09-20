@@ -1,14 +1,21 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { type Address, parseUnits } from 'viem'
 import { Button, ConnectWalletCard, PageHeader, useToast } from '@/components/common'
 import { ExpenseListCard, ExpenseSummaryCards, SubmitExpenseModal } from '@/components/enterprise'
 import type { ExpenseFormData } from '@/components/enterprise/cards/SubmitExpenseModal'
 import { useWallet } from '@/hooks'
+import { useAuditLogs } from '@/hooks/useAuditLogs'
+import { useEnterprisePayment } from '@/hooks/useEnterprisePayment'
 import { useExpenses } from '@/hooks/useExpenses'
+import { readToken } from '@/lib/contracts/defiReads'
+import { requireDeployment } from '@/lib/contracts/deployment'
+import { tokenTotals } from '@/lib/enterprise/records'
+import { useStableNetContext } from '@/providers'
 
 export default function ExpensesPage() {
-  const { isConnected } = useWallet()
+  const { isConnected, address } = useWallet()
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
@@ -17,70 +24,140 @@ export default function ExpensesPage() {
     return { status: filterStatus as 'pending' | 'approved' | 'rejected' | 'paid' }
   }, [filterStatus])
 
-  const { addToast } = useToast()
-  const { expenses, isLoading, error } = useExpenses({ filter })
-
-  // Get all expenses for summary calculation (without filter)
-  const { expenses: allExpenses } = useExpenses()
-
-  const totalPending =
-    allExpenses
-      .filter((e) => e.status === 'pending')
-      .reduce((sum, e) => sum + Number(e.amount), 0) / 1e6
-
-  const totalApproved =
-    allExpenses
-      .filter((e) => e.status === 'approved')
-      .reduce((sum, e) => sum + Number(e.amount), 0) / 1e6
-
-  const totalPaidMTD =
-    allExpenses.filter((e) => e.status === 'paid').reduce((sum, e) => sum + Number(e.amount), 0) /
-    1e6
-
+  const { addToast, updateToast } = useToast()
+  const { expenses: allExpenses, isLoading, error, addExpense, updateExpense } = useExpenses()
+  const expenses = useMemo(
+    () => allExpenses.filter((e) => !filter || e.status === filter.status),
+    [allExpenses, filter]
+  )
+  const { publicClient, chainId } = useStableNetContext()
+  const pay = useEnterprisePayment()
+  const { addLog } = useAuditLogs()
+  const paying = useRef(new Set<string>())
+  const totalPending = tokenTotals(allExpenses.filter((e) => e.status === 'pending'))
+  const totalApproved = tokenTotals(allExpenses.filter((e) => e.status === 'approved'))
+  const now = new Date()
+  const totalPaidMTD = tokenTotals(
+    allExpenses.filter(
+      (e) =>
+        e.status === 'paid' &&
+        e.paidAt &&
+        new Date(e.paidAt).getFullYear() === now.getFullYear() &&
+        new Date(e.paidAt).getMonth() === now.getMonth()
+    )
+  )
   const handleSubmitExpense = useCallback(
-    (data: ExpenseFormData) => {
-      addToast({
-        type: 'success',
-        title: 'Expense Submitted',
-        message: `Submitted ${data.category} expense for $${data.amount}`,
-      })
-      setIsAddModalOpen(false)
+    async (data: ExpenseFormData) => {
+      try {
+        if (!address) throw Error('Connect a wallet')
+        const token = await readToken(publicClient, requireDeployment(chainId, 'usdc'))
+        if (data.documentationUrl && !/^https?:\/\//.test(data.documentationUrl))
+          throw Error('Receipt URL must use HTTP or HTTPS')
+        addExpense({
+          id: crypto.randomUUID(),
+          description: data.description,
+          amount: parseUnits(data.amount, token.decimals),
+          token,
+          category: data.category,
+          submitter: (data.recipient || address) as Address,
+          status: 'pending',
+          submittedAt: new Date(),
+          documentationUrl: data.documentationUrl,
+        })
+        addToast({
+          type: 'success',
+          title: 'Expense Submitted',
+          message: `${data.amount} ${token.symbol}`,
+        })
+        setIsAddModalOpen(false)
+      } catch (err) {
+        addToast({
+          type: 'error',
+          title: 'Unable to save expense',
+          message: err instanceof Error ? err.message : 'Save failed',
+        })
+      }
     },
-    [addToast]
+    [address, publicClient, chainId, addExpense, addToast]
   )
-
-  const handleApprove = useCallback(
-    (id: string) => {
-      addToast({
-        type: 'success',
-        title: 'Expense Approved',
-        message: `Expense ${id} has been approved`,
-      })
+  const review = useCallback(
+    (id: string, status: 'approved' | 'rejected') => {
+      try {
+        const expense = allExpenses.find((e) => e.id === id)
+        if (!address || !expense || expense.status !== 'pending')
+          throw Error('Only pending expenses can be reviewed')
+        updateExpense(id, { status, approver: address })
+        addLog({
+          id: crypto.randomUUID(),
+          action: `expense.${status}`,
+          actor: address,
+          target: expense.submitter,
+          details: expense.description,
+          timestamp: new Date(),
+        })
+        addToast({
+          type: 'success',
+          title: status === 'approved' ? 'Expense Approved' : 'Expense Rejected',
+          message: expense.description,
+        })
+      } catch (err) {
+        addToast({
+          type: 'error',
+          title: 'Review failed',
+          message: err instanceof Error ? err.message : 'Review failed',
+        })
+      }
     },
-    [addToast]
+    [address, allExpenses, updateExpense, addLog, addToast]
   )
-
-  const handleReject = useCallback(
-    (id: string) => {
-      addToast({
-        type: 'info',
-        title: 'Expense Rejected',
-        message: `Expense ${id} has been rejected`,
-      })
-    },
-    [addToast]
-  )
-
+  const handleApprove = useCallback((id: string) => review(id, 'approved'), [review])
+  const handleReject = useCallback((id: string) => review(id, 'rejected'), [review])
   const handlePay = useCallback(
-    (id: string) => {
-      addToast({
+    async (id: string) => {
+      if (paying.current.has(id)) return
+      const expense = allExpenses.find((e) => e.id === id)
+      if (!address || !expense || expense.status !== 'approved') return
+      paying.current.add(id)
+      const toast = addToast({
         type: 'loading',
         title: 'Processing Payment',
-        message: `Paying expense ${id}...`,
+        message: expense.description,
         persistent: true,
       })
+      try {
+        const txHash = await pay(`expense:${id}`, expense.submitter, expense.amount, expense.token)
+        updateExpense(id, {
+          status: 'paid',
+          paymentTxHash: txHash,
+          paidAt: new Date().toISOString(),
+        })
+        addLog({
+          id: `expense:${id}:paid`,
+          action: 'expense.paid',
+          actor: address,
+          target: expense.submitter,
+          details: expense.description,
+          txHash,
+          timestamp: new Date(),
+        })
+        updateToast(toast, {
+          type: 'success',
+          title: 'Expense Paid',
+          message: 'Transaction confirmed',
+          persistent: false,
+        })
+      } catch (err) {
+        updateToast(toast, {
+          type: 'error',
+          title: 'Payment Needs Attention',
+          message: err instanceof Error ? err.message : 'Payment failed',
+          persistent: false,
+        })
+      } finally {
+        paying.current.delete(id)
+      }
     },
-    [addToast]
+    [address, allExpenses, pay, updateExpense, addLog, addToast, updateToast]
   )
 
   if (!isConnected) {

@@ -21,6 +21,8 @@ type SubscriptionRepository interface {
 	GetDueSubscriptionsWithLock(ctx context.Context, limit int) ([]*model.Subscription, error)
 
 	// Execution records
+	SaveExecutionUserOpHash(ctx context.Context, id int64, hash string) error
+	FinalizeExecution(ctx context.Context, id int64, txHash string, gasUsed uint64) error
 	CreateExecutionRecord(ctx context.Context, record *model.ExecutionRecord) error
 	UpdateExecutionRecord(ctx context.Context, id int64, status, txHash, errMsg string, gasUsed string) error
 	GetExecutionRecords(ctx context.Context, subscriptionID string, limit int) ([]*model.ExecutionRecord, error)

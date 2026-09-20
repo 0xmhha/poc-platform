@@ -1,3 +1,4 @@
+import { getEntryPoint } from '@stablenet/contracts'
 import { act, renderHook } from '@testing-library/react'
 import type { Address, Hex } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,29 +8,50 @@ import { useUserOp } from '../useUserOp'
 // Mocks — vi.hoisted ensures these are available during vi.mock hoisting
 // ============================================================================
 
-const { mockSendTransaction, mockWaitReceipt } = vi.hoisted(() => ({
-  mockSendTransaction: vi.fn(),
-  mockWaitReceipt: vi.fn().mockResolvedValue({
-    success: true,
-    receipt: { transactionHash: `0x${'ee'.repeat(32)}` },
-  }),
-}))
+const {
+  mockSendTransaction,
+  mockWaitReceipt,
+  mockRequest,
+  mockGetProvider,
+  mockTxReceipt,
+  connector,
+} = vi.hoisted(() => {
+  const mockGetProvider = vi.fn()
+  return {
+    mockSendTransaction: vi.fn(),
+    mockWaitReceipt: vi.fn().mockResolvedValue({
+      success: true,
+      receipt: { transactionHash: `0x${'ee'.repeat(32)}` },
+    }),
+    mockRequest: vi.fn(),
+    mockGetProvider,
+    connector: { getProvider: mockGetProvider },
+    mockTxReceipt: vi.fn(),
+  }
+})
 
-// Mock wallet-sdk: detectProvider returns our mock provider
+// Mock wallet-sdk: only createBundlerClient is still used directly
 vi.mock('@stablenet/wallet-sdk', () => ({
-  detectProvider: vi.fn().mockResolvedValue({
-    sendTransaction: mockSendTransaction,
-  }),
   createBundlerClient: vi.fn(() => ({
     waitForUserOperationReceipt: mockWaitReceipt,
   })),
+}))
+
+// Mock wagmi: useAccount returns a connector with getProvider()
+vi.mock('wagmi', () => ({
+  useAccount: () => ({
+    connector,
+  }),
 }))
 
 // Mock context provider
 vi.mock('@/providers', () => ({
   useStableNetContext: () => ({
     bundlerUrl: 'http://localhost:4337',
-    entryPoint: '0xEf6817fe73741A8F10088f9511c64b666a338A14' as Address,
+    chainId: 8283,
+    isReady: true,
+    publicClient: { waitForTransactionReceipt: mockTxReceipt },
+    entryPoint: getEntryPoint(8283) as Address,
   }),
 }))
 
@@ -44,14 +66,64 @@ const TX_HASH = `0x${'aa'.repeat(32)}` as Hex
 describe('useUserOp', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
+    mockTxReceipt.mockResolvedValue({ status: 'success', transactionHash: TX_HASH })
     mockSendTransaction.mockResolvedValue(TX_HASH)
+    mockRequest.mockResolvedValue(TX_HASH)
+    // Mock connector.getProvider() to return provider with sendTransaction
+    mockGetProvider.mockResolvedValue({
+      sendTransaction: mockSendTransaction,
+      request: mockRequest,
+    })
+  })
+
+  it('does not turn receipt timeout into confirmed success', async () => {
+    mockTxReceipt.mockRejectedValueOnce(Error('timeout'))
+    const { result } = renderHook(() => useUserOp())
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    let outcome: unknown
+    await act(async () => {
+      outcome = await result.current.sendUserOp(SENDER, { to: RECIPIENT, value: 1n, data: '0x' })
+    })
+    expect(outcome).toMatchObject({ status: 'submitted', success: false })
+  })
+  it('reports reverted transactions as failures', async () => {
+    mockTxReceipt.mockResolvedValueOnce({ status: 'reverted', transactionHash: TX_HASH })
+    const { result } = renderHook(() => useUserOp())
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    let outcome: unknown
+    await act(async () => {
+      outcome = await result.current.sendUserOp(SENDER, { to: RECIPIENT, value: 1n, data: '0x' })
+    })
+    expect(outcome).toMatchObject({ status: 'failed', success: false })
+  })
+  it('distinguishes a user cancellation from an unknown submission failure', async () => {
+    mockRequest.mockRejectedValueOnce({ code: 4001, message: 'User rejected the request' })
+    const { result } = renderHook(() => useUserOp())
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10))
+    })
+    await act(async () => {
+      await result.current.sendUserOp(SENDER, { to: RECIPIENT, value: 1n, data: '0x' })
+    })
+    expect(result.current.getLastSubmissionFailure()).toBe('rejected')
+
+    mockRequest.mockRejectedValueOnce(Error('transport disconnected'))
+    await act(async () => {
+      await result.current.sendUserOp(SENDER, { to: RECIPIENT, value: 1n, data: '0x' })
+    })
+    expect(result.current.getLastSubmissionFailure()).toBe('unknown')
   })
 
   describe('sendUserOp', () => {
-    it('should send transaction through wallet-sdk provider', async () => {
+    it('should send transaction through wallet provider', async () => {
       const { result } = renderHook(() => useUserOp())
 
-      // Wait for provider detection
+      // Wait for provider resolution from connector
       await act(async () => {
         await new Promise((r) => setTimeout(r, 10))
       })
@@ -65,16 +137,18 @@ describe('useUserOp', () => {
         })
       })
 
-      // Should call provider.sendTransaction with correct params
-      expect(mockSendTransaction).toHaveBeenCalledWith(
-        {
-          from: SENDER,
-          to: RECIPIENT,
-          value: 1000000000000000000n,
-          data: '0x',
-        },
-        { waitForConfirmation: true }
-      )
+      // Should call provider.request with EIP-1193 eth_sendTransaction
+      expect(mockRequest).toHaveBeenCalledWith({
+        method: 'eth_sendTransaction',
+        params: [
+          {
+            from: SENDER,
+            to: RECIPIENT,
+            value: '0xde0b6b3a7640000', // 1 ETH in hex wei
+            data: '0x',
+          },
+        ],
+      })
 
       // Should return confirmed result
       expect(opResult).toEqual({
@@ -100,21 +174,21 @@ describe('useUserOp', () => {
         })
       })
 
-      expect(mockSendTransaction).toHaveBeenCalledWith(
-        expect.objectContaining({
-          from: SENDER,
-          to: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707',
-          data: customCalldata,
-        }),
-        { waitForConfirmation: true }
-      )
+      expect(mockRequest).toHaveBeenCalledWith({
+        method: 'eth_sendTransaction',
+        params: [
+          expect.objectContaining({
+            from: SENDER,
+            to: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707',
+            data: customCalldata,
+          }),
+        ],
+      })
     })
 
     it('should set isLoading during transaction', async () => {
-      // Make sendTransaction hang
-      mockSendTransaction.mockImplementation(
-        () => new Promise((r) => setTimeout(() => r(TX_HASH), 100))
-      )
+      // Make request hang
+      mockRequest.mockImplementation(() => new Promise((r) => setTimeout(() => r(TX_HASH), 100)))
 
       const { result } = renderHook(() => useUserOp())
       await act(async () => {
@@ -153,22 +227,24 @@ describe('useUserOp', () => {
         await result.current.sendTransaction(SENDER, RECIPIENT, '1.5')
       })
 
-      // Should convert '1.5' ETH to wei
-      expect(mockSendTransaction).toHaveBeenCalledWith(
-        expect.objectContaining({
-          from: SENDER,
-          to: RECIPIENT,
-          value: 1500000000000000000n, // 1.5 ETH in wei
-          data: '0x',
-        }),
-        { waitForConfirmation: true }
-      )
+      // Should convert '1.5' ETH to wei (hex)
+      expect(mockRequest).toHaveBeenCalledWith({
+        method: 'eth_sendTransaction',
+        params: [
+          expect.objectContaining({
+            from: SENDER,
+            to: RECIPIENT,
+            value: '0x14d1120d7b160000', // 1.5 ETH in hex wei
+            data: '0x',
+          }),
+        ],
+      })
     })
   })
 
   describe('error handling', () => {
-    it('should handle provider.sendTransaction errors', async () => {
-      mockSendTransaction.mockRejectedValueOnce(new Error('AA21 did not pay prefund'))
+    it('should handle provider.request errors', async () => {
+      mockRequest.mockRejectedValueOnce(new Error('AA21 did not pay prefund'))
 
       const { result } = renderHook(() => useUserOp())
       await act(async () => {
@@ -189,7 +265,7 @@ describe('useUserOp', () => {
     })
 
     it('should handle user rejection', async () => {
-      mockSendTransaction.mockRejectedValueOnce(new Error('User rejected the request'))
+      mockRequest.mockRejectedValueOnce(new Error('User rejected the request'))
 
       const { result } = renderHook(() => useUserOp())
       await act(async () => {
@@ -208,10 +284,9 @@ describe('useUserOp', () => {
       expect(result.current.error?.message).toContain('User rejected')
     })
 
-    it('should return null when provider is not detected', async () => {
-      // Override detectProvider to return null
-      const { detectProvider } = await import('@stablenet/wallet-sdk')
-      vi.mocked(detectProvider).mockResolvedValueOnce(null)
+    it('should return null when connector has no provider', async () => {
+      // Override getProvider to return null
+      mockGetProvider.mockResolvedValueOnce(null)
 
       const { result } = renderHook(() => useUserOp())
       await act(async () => {
@@ -231,7 +306,7 @@ describe('useUserOp', () => {
     })
 
     it('should clear error with clearError', async () => {
-      mockSendTransaction.mockRejectedValueOnce(new Error('Some error'))
+      mockRequest.mockRejectedValueOnce(new Error('Some error'))
 
       const { result } = renderHook(() => useUserOp())
       await act(async () => {

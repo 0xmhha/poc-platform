@@ -55,6 +55,7 @@ describe('paymaster plugin', () => {
   describe('createVerifyingPaymaster', () => {
     it('should create a paymaster client with required methods', () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -70,6 +71,7 @@ describe('paymaster plugin', () => {
   describe('getPaymasterStubData', () => {
     it('should return stub data with correct paymaster address', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -82,6 +84,7 @@ describe('paymaster plugin', () => {
 
     it('should return stub data with gas limits', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -97,6 +100,7 @@ describe('paymaster plugin', () => {
 
     it('should return stub data with paymaster data', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -110,6 +114,7 @@ describe('paymaster plugin', () => {
 
     it('should produce v2 envelope format with stub signature', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -136,6 +141,7 @@ describe('paymaster plugin', () => {
   describe('getPaymasterData', () => {
     it('should return paymaster data with correct paymaster address', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -148,6 +154,7 @@ describe('paymaster plugin', () => {
 
     it('should return paymaster data with actual signature in v2 format', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -168,6 +175,7 @@ describe('paymaster plugin', () => {
 
     it('should produce different signatures for different user operations', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -184,6 +192,7 @@ describe('paymaster plugin', () => {
 
     it('should produce consistent signatures for same user operation', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -200,6 +209,7 @@ describe('paymaster plugin', () => {
   describe('validity period', () => {
     it('should use default validity seconds', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -220,6 +230,7 @@ describe('paymaster plugin', () => {
     it('should use custom validity seconds', async () => {
       const customValidity = 7200 // 2 hours
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -241,6 +252,7 @@ describe('paymaster plugin', () => {
   describe('createVerifyingPaymasterFromPrivateKey', () => {
     it('should create a paymaster from private key', async () => {
       const paymaster = await createVerifyingPaymasterFromPrivateKey({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         privateKey: testPrivateKey,
         chainId: testChainId,
@@ -252,11 +264,13 @@ describe('paymaster plugin', () => {
 
     it('should produce same signatures as createVerifyingPaymaster', async () => {
       const paymaster1 = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
       })
       const paymaster2 = await createVerifyingPaymasterFromPrivateKey({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         privateKey: testPrivateKey,
         chainId: testChainId,
@@ -272,6 +286,7 @@ describe('paymaster plugin', () => {
   describe('user operation with factory', () => {
     it('should handle user operation with factory', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -293,11 +308,13 @@ describe('paymaster plugin', () => {
   describe('edge cases', () => {
     it('should handle different chain IDs', async () => {
       const paymaster1 = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: 1n,
       })
       const paymaster2 = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: 137n,
@@ -312,6 +329,7 @@ describe('paymaster plugin', () => {
 
     it('should handle large gas values', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,
@@ -330,6 +348,7 @@ describe('paymaster plugin', () => {
 
     it('should produce data in v2 envelope format', async () => {
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async () => 0n,
         paymasterAddress: testPaymasterAddress,
         signer: testSigner,
         chainId: testChainId,

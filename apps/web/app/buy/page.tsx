@@ -121,7 +121,9 @@ export default function BuyPage() {
         <h1 className="text-2xl font-bold" style={{ color: 'rgb(var(--foreground))' }}>
           Buy Crypto
         </h1>
-        <p style={{ color: 'rgb(var(--muted-foreground))' }}>Purchase crypto with fiat currency</p>
+        <p style={{ color: 'rgb(var(--muted-foreground))' }}>
+          Simulate a crypto purchase with test funds
+        </p>
       </div>
 
       {/* Tab Toggle */}

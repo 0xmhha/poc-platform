@@ -269,16 +269,16 @@ func TestLoad_WithDefaults(t *testing.T) {
 func TestLoad_WithCustomValues(t *testing.T) {
 	// Set custom environment variables
 	envVars := map[string]string{
-		"PORT":                        "9090",
-		"SOURCE_RPC_URL":              "http://custom-source:8545",
-		"TARGET_RPC_URL":              "http://custom-target:8546",
-		"SOURCE_CHAIN_ID":             "5",
-		"TARGET_CHAIN_ID":             "80001",
-		"MPC_THRESHOLD":               "3",
-		"MPC_TOTAL_SIGNERS":           "5",
-		"MONITOR_POLL_INTERVAL":       "10s",
-		"RATE_LIMIT_RPS":              "20.0",
-		"RATE_LIMIT_BURST":            "50",
+		"PORT":                  "9090",
+		"SOURCE_RPC_URL":        "http://custom-source:8545",
+		"TARGET_RPC_URL":        "http://custom-target:8546",
+		"SOURCE_CHAIN_ID":       "5",
+		"TARGET_CHAIN_ID":       "80001",
+		"MPC_THRESHOLD":         "3",
+		"MPC_TOTAL_SIGNERS":     "5",
+		"MONITOR_POLL_INTERVAL": "10s",
+		"RATE_LIMIT_RPS":        "20.0",
+		"RATE_LIMIT_BURST":      "50",
 	}
 
 	for k, v := range envVars {

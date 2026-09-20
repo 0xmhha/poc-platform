@@ -73,8 +73,14 @@ impl StealthMetaAddress {
 
     /// Encode to stealth meta-address URI format
     pub fn to_uri(&self) -> String {
-        let spending = self.spending_pub_key.strip_prefix("0x").unwrap_or(&self.spending_pub_key);
-        let viewing = self.viewing_pub_key.strip_prefix("0x").unwrap_or(&self.viewing_pub_key);
+        let spending = self
+            .spending_pub_key
+            .strip_prefix("0x")
+            .unwrap_or(&self.spending_pub_key);
+        let viewing = self
+            .viewing_pub_key
+            .strip_prefix("0x")
+            .unwrap_or(&self.viewing_pub_key);
         format!("st:{}:0x{}{}", self.chain, spending, viewing)
     }
 }

@@ -39,7 +39,7 @@ import {
   type RecurringPaymentExecutorClient,
   type SubscriptionManagerClient,
   type SubscriptionPermissionClient,
-} from '../../packages/sdk/plugins/subscription/src'
+} from '../../packages/sdk-ts/plugins/subscription/src'
 import { isNetworkAvailable, TEST_CONFIG } from '../setup'
 
 // ---------------------------------------------------------------------------
@@ -121,18 +121,21 @@ describe('Subscription Plugin Integration', () => {
   // ---- 1. Contract deployment verification ----
 
   describe('Contract Deployment', () => {
-    it('should have SubscriptionManager deployed', async () => {
-      if (!networkAvailable) return
+    it('should have SubscriptionManager deployed', async (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
       expect(subscriptionManagerDeployed).toBe(true)
     })
 
-    it('should have PermissionManager deployed', async () => {
-      if (!networkAvailable) return
+    it('should have PermissionManager deployed', async (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
       expect(permissionManagerDeployed).toBe(true)
     })
 
-    it('should report RecurringPaymentExecutor status', async () => {
-      if (!networkAvailable) return
+    it('should report RecurringPaymentExecutor status', async (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
       // Non-blocking — executor is optional at this stage
       expect(true).toBe(true)
     })
@@ -141,23 +144,26 @@ describe('Subscription Plugin Integration', () => {
   // ---- 2. SubscriptionManager read functions ----
 
   describe('SubscriptionManager Queries', () => {
-    it('should read plan count', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should read plan count', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const count = await subscriptionMgr.getPlanCount(publicClient)
       expect(count).toBeGreaterThanOrEqual(0n)
     })
 
-    it('should read protocol fee', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should read protocol fee', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const feeBps = await subscriptionMgr.getProtocolFeeBps(publicClient)
       expect(feeBps).toBeGreaterThanOrEqual(0n)
       expect(feeBps).toBeLessThanOrEqual(1000n) // max 10%
     })
 
-    it('should check processor authorization', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should check processor authorization', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const isProcessor = await subscriptionMgr.isAuthorizedProcessor(
         publicClient,
@@ -171,10 +177,12 @@ describe('Subscription Plugin Integration', () => {
   // ---- 3. Plan creation flow ----
 
   describe('Plan Creation', () => {
-    it('should encode and send createPlan transaction', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should encode and send createPlan transaction', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const calldata = subscriptionMgr.encodeCreatePlan({
+        token: TEST_CONFIG.contracts.usdc as Address,
         amount: parseEther('0.01'),
         period: INTERVALS.MONTHLY,
         name: 'Integration Test Plan',
@@ -192,8 +200,9 @@ describe('Subscription Plugin Integration', () => {
       expect(receipt.status).toBe('success')
     })
 
-    it('should read back created plan', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should read back created plan', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const planCount = await subscriptionMgr.getPlanCount(publicClient)
       if (planCount === 0n) {
@@ -215,10 +224,12 @@ describe('Subscription Plugin Integration', () => {
       expect(plan.merchant.toLowerCase()).toBe(merchantAccount.address.toLowerCase())
     })
 
-    it('should create a plan with trial and grace periods', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should create a plan with trial and grace periods', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const calldata = subscriptionMgr.encodeCreatePlan({
+        token: TEST_CONFIG.contracts.usdc as Address,
         amount: parseEther('0.05'),
         period: INTERVALS.WEEKLY,
         trialPeriod: INTERVALS.DAILY * 7n, // 7-day trial
@@ -240,8 +251,9 @@ describe('Subscription Plugin Integration', () => {
   // ---- 4. Plan update ----
 
   describe('Plan Update', () => {
-    it('should update a plan', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should update a plan', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const planCount = await subscriptionMgr.getPlanCount(publicClient)
       if (planCount === 0n) {
@@ -269,8 +281,9 @@ describe('Subscription Plugin Integration', () => {
   // ---- 5. PermissionManager queries ----
 
   describe('PermissionManager Queries', () => {
-    it('should check if subscription permission type is supported', async () => {
-      if (!networkAvailable || !permissionManagerDeployed) return
+    it('should check if subscription permission type is supported', async (testContext) => {
+      if (!networkAvailable || !permissionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const supported = await permissionClient.isPermissionTypeSupported(
         publicClient,
@@ -279,8 +292,9 @@ describe('Subscription Plugin Integration', () => {
       expect(typeof supported).toBe('boolean')
     })
 
-    it('should get nonce for subscriber', async () => {
-      if (!networkAvailable || !permissionManagerDeployed) return
+    it('should get nonce for subscriber', async (testContext) => {
+      if (!networkAvailable || !permissionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const nonce = await permissionClient.getNonce(publicClient, subscriberAccount.address)
       expect(nonce).toBeGreaterThanOrEqual(0n)
@@ -290,8 +304,9 @@ describe('Subscription Plugin Integration', () => {
   // ---- 6. Permission granting (encode only — actual granting requires on-chain wallet support) ----
 
   describe('Permission Encoding', () => {
-    it('should encode grantSubscriptionPermission', () => {
-      if (!networkAvailable) return
+    it('should encode grantSubscriptionPermission', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const calldata = permissionClient.encodeGrantSubscriptionPermission({
         grantee: subscriptionMgr.managerAddress,
@@ -304,8 +319,9 @@ describe('Subscription Plugin Integration', () => {
       expect(calldata.length).toBeGreaterThan(10)
     })
 
-    it('should encode revokePermission', () => {
-      if (!networkAvailable) return
+    it('should encode revokePermission', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const fakePermissionId = ('0x' + 'ab'.repeat(32)) as Hex
       const calldata = permissionClient.encodeRevokePermission(fakePermissionId)
@@ -316,8 +332,9 @@ describe('Subscription Plugin Integration', () => {
   // ---- 7. RecurringPaymentExecutor ----
 
   describe('RecurringPaymentExecutor', () => {
-    it('should encode createSchedule', () => {
-      if (!networkAvailable) return
+    it('should encode createSchedule', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const calldata = recurringPay.encodeCreateSchedule({
         recipient: merchantAccount.address,
@@ -328,8 +345,9 @@ describe('Subscription Plugin Integration', () => {
       expect(calldata).toMatch(/^0x/)
     })
 
-    it('should encode install data for ERC-7579 module', () => {
-      if (!networkAvailable) return
+    it('should encode install data for ERC-7579 module', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const installData = recurringPay.encodeInstallData({
         recipient: merchantAccount.address,
@@ -341,9 +359,9 @@ describe('Subscription Plugin Integration', () => {
       expect(installData.length).toBeGreaterThan(10)
     })
 
-    it('should query active schedules (if deployed)', async () => {
+    it('should query active schedules (if deployed)', async (testContext) => {
       if (!networkAvailable || !recurringPaymentExecutorDeployed) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const schedules = await recurringPay.getActiveSchedules(
@@ -353,8 +371,9 @@ describe('Subscription Plugin Integration', () => {
       expect(Array.isArray(schedules)).toBe(true)
     })
 
-    it('should check initialization status (if deployed)', async () => {
-      if (!networkAvailable || !recurringPaymentExecutorDeployed) return
+    it('should check initialization status (if deployed)', async (testContext) => {
+      if (!networkAvailable || !recurringPaymentExecutorDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const initialized = await recurringPay.isInitialized(publicClient, subscriberAccount.address)
       expect(typeof initialized).toBe('boolean')
@@ -374,8 +393,9 @@ describe('Subscription Plugin Integration', () => {
       planId = count > 0n ? 1n : 0n
     })
 
-    it('should encode subscribe transaction', () => {
-      if (!networkAvailable || !subscriptionManagerDeployed || planId === 0n) return
+    it('should encode subscribe transaction', (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed || planId === 0n)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const fakePermissionId = ('0x' + 'cc'.repeat(32)) as Hex
       const calldata = subscriptionMgr.encodeSubscribe({
@@ -386,8 +406,9 @@ describe('Subscription Plugin Integration', () => {
       expect(calldata).toMatch(/^0x/)
     })
 
-    it('should get subscriber subscriptions (empty initially)', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should get subscriber subscriptions (empty initially)', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const subs = await subscriptionMgr.getSubscriberSubscriptions(
         publicClient,
@@ -396,23 +417,26 @@ describe('Subscription Plugin Integration', () => {
       expect(Array.isArray(subs)).toBe(true)
     })
 
-    it('should get merchant plans', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should get merchant plans', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const plans = await subscriptionMgr.getMerchantPlans(publicClient, merchantAccount.address)
       expect(Array.isArray(plans)).toBe(true)
     })
 
-    it('should encode batch process payments', () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should encode batch process payments', (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const fakeSubIds: Hex[] = [('0x' + 'aa'.repeat(32)) as Hex, ('0x' + 'bb'.repeat(32)) as Hex]
       const calldata = subscriptionMgr.encodeBatchProcessPayments(fakeSubIds)
       expect(calldata).toMatch(/^0x/)
     })
 
-    it('should encode processor management', async () => {
-      if (!networkAvailable || !subscriptionManagerDeployed) return
+    it('should encode processor management', async (testContext) => {
+      if (!networkAvailable || !subscriptionManagerDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const processor = TEST_CONFIG.accounts.user2.address as Address
       const addCalldata = subscriptionMgr.encodeAddProcessor(processor)
@@ -426,8 +450,9 @@ describe('Subscription Plugin Integration', () => {
   // ---- 9. Cross-client consistency ----
 
   describe('Cross-Client Consistency', () => {
-    it('should have consistent manager addresses', () => {
-      if (!networkAvailable) return
+    it('should have consistent manager addresses', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       // SubscriptionManager and PermissionManager should reference valid addresses
       expect(subscriptionMgr.managerAddress).toMatch(/^0x[a-fA-F0-9]{40}$/)
@@ -435,8 +460,9 @@ describe('Subscription Plugin Integration', () => {
       expect(recurringPay.executorAddress).toMatch(/^0x[a-fA-F0-9]{40}$/)
     })
 
-    it('should produce deterministic calldata', () => {
-      if (!networkAvailable) return
+    it('should produce deterministic calldata', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const params = {
         amount: parseEther('1'),

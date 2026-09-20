@@ -214,6 +214,8 @@ export interface GrantPermissionParams {
 export interface GrantPermissionWithSignatureParams extends GrantPermissionParams {
   /** Address granting the permission */
   granter: Address
+  /** Last timestamp at which the signature is valid (seconds). */
+  deadline: bigint
   /** EIP-712 signature */
   signature: Hex
 }
@@ -678,6 +680,7 @@ export const PERMISSION_MANAGER_ABI = [
           { name: 'data', type: 'bytes' },
         ],
       },
+      { name: 'deadline', type: 'uint256' },
       { name: 'signature', type: 'bytes' },
     ],
     outputs: [{ name: 'permissionId', type: 'bytes32' }],

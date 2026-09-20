@@ -11,12 +11,12 @@ import (
 )
 
 var (
-	ErrChallengeNotFound    = errors.New("challenge not found")
-	ErrChallengeExpired     = errors.New("challenge period expired")
-	ErrChallengeExists      = errors.New("challenge already exists")
-	ErrInvalidChallenger    = errors.New("invalid challenger")
-	ErrInsufficientStake    = errors.New("insufficient stake")
-	ErrAlreadyResolved      = errors.New("challenge already resolved")
+	ErrChallengeNotFound = errors.New("challenge not found")
+	ErrChallengeExpired  = errors.New("challenge period expired")
+	ErrChallengeExists   = errors.New("challenge already exists")
+	ErrInvalidChallenger = errors.New("invalid challenger")
+	ErrInsufficientStake = errors.New("insufficient stake")
+	ErrAlreadyResolved   = errors.New("challenge already resolved")
 )
 
 // ChallengeStatus represents the status of a challenge
@@ -47,65 +47,65 @@ func (s ChallengeStatus) String() string {
 
 // Challenge represents a challenge to a bridge transaction
 type Challenge struct {
-	ID            uint64           `json:"id"`
-	RequestID     [32]byte         `json:"requestId"`
-	Challenger    string           `json:"challenger"`
-	ChallengeType string           `json:"challengeType"`
-	Evidence      []byte           `json:"evidence"`
-	StakeAmount   *big.Int         `json:"stakeAmount"`
-	Status        ChallengeStatus  `json:"status"`
-	CreatedAt     time.Time        `json:"createdAt"`
-	ExpiresAt     time.Time        `json:"expiresAt"`
-	ResolvedAt    time.Time        `json:"resolvedAt,omitempty"`
-	Resolution    string           `json:"resolution,omitempty"`
-	WinnerAddress string           `json:"winnerAddress,omitempty"`
+	ID            uint64          `json:"id"`
+	RequestID     [32]byte        `json:"requestId"`
+	Challenger    string          `json:"challenger"`
+	ChallengeType string          `json:"challengeType"`
+	Evidence      []byte          `json:"evidence"`
+	StakeAmount   *big.Int        `json:"stakeAmount"`
+	Status        ChallengeStatus `json:"status"`
+	CreatedAt     time.Time       `json:"createdAt"`
+	ExpiresAt     time.Time       `json:"expiresAt"`
+	ResolvedAt    time.Time       `json:"resolvedAt,omitempty"`
+	Resolution    string          `json:"resolution,omitempty"`
+	WinnerAddress string          `json:"winnerAddress,omitempty"`
 }
 
 // ChallengeResolution represents the result of a challenge
 type ChallengeResolution struct {
-	ChallengeID    uint64    `json:"challengeId"`
-	RequestID      [32]byte  `json:"requestId"`
-	IsValid        bool      `json:"isValid"`
-	Winner         string    `json:"winner"`
-	SlashedAmount  *big.Int  `json:"slashedAmount"`
-	RewardAmount   *big.Int  `json:"rewardAmount"`
-	ResolvedAt     time.Time `json:"resolvedAt"`
-	ResolvedBy     string    `json:"resolvedBy"`
+	ChallengeID   uint64    `json:"challengeId"`
+	RequestID     [32]byte  `json:"requestId"`
+	IsValid       bool      `json:"isValid"`
+	Winner        string    `json:"winner"`
+	SlashedAmount *big.Int  `json:"slashedAmount"`
+	RewardAmount  *big.Int  `json:"rewardAmount"`
+	ResolvedAt    time.Time `json:"resolvedAt"`
+	ResolvedBy    string    `json:"resolvedBy"`
 }
 
 // ChallengeManager manages the challenge process for bridge transactions
 type ChallengeManager struct {
 	cfg config.ContractConfig
 
-	mu               sync.RWMutex
-	challenges       map[uint64]*Challenge
-	challengesByReq  map[[32]byte][]uint64
-	resolutions      map[uint64]*ChallengeResolution
-	nextChallengeID  uint64
+	mu              sync.RWMutex
+	challenges      map[uint64]*Challenge
+	challengesByReq map[[32]byte][]uint64
+	resolutions     map[uint64]*ChallengeResolution
+	nextChallengeID uint64
 
 	// Configuration
-	challengePeriod  time.Duration
-	minStakeAmount   *big.Int
-	slashPercentage  uint8
+	challengePeriod time.Duration
+	minStakeAmount  *big.Int
+	slashPercentage uint8
 
 	// Channels
-	challengeChan   chan *Challenge
-	resolutionChan  chan *ChallengeResolution
+	challengeChan  chan *Challenge
+	resolutionChan chan *ChallengeResolution
 }
 
 // NewChallengeManager creates a new challenge manager
 func NewChallengeManager(cfg config.ContractConfig) *ChallengeManager {
 	return &ChallengeManager{
-		cfg:              cfg,
-		challenges:       make(map[uint64]*Challenge),
-		challengesByReq:  make(map[[32]byte][]uint64),
-		resolutions:      make(map[uint64]*ChallengeResolution),
-		nextChallengeID:  1,
-		challengePeriod:  24 * time.Hour,
-		minStakeAmount:   big.NewInt(1e17), // 0.1 ETH
-		slashPercentage:  50,
-		challengeChan:    make(chan *Challenge, 100),
-		resolutionChan:   make(chan *ChallengeResolution, 100),
+		cfg:             cfg,
+		challenges:      make(map[uint64]*Challenge),
+		challengesByReq: make(map[[32]byte][]uint64),
+		resolutions:     make(map[uint64]*ChallengeResolution),
+		nextChallengeID: 1,
+		challengePeriod: 24 * time.Hour,
+		minStakeAmount:  big.NewInt(1e17), // 0.1 ETH
+		slashPercentage: 50,
+		challengeChan:   make(chan *Challenge, 100),
+		resolutionChan:  make(chan *ChallengeResolution, 100),
 	}
 }
 

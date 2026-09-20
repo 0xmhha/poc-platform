@@ -1,9 +1,8 @@
-use elliptic_curve::sec1::ToEncodedPoint;
 use k256::{
     ecdh::EphemeralSecret,
     ecdsa::{RecoveryId, Signature, VerifyingKey},
-    elliptic_curve::ScalarPrimitive,
-    PublicKey, Secp256k1, SecretKey,
+    elliptic_curve::{ops::Reduce, sec1::ToSec1Point, Generate},
+    FieldBytes, PublicKey, SecretKey,
 };
 use sha3::{Digest, Keccak256};
 use thiserror::Error;
@@ -83,8 +82,8 @@ pub fn recover_address(message: &[u8], signature_hex: &str) -> Result<String, St
     let message_hash = Keccak256::digest(message);
 
     // Create signature from r, s bytes
-    let signature = Signature::from_slice(r_s)
-        .map_err(|e| StealthError::InvalidSignature(e.to_string()))?;
+    let signature =
+        Signature::from_slice(r_s).map_err(|e| StealthError::InvalidSignature(e.to_string()))?;
 
     // Create recovery id
     let rec_id = RecoveryId::new(recovery_id != 0, false);
@@ -95,7 +94,7 @@ pub fn recover_address(message: &[u8], signature_hex: &str) -> Result<String, St
 
     // Convert to uncompressed public key bytes
     let public_key = PublicKey::from(verifying_key);
-    let pub_key_bytes = public_key.to_encoded_point(false);
+    let pub_key_bytes = public_key.to_sec1_point(false);
 
     // Derive address: keccak256(pubkey[1..65])[12..32]
     let pub_key_hash = Keccak256::digest(&pub_key_bytes.as_bytes()[1..]);
@@ -183,11 +182,10 @@ pub fn compute_stealth_private_key(
     // Hash the shared secret
     let hash = Keccak256::digest(shared_secret);
 
-    // Convert hash to scalar using ScalarPrimitive
+    // Reduce the hash modulo the secp256k1 group order.
     let hash_array: [u8; 32] = hash.into();
-    let hash_scalar_primitive = ScalarPrimitive::<Secp256k1>::from_bytes(&hash_array.into())
-        .unwrap_or_else(|| ScalarPrimitive::ZERO);
-    let hash_scalar = k256::Scalar::from(&hash_scalar_primitive);
+    let hash_bytes: FieldBytes = hash_array.into();
+    let hash_scalar = <k256::Scalar as Reduce<FieldBytes>>::reduce(&hash_bytes);
 
     // Add spending key + hash (mod curve order)
     let spending_scalar = *spending_secret.to_nonzero_scalar();
@@ -218,7 +216,7 @@ pub fn generate_stealth_address(
         .map_err(|e| StealthError::InvalidPublicKey(e.to_string()))?;
 
     // Generate ephemeral key pair
-    let ephemeral_secret = EphemeralSecret::random(&mut rand::thread_rng());
+    let ephemeral_secret = EphemeralSecret::generate();
     let ephemeral_pub = ephemeral_secret.public_key();
 
     // Compute shared secret with viewing public key
@@ -231,9 +229,8 @@ pub fn generate_stealth_address(
     // Hash shared secret
     let hash = Keccak256::digest(shared_bytes);
     let hash_array: [u8; 32] = hash.into();
-    let hash_scalar_primitive = ScalarPrimitive::<Secp256k1>::from_bytes(&hash_array.into())
-        .unwrap_or_else(|| ScalarPrimitive::ZERO);
-    let hash_scalar = k256::Scalar::from(&hash_scalar_primitive);
+    let hash_bytes: FieldBytes = hash_array.into();
+    let hash_scalar = <k256::Scalar as Reduce<FieldBytes>>::reduce(&hash_bytes);
 
     // Compute stealth public key: P_stealth = P_spending + hash * G
     let hash_point = k256::ProjectivePoint::GENERATOR * hash_scalar;
@@ -243,12 +240,12 @@ pub fn generate_stealth_address(
         .map_err(|e| StealthError::CryptoError(e.to_string()))?;
 
     // Derive address from stealth public key
-    let stealth_pub_bytes = stealth_pub.to_encoded_point(false);
+    let stealth_pub_bytes = stealth_pub.to_sec1_point(false);
     let pub_key_hash = Keccak256::digest(&stealth_pub_bytes.as_bytes()[1..]); // Skip 0x04 prefix
     let stealth_address = format!("0x{}", hex::encode(&pub_key_hash[12..]));
 
     // Encode ephemeral public key
-    let ephemeral_pub_encoded = ephemeral_pub.to_encoded_point(true);
+    let ephemeral_pub_encoded = ephemeral_pub.to_sec1_point(true);
     let ephemeral_pub_hex = format!("0x{}", hex::encode(ephemeral_pub_encoded.as_bytes()));
 
     Ok((stealth_address, ephemeral_pub_hex, view_tag))
@@ -262,8 +259,7 @@ mod tests {
     fn test_compute_view_tag() {
         let shared_secret = hex::decode("abcd1234").unwrap();
         let view_tag = compute_view_tag(&shared_secret);
-        // View tag should be a single byte
-        assert!(view_tag <= 255);
+        assert_eq!(view_tag, 0xd8);
     }
 
     #[test]

@@ -1,7 +1,6 @@
-import { validateMnemonic as validateBip39Mnemonic } from '@scure/bip39'
-import { wordlist as english } from '@scure/bip39/wordlists/english'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { english, mnemonicToAccount } from 'viem/accounts'
 import { Button, Card, TextArea } from '../../components/common'
 
 interface ImportWalletProps {
@@ -33,8 +32,10 @@ export function ImportWallet({ onImport, onBack, isLoading, error }: ImportWalle
       })
     }
 
-    // Validate checksum via BIP-39
-    if (!validateBip39Mnemonic(phrase.trim().toLowerCase(), english)) {
+    // Derivation validates the BIP-39 checksum as well as the mnemonic shape.
+    try {
+      mnemonicToAccount(phrase.trim().toLowerCase())
+    } catch {
       return t('invalidChecksum', {
         defaultValue: 'Invalid seed phrase checksum. Please check your words.',
       })

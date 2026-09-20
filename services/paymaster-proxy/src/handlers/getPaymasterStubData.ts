@@ -235,7 +235,8 @@ function handleVerifyingStubData(
   const payload = encodeVerifyingPayload({
     policyId: toPolicyIdBytes32(context?.policyId),
     sponsor: paymasterAddress,
-    maxCost: 0n,
+    // Unsigned simulation envelope; final signed data uses the estimated cost.
+    maxCost: (1n << 256n) - 1n,
     verifierExtra: '0x' as Hex,
   })
 

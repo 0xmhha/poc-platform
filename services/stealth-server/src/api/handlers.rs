@@ -1,7 +1,9 @@
 use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{generate_stealth_address, scheme, verify_registration_signature, StealthMetaAddress};
+use crate::domain::{
+    generate_stealth_address, scheme, verify_registration_signature, StealthMetaAddress,
+};
 use crate::storage::Storage;
 
 /// Health check response
@@ -66,7 +68,11 @@ pub async fn live() -> impl Responder {
 /// Prometheus metrics endpoint
 pub async fn metrics(storage: web::Data<Storage>) -> impl Responder {
     let announcement_count = storage.get_announcement_count().await.unwrap_or(0);
-    let latest_block = storage.get_latest_block().await.unwrap_or(None).unwrap_or(0);
+    let latest_block = storage
+        .get_latest_block()
+        .await
+        .unwrap_or(None)
+        .unwrap_or(0);
 
     let metrics = format!(
         r#"# HELP stealth_server_up Service up status
@@ -182,11 +188,9 @@ pub async fn get_announcements(
                 next_cursor,
             })
         }
-        Err(e) => {
-            HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": e.to_string()
-            }))
-        }
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": e.to_string()
+        })),
     }
 }
 
@@ -197,7 +201,10 @@ pub async fn get_announcement_by_address(
 ) -> impl Responder {
     let stealth_address = path.into_inner();
 
-    match storage.get_announcement_by_stealth_address(&stealth_address).await {
+    match storage
+        .get_announcement_by_stealth_address(&stealth_address)
+        .await
+    {
         Ok(Some(announcement)) => HttpResponse::Ok().json(announcement),
         Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
             "error": "Announcement not found"
@@ -245,11 +252,9 @@ pub async fn register(
     };
 
     // Verify signature - ensure the registration request was signed by the claimed address
-    if let Err(e) = verify_registration_signature(
-        &body.address,
-        &body.stealth_meta_address,
-        &body.signature,
-    ) {
+    if let Err(e) =
+        verify_registration_signature(&body.address, &body.stealth_meta_address, &body.signature)
+    {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": format!("Signature verification failed: {}", e)
         }));
@@ -331,7 +336,10 @@ pub async fn generate(body: web::Json<GenerateRequest>) -> impl Responder {
     };
 
     // Generate stealth address
-    match generate_stealth_address(&meta_address.spending_pub_key, &meta_address.viewing_pub_key) {
+    match generate_stealth_address(
+        &meta_address.spending_pub_key,
+        &meta_address.viewing_pub_key,
+    ) {
         Ok((stealth_address, ephemeral_pub_key, view_tag)) => {
             HttpResponse::Ok().json(GenerateResponse {
                 stealth_address,
@@ -368,10 +376,7 @@ pub struct ScanResponse {
 
 /// Scan for announcements matching a viewing key
 /// POST endpoint to prevent viewing_private_key exposure in URL/server logs
-pub async fn scan(
-    storage: web::Data<Storage>,
-    body: web::Json<ScanRequest>,
-) -> impl Responder {
+pub async fn scan(storage: web::Data<Storage>, body: web::Json<ScanRequest>) -> impl Responder {
     // Build cursor from request body
     let cursor = match (body.cursor_block, body.cursor_log_index) {
         (Some(block), Some(log_index)) => Some((block, log_index)),

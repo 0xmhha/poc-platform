@@ -5,13 +5,27 @@ import { Card, CardContent, CardDescription, CardTitle } from '@/components/comm
 import { useWallet } from '@/hooks'
 import { useExpenses } from '@/hooks/useExpenses'
 import { usePayroll } from '@/hooks/usePayroll'
+import { tokenTotals } from '@/lib/enterprise/records'
 
 export default function EnterprisePage() {
   const { isConnected } = useWallet()
-  const { summary } = usePayroll()
+  const { payrollEntries, summary } = usePayroll()
   const { expenses } = useExpenses()
 
   const pendingExpenses = expenses.filter((e) => e.status === 'pending').length
+  const monthlyPayroll = tokenTotals(
+    payrollEntries
+      .filter((entry) => entry.status === 'active')
+      .map((entry) => ({
+        token: entry.token,
+        amount:
+          entry.frequency === 'weekly'
+            ? (entry.amount * 52n) / 12n
+            : entry.frequency === 'biweekly'
+              ? (entry.amount * 26n) / 12n
+              : entry.amount,
+      }))
+  )
 
   return (
     <div className="space-y-6">
@@ -127,11 +141,7 @@ export default function EnterprisePage() {
                 Total Payroll (MTD)
               </p>
               <p className="text-2xl font-bold" style={{ color: 'rgb(var(--foreground))' }}>
-                $
-                {summary.totalMonthly.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+                {monthlyPayroll}
               </p>
             </CardContent>
           </Card>
@@ -161,7 +171,7 @@ export default function EnterprisePage() {
                 Compliance Score
               </p>
               <p className="text-2xl font-bold" style={{ color: 'rgb(var(--success))' }}>
-                100%
+                Not assessed
               </p>
             </CardContent>
           </Card>
@@ -194,11 +204,13 @@ export default function EnterprisePage() {
             </svg>
             <div>
               <p className="font-medium" style={{ color: 'rgb(var(--info))' }}>
-                Regulatory Compliance
+                Enterprise workspace scope
               </p>
               <p className="text-sm mt-1" style={{ color: 'rgb(var(--foreground) / 0.8)' }}>
-                All transactions are recorded on-chain for full auditability. Role-based access
-                controls ensure proper authorization for all operations.
+                Payments use the connected wallet, while payroll, expense, and audit records are
+                currently stored in this browser for the active account and chain. Organization
+                roles, shared records, and an independent compliance assessment require the
+                enterprise backend before production use.
               </p>
             </div>
           </div>

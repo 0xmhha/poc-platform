@@ -118,9 +118,9 @@ describe('F-03: GasPaymentSelector', () => {
     )
 
     const erc20Option = screen.getByTestId('gas-mode-erc20-paymaster')
-    expect(erc20Option.getAttribute('aria-selected')).toBe('true')
+    expect(erc20Option.getAttribute('aria-pressed')).toBe('true')
 
     const selfPayOption = screen.getByTestId('gas-mode-self-pay')
-    expect(selfPayOption.getAttribute('aria-selected')).toBe('false')
+    expect(selfPayOption.getAttribute('aria-pressed')).toBe('false')
   })
 })

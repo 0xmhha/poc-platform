@@ -74,22 +74,25 @@ func (f FraudProofType) String() string {
 
 // BridgeRequest represents a bridge request
 type BridgeRequest struct {
-	RequestID     [32]byte       `json:"requestId"`
-	Sender        string         `json:"sender"`
-	Recipient     string         `json:"recipient"`
-	Token         string         `json:"token"`
-	Amount        *big.Int       `json:"amount"`
-	SourceChain   uint64         `json:"sourceChain"`
-	TargetChain   uint64         `json:"targetChain"`
-	Nonce         uint64         `json:"nonce"`
-	Deadline      uint64         `json:"deadline"`
-	Fee           *big.Int       `json:"fee"`
-	Status        RequestStatus  `json:"status"`
-	InitiatedAt   time.Time      `json:"initiatedAt"`
-	BlockNumber   uint64         `json:"blockNumber"`
-	TxHash        string         `json:"txHash"`
-	Signatures    [][]byte       `json:"signatures,omitempty"`
-	ChallengeEnd  time.Time      `json:"challengeEnd,omitempty"`
+	RegistrationTxHash string        `json:"registrationTxHash,omitempty"`
+	ApprovalTxHash     string        `json:"approvalTxHash,omitempty"`
+	LastError          string        `json:"lastError,omitempty"`
+	RequestID          [32]byte      `json:"requestId"`
+	Sender             string        `json:"sender"`
+	Recipient          string        `json:"recipient"`
+	Token              string        `json:"token"`
+	Amount             *big.Int      `json:"amount"`
+	SourceChain        uint64        `json:"sourceChain"`
+	TargetChain        uint64        `json:"targetChain"`
+	Nonce              uint64        `json:"nonce"`
+	Deadline           uint64        `json:"deadline"`
+	Fee                *big.Int      `json:"fee"`
+	Status             RequestStatus `json:"status"`
+	InitiatedAt        time.Time     `json:"initiatedAt"`
+	BlockNumber        uint64        `json:"blockNumber"`
+	TxHash             string        `json:"txHash"`
+	Signatures         [][]byte      `json:"signatures,omitempty"`
+	ChallengeEnd       time.Time     `json:"challengeEnd,omitempty"`
 }
 
 // BridgeMessage represents a message to be signed by MPC signers
@@ -117,9 +120,9 @@ type DepositInfo struct {
 
 // SignatureRequest represents a request for MPC signature
 type SignatureRequest struct {
-	Message    BridgeMessage `json:"message"`
-	SignerID   int           `json:"signerId"`
-	RequestedAt time.Time    `json:"requestedAt"`
+	Message     BridgeMessage `json:"message"`
+	SignerID    int           `json:"signerId"`
+	RequestedAt time.Time     `json:"requestedAt"`
 }
 
 // SignatureResponse represents a response from MPC signer
@@ -183,6 +186,9 @@ type BridgeInitiatedEvent struct {
 	SourceChain uint64   `json:"sourceChain"`
 	TargetChain uint64   `json:"targetChain"`
 	Fee         *big.Int `json:"fee"`
+	Nonce       uint64   `json:"nonce"`
+	Deadline    uint64   `json:"deadline"`
+	BlockNumber uint64   `json:"blockNumber"`
 }
 
 // BridgeCompletedEvent represents a BridgeCompleted event
@@ -209,10 +215,10 @@ type RequestChallengedEvent struct {
 
 // ChallengeResolvedEvent represents a ChallengeResolved event
 type ChallengeResolvedEvent struct {
-	RequestID          [32]byte `json:"requestId"`
-	ChallengeSuccess   bool     `json:"challengeSuccessful"`
-	Challenger         string   `json:"challenger"`
-	Reward             *big.Int `json:"reward"`
+	RequestID        [32]byte `json:"requestId"`
+	ChallengeSuccess bool     `json:"challengeSuccessful"`
+	Challenger       string   `json:"challenger"`
+	Reward           *big.Int `json:"reward"`
 }
 
 // EmergencyPauseEvent represents an EmergencyPause event
@@ -234,15 +240,15 @@ type RateLimitStatus struct {
 
 // RelayerStatus represents the status of the relayer
 type RelayerStatus struct {
-	IsHealthy          bool              `json:"isHealthy"`
-	IsPaused           bool              `json:"isPaused"`
-	SourceChainSynced  bool              `json:"sourceChainSynced"`
-	TargetChainSynced  bool              `json:"targetChainSynced"`
-	LastProcessedBlock uint64            `json:"lastProcessedBlock"`
-	PendingRequests    int               `json:"pendingRequests"`
-	ProcessedRequests  int               `json:"processedRequests"`
-	FailedRequests     int               `json:"failedRequests"`
-	RateLimitStatus    RateLimitStatus   `json:"rateLimitStatus"`
-	MPCSignersOnline   int               `json:"mpcSignersOnline"`
-	LastUpdated        time.Time         `json:"lastUpdated"`
+	IsHealthy          bool            `json:"isHealthy"`
+	IsPaused           bool            `json:"isPaused"`
+	SourceChainSynced  bool            `json:"sourceChainSynced"`
+	TargetChainSynced  bool            `json:"targetChainSynced"`
+	LastProcessedBlock uint64          `json:"lastProcessedBlock"`
+	PendingRequests    int             `json:"pendingRequests"`
+	ProcessedRequests  int             `json:"processedRequests"`
+	FailedRequests     int             `json:"failedRequests"`
+	RateLimitStatus    RateLimitStatus `json:"rateLimitStatus"`
+	MPCSignersOnline   int             `json:"mpcSignersOnline"`
+	LastUpdated        time.Time       `json:"lastUpdated"`
 }

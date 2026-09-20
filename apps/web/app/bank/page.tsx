@@ -102,7 +102,9 @@ export default function BankPage() {
         <h1 className="text-2xl font-bold" style={{ color: 'rgb(var(--foreground))' }}>
           Bank Accounts
         </h1>
-        <p style={{ color: 'rgb(var(--muted-foreground))' }}>Link and manage your bank accounts</p>
+        <p style={{ color: 'rgb(var(--muted-foreground))' }}>
+          Manage simulated bank accounts and test balances
+        </p>
       </div>
 
       {/* Tab Toggle */}

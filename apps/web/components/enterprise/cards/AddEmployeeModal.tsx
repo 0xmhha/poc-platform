@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button, Input, Modal } from '@/components/common'
 
 interface AddEmployeeModalProps {
+  initialValues?: EmployeeFormData
   isOpen: boolean
   onClose: () => void
   onSubmit?: (data: EmployeeFormData) => void
@@ -26,7 +27,12 @@ const isValidAddress = (address: string): boolean => {
   return /^0x[a-fA-F0-9]{40}$/.test(address)
 }
 
-export function AddEmployeeModal({ isOpen, onClose, onSubmit }: AddEmployeeModalProps) {
+export function AddEmployeeModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  initialValues,
+}: AddEmployeeModalProps) {
   const [formData, setFormData] = useState<EmployeeFormData>(INITIAL_FORM_STATE)
   const [errors, setErrors] = useState<Partial<EmployeeFormData>>({})
 
@@ -35,8 +41,8 @@ export function AddEmployeeModal({ isOpen, onClose, onSubmit }: AddEmployeeModal
     if (!isOpen) {
       setFormData(INITIAL_FORM_STATE)
       setErrors({})
-    }
-  }, [isOpen])
+    } else setFormData(initialValues ?? INITIAL_FORM_STATE)
+  }, [isOpen, initialValues])
 
   const handleChange =
     (field: keyof EmployeeFormData) =>

@@ -30,11 +30,12 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "generate": "tsx scripts/generate-addresses.ts",
-    "generate:env": "tsx scripts/generate-addresses.ts && echo 'Precompile addresses included in .env.contracts'",
+    "generate": "tsx scripts/generate-addresses.ts && tsup",
+    "generate:env": "tsx scripts/generate-addresses.ts && tsup && echo 'Precompile addresses included in .env.contracts'",
     "lint": "biome lint src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:ci": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist"
   },
@@ -47,8 +48,8 @@
     "tsup": "^8.3.5",
     "tsx": "^4.19.0",
     "typescript": "^5.7.2",
-    "viem": "^2.46.3",
-    "vitest": "^4.0.18"
+    "viem": "^2.47.6",
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "viem": "^2.0.0"

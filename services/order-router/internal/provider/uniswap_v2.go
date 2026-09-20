@@ -68,84 +68,85 @@ func (p *UniswapV2Provider) IsV3Style() bool {
 }
 
 func (p *UniswapV2Provider) GetPools(ctx context.Context, tokenIn, tokenOut string) ([]model.Pool, error) {
-	poolAddr := p.computePairAddress(tokenIn, tokenOut)
-
-	pool := model.Pool{
-		Address:  poolAddr,
-		Protocol: p.name,
-		Token0:   model.Token{Address: tokenIn},
-		Token1:   model.Token{Address: tokenOut},
-		Fee:      30, // 0.3%
+	if !common.IsHexAddress(tokenIn) || !common.IsHexAddress(tokenOut) || strings.EqualFold(tokenIn, tokenOut) {
+		return nil, fmt.Errorf("invalid token pair")
 	}
-
-	return []model.Pool{pool}, nil
+	client, err := p.chainClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	factory, err := readPool(ctx, client, common.HexToAddress(p.routerAddr), "factory")
+	if err != nil {
+		return nil, err
+	}
+	pair, err := readPool(ctx, client, factory[0].(common.Address), "getPair", common.HexToAddress(tokenIn), common.HexToAddress(tokenOut))
+	if err != nil {
+		return nil, err
+	}
+	pairAddress := pair[0].(common.Address)
+	if pairAddress == (common.Address{}) {
+		return []model.Pool{}, nil
+	}
+	token0, err := readPool(ctx, client, pairAddress, "token0")
+	if err != nil {
+		return nil, err
+	}
+	token1, err := readPool(ctx, client, pairAddress, "token1")
+	if err != nil {
+		return nil, err
+	}
+	reserves, err := readPool(ctx, client, pairAddress, "getReserves")
+	if err != nil {
+		return nil, err
+	}
+	supply, err := readPool(ctx, client, pairAddress, "totalSupply")
+	if err != nil {
+		return nil, err
+	}
+	return []model.Pool{{Address: pairAddress.Hex(), Protocol: p.name, Token0: model.Token{Address: token0[0].(common.Address).Hex()}, Token1: model.Token{Address: token1[0].(common.Address).Hex()}, Fee: 30, Reserve0: reserves[0].(*big.Int), Reserve1: reserves[1].(*big.Int), Liquidity: supply[0].(*big.Int)}}, nil
 }
-
+func (p *UniswapV2Provider) quote(ctx context.Context, tokenIn, tokenOut string, amount *big.Int, exactOut bool) (*model.Route, error) {
+	if amount == nil || amount.Sign() <= 0 || amount.BitLen() > 256 {
+		return nil, fmt.Errorf("invalid amount")
+	}
+	pools, err := p.GetPools(ctx, tokenIn, tokenOut)
+	if err != nil {
+		return nil, err
+	}
+	if len(pools) == 0 {
+		return nil, fmt.Errorf("pair not deployed")
+	}
+	pool := pools[0]
+	reserveIn, reserveOut := pool.Reserve0, pool.Reserve1
+	if !strings.EqualFold(pool.Token0.Address, tokenIn) {
+		reserveIn, reserveOut = reserveOut, reserveIn
+	}
+	if reserveIn.Sign() <= 0 || reserveOut.Sign() <= 0 {
+		return nil, fmt.Errorf("no liquidity")
+	}
+	amountIn, amountOut := amount, p.getAmountOut(amount, reserveIn, reserveOut)
+	if exactOut {
+		if amount.Cmp(reserveOut) >= 0 {
+			return nil, fmt.Errorf("insufficient liquidity")
+		}
+		amountIn = p.getAmountIn(amount, reserveIn, reserveOut)
+		amountOut = amount
+	}
+	if amountOut.Sign() <= 0 {
+		return nil, fmt.Errorf("output rounds to zero")
+	}
+	impactFraction := new(big.Rat).SetFrac(new(big.Int).Mul(amountOut, reserveIn), new(big.Int).Mul(amountIn, reserveOut))
+	priceRatio, _ := impactFraction.Float64()
+	impact := (1 - priceRatio) * 100
+	hop := model.RouteHop{Pool: pool, TokenIn: model.Token{Address: tokenIn}, TokenOut: model.Token{Address: tokenOut}, AmountIn: amountIn.String(), AmountOut: amountOut.String(), PriceImpact: impact}
+	return &model.Route{Hops: []model.RouteHop{hop}, AmountIn: amountIn.String(), AmountOut: amountOut.String(), Protocol: p.name, GasEstimate: 120000, PriceImpact: impact}, nil
+}
 func (p *UniswapV2Provider) GetQuote(ctx context.Context, tokenIn, tokenOut string, amountIn *big.Int) (*model.Route, error) {
-	// Get reserves (simulated for PoC)
-	reserve0 := big.NewInt(1000000000000000000) // 1 token with 18 decimals
-	reserve1 := big.NewInt(1000000000000000000)
-
-	amountOut := p.getAmountOut(amountIn, reserve0, reserve1)
-
-	poolAddr := p.computePairAddress(tokenIn, tokenOut)
-
-	route := &model.Route{
-		Hops: []model.RouteHop{
-			{
-				Pool: model.Pool{
-					Address:  poolAddr,
-					Protocol: p.name,
-					Token0:   model.Token{Address: tokenIn},
-					Token1:   model.Token{Address: tokenOut},
-					Fee:      30,
-					Reserve0: reserve0,
-					Reserve1: reserve1,
-				},
-				TokenIn:   model.Token{Address: tokenIn},
-				TokenOut:  model.Token{Address: tokenOut},
-				AmountIn:  amountIn.String(),
-				AmountOut: amountOut.String(),
-			},
-		},
-		AmountIn:    amountIn.String(),
-		AmountOut:   amountOut.String(),
-		Protocol:    p.name,
-		GasEstimate: 120000, // Estimated gas for V2 swap
-	}
-
-	return route, nil
+	return p.quote(ctx, tokenIn, tokenOut, amountIn, false)
 }
-
 func (p *UniswapV2Provider) GetQuoteExactOut(ctx context.Context, tokenIn, tokenOut string, amountOut *big.Int) (*model.Route, error) {
-	reserve0 := big.NewInt(1000000000000000000)
-	reserve1 := big.NewInt(1000000000000000000)
-
-	amountIn := p.getAmountIn(amountOut, reserve0, reserve1)
-
-	poolAddr := p.computePairAddress(tokenIn, tokenOut)
-
-	route := &model.Route{
-		Hops: []model.RouteHop{
-			{
-				Pool: model.Pool{
-					Address:  poolAddr,
-					Protocol: p.name,
-					Fee:      30,
-				},
-				TokenIn:   model.Token{Address: tokenIn},
-				TokenOut:  model.Token{Address: tokenOut},
-				AmountIn:  amountIn.String(),
-				AmountOut: amountOut.String(),
-			},
-		},
-		AmountIn:    amountIn.String(),
-		AmountOut:   amountOut.String(),
-		Protocol:    p.name,
-		GasEstimate: 120000,
-	}
-
-	return route, nil
+	return p.quote(ctx, tokenIn, tokenOut, amountOut, true)
 }
 
 func (p *UniswapV2Provider) BuildSwapCalldata(ctx context.Context, route *model.Route, recipient string, deadline int64, slippage float64) (string, string, string, error) {

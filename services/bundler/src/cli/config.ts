@@ -192,18 +192,20 @@ export function parseConfig(options: CliOptions): BundlerConfig {
   // Resolved early so it can be used for chain-aware EntryPoint lookup
   const chainId = options.chainId ?? getEnvNumber(ENV_VARS.CHAIN_ID)
 
-  // Entry Points: CLI > env > chain-aware (contracts pkg) > preset
+  // Entry Points: CLI > chain-aware (@stablenet/contracts) > env (fallback) > preset
   const entryPoints =
     options.entryPoint?.length && options.entryPoint.length > 0
       ? (options.entryPoint as Address[])
-      : parseEntryPointsFromEnv() ||
-        (chainId && isChainSupported(chainId) ? [getEntryPoint(chainId) as Address] : null) ||
+      : (chainId && isChainSupported(chainId) ? [getEntryPoint(chainId) as Address] : null) ||
+        parseEntryPointsFromEnv() ||
         preset?.entryPoints ||
         []
 
   if (entryPoints.length === 0) {
     throw new Error(
-      `At least one entry point address is required. Set --entry-point or ${ENV_VARS.ENTRY_POINT.join('/')} environment variable.`
+      `At least one entry point address is required. ` +
+        `Set BUNDLER_CHAIN_ID for automatic lookup via @stablenet/contracts, ` +
+        `or set --entry-point / ${ENV_VARS.ENTRY_POINT.join('/')} as manual override.`
     )
   }
 

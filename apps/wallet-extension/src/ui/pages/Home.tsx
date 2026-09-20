@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { getChainAddresses, isChainSupported } from '@stablenet/contracts'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { Address } from 'viem'
 import { formatEther } from 'viem'
 import { AddTokenModal } from '../components/AddTokenModal'
 import { TokenList } from '../components/TokenList'
@@ -11,8 +13,15 @@ import { useTokenPrices } from '../hooks/useTokenPrices'
 export function Home() {
   const { t } = useTranslation('home')
   const { t: tc } = useTranslation('common')
-  const { selectedAccount, accounts, balances, updateBalance, setPage, setSelectedSendToken } =
-    useWalletStore()
+  const {
+    selectedAccount,
+    selectedChainId,
+    accounts,
+    balances,
+    updateBalance,
+    setPage,
+    setSelectedSendToken,
+  } = useWalletStore()
   const { symbol: currencySymbol } = useNetworkCurrency()
   const [isLoadingBalance, setIsLoadingBalance] = useState(false)
   const [isAddTokenModalOpen, setIsAddTokenModalOpen] = useState(false)
@@ -27,7 +36,19 @@ export function Home() {
     isLoading: isLoadingAssets,
     refresh: refreshAssets,
     toggleTokenVisibility,
+    removeToken,
   } = useAssets()
+
+  // Build known token addresses from contracts package for dedup
+  const knownTokenAddresses = useMemo(() => {
+    const chainId = selectedChainId
+    if (!chainId || !isChainSupported(chainId)) return {}
+    const addrs = getChainAddresses(chainId)
+    const result: Record<string, string> = {}
+    if (addrs.tokens.usdc) result.USDC = addrs.tokens.usdc
+    if (addrs.tokens.wkrc) result.WKRC = addrs.tokens.wkrc
+    return result
+  }, [selectedChainId])
 
   // Collect all token symbols for price lookup
   const allTokenSymbols = [
@@ -111,7 +132,11 @@ export function Home() {
   }
 
   function handleToggleVisibility(address: string) {
-    toggleTokenVisibility(address as `0x${string}`)
+    toggleTokenVisibility(address as Address)
+  }
+
+  function handleRemoveToken(address: string) {
+    removeToken(address as Address)
   }
 
   if (!currentAccount) {
@@ -380,8 +405,10 @@ export function Home() {
           onTokenClick={handleTokenClick}
           onAddToken={handleAddToken}
           onToggleVisibility={handleToggleVisibility}
+          onRemoveToken={handleRemoveToken}
           tokenPrices={tokenPrices}
           nativePriceUsd={nativePriceUsd}
+          knownTokenAddresses={knownTokenAddresses}
         />
 
         {/* Indexer Status */}

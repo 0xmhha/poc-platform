@@ -22,7 +22,6 @@ import {
   ERC6538_REGISTRY_ABI,
   encodeStealthMetaAddress,
   encodeStealthMetaAddressUri,
-  generatePrivateKey,
   generateStealthAddressCrypto,
   generateStealthKeyPair,
   parseStealthMetaAddressUri,
@@ -111,8 +110,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('1. Key Generation', () => {
-    it('should generate valid spending and viewing key pairs', () => {
-      if (!networkAvailable) return
+    it('should generate valid spending and viewing key pairs', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       expect(recipientSpendingKeyPair.privateKey).toMatch(/^0x[a-fA-F0-9]{64}$/)
       expect(recipientSpendingKeyPair.publicKey).toMatch(/^0x0[23][a-fA-F0-9]{64}$/)
@@ -120,16 +120,18 @@ describe('Stealth Transfer E2E Tests', () => {
       expect(recipientViewingKeyPair.publicKey).toMatch(/^0x0[23][a-fA-F0-9]{64}$/)
     })
 
-    it('should encode valid stealth meta-address (66 bytes)', () => {
-      if (!networkAvailable) return
+    it('should encode valid stealth meta-address (66 bytes)', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       // 66 bytes = 33 (spending) + 33 (viewing)
       const metaAddressBytes = Buffer.from(recipientStealthMetaAddress.slice(2), 'hex')
       expect(metaAddressBytes.length).toBe(66)
     })
 
-    it('should create valid stealth meta-address URI', () => {
-      if (!networkAvailable) return
+    it('should create valid stealth meta-address URI', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       expect(recipientStealthMetaAddressUri).toMatch(/^st:eth:0x[a-fA-F0-9]+$/)
 
@@ -142,8 +144,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('2. Registry Contract (EIP-6538)', () => {
-    it('should check Registry contract deployment', async () => {
-      if (!networkAvailable) return
+    it('should check Registry contract deployment', async (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const code = await publicClient.getCode({
         address: TEST_CONFIG.contracts.stealthRegistry as Address,
@@ -155,8 +158,9 @@ describe('Stealth Transfer E2E Tests', () => {
       }
     })
 
-    it('should register stealth meta-address on-chain', async () => {
-      if (!networkAvailable) return
+    it('should register stealth meta-address on-chain', async (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const registryAddress = TEST_CONFIG.contracts.stealthRegistry as Address
       const code = await publicClient.getCode({ address: registryAddress })
@@ -179,8 +183,9 @@ describe('Stealth Transfer E2E Tests', () => {
       } catch (_error) {}
     })
 
-    it('should retrieve registered stealth meta-address', async () => {
-      if (!networkAvailable) return
+    it('should retrieve registered stealth meta-address', async (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const registryAddress = TEST_CONFIG.contracts.stealthRegistry as Address
       const code = await publicClient.getCode({ address: registryAddress })
@@ -203,8 +208,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('3. Stealth Address Generation', () => {
-    it('should generate stealth address for payment', () => {
-      if (!networkAvailable) return
+    it('should generate stealth address for payment', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const parsed = parseStealthMetaAddressUri(recipientStealthMetaAddressUri)
       const result = generateStealthAddressCrypto(
@@ -221,8 +227,9 @@ describe('Stealth Transfer E2E Tests', () => {
       expect(viewTag).toMatch(/^0x[a-fA-F0-9]{2}$/)
     })
 
-    it('should generate different addresses for multiple payments', () => {
-      if (!networkAvailable) return
+    it('should generate different addresses for multiple payments', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const parsed = parseStealthMetaAddressUri(recipientStealthMetaAddressUri)
 
@@ -240,8 +247,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('4. ETH Transfer to Stealth Address', () => {
-    it('should send ETH to stealth address', async () => {
-      if (!networkAvailable || !generatedStealthAddress) return
+    it('should send ETH to stealth address', async (testContext) => {
+      if (!networkAvailable || !generatedStealthAddress)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const amount = parseEther('0.1')
 
@@ -266,8 +274,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('5. Announcement (EIP-5564)', () => {
-    it('should check Announcer contract deployment', async () => {
-      if (!networkAvailable) return
+    it('should check Announcer contract deployment', async (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const code = await publicClient.getCode({
         address: TEST_CONFIG.contracts.stealthAnnouncer as Address,
@@ -279,8 +288,9 @@ describe('Stealth Transfer E2E Tests', () => {
       }
     })
 
-    it('should publish announcement with ephemeral key and view tag', async () => {
-      if (!networkAvailable || !generatedStealthAddress) return
+    it('should publish announcement with ephemeral key and view tag', async (testContext) => {
+      if (!networkAvailable || !generatedStealthAddress)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const announcerAddress = TEST_CONFIG.contracts.stealthAnnouncer as Address
       const code = await publicClient.getCode({ address: announcerAddress })
@@ -311,26 +321,25 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('6. View Tag Filtering', () => {
-    it('should match view tag with correct viewing key', () => {
-      if (!networkAvailable || !ephemeralPubKey || !viewTag) return
+    it('should match view tag with correct viewing key', (testContext) => {
+      if (!networkAvailable || !ephemeralPubKey || !viewTag)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const matches = checkViewTag(ephemeralPubKey, recipientViewingKeyPair.privateKey, viewTag)
 
       expect(matches).toBe(true)
     })
 
-    it('should not match view tag with wrong viewing key', () => {
-      if (!networkAvailable || !ephemeralPubKey || !viewTag) return
-
-      const wrongViewingKey = generatePrivateKey()
-      const matches = checkViewTag(ephemeralPubKey, wrongViewingKey, viewTag)
-
-      // Very unlikely to match by chance (1/256)
-      expect(matches).toBe(false)
+    it('rejects a known non-matching viewing key', () => {
+      // Fixed ECDH vector: view key 2 yields 0x69, view key 3 yields 0x9d.
+      const ephemeral = derivePublicKey(`0x${'0'.repeat(63)}1`)
+      const wrongViewingKey: Hex = `0x${'0'.repeat(63)}3`
+      expect(checkViewTag(ephemeral, wrongViewingKey, '0x69')).toBe(false)
     })
 
-    it('should demonstrate view tag filtering efficiency', () => {
-      if (!networkAvailable || !viewTag) return
+    it('should demonstrate view tag filtering efficiency', (testContext) => {
+      if (!networkAvailable || !viewTag)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       // Simulate scanning 1000 announcements
       const totalAnnouncements = 1000
@@ -354,8 +363,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('7. Stealth Key Computation', () => {
-    it('should compute stealth private key matching generated address', () => {
-      if (!networkAvailable || !ephemeralPubKey || !generatedStealthAddress) return
+    it('should compute stealth private key matching generated address', (testContext) => {
+      if (!networkAvailable || !ephemeralPubKey || !generatedStealthAddress)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const computed = computeStealthPrivateKey(
         ephemeralPubKey,
@@ -367,8 +377,9 @@ describe('Stealth Transfer E2E Tests', () => {
       expect(computed.stealthPrivateKey).toMatch(/^0x[a-fA-F0-9]{64}$/)
     })
 
-    it('should derive correct public key from stealth private key', () => {
-      if (!networkAvailable || !ephemeralPubKey || !generatedStealthAddress) return
+    it('should derive correct public key from stealth private key', (testContext) => {
+      if (!networkAvailable || !ephemeralPubKey || !generatedStealthAddress)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const computed = computeStealthPrivateKey(
         ephemeralPubKey,
@@ -386,8 +397,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('8. Spending from Stealth Address', () => {
-    it('should allow recipient to spend from stealth address', async () => {
-      if (!networkAvailable || !ephemeralPubKey || !generatedStealthAddress) return
+    it('should allow recipient to spend from stealth address', async (testContext) => {
+      if (!networkAvailable || !ephemeralPubKey || !generatedStealthAddress)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       // Compute stealth private key
       const computed = computeStealthPrivateKey(
@@ -437,8 +449,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('9. Full Flow Integration', () => {
-    it('should complete full stealth payment flow', async () => {
-      if (!networkAvailable) return
+    it('should complete full stealth payment flow', async (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       // Step 3: Sender generates unique stealth address
       const parsed = parseStealthMetaAddressUri(recipientStealthMetaAddressUri)
@@ -466,8 +479,9 @@ describe('Stealth Transfer E2E Tests', () => {
   })
 
   describe('10. Edge Cases', () => {
-    it('should handle same spending and viewing keys', () => {
-      if (!networkAvailable) return
+    it('should handle same spending and viewing keys', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const singleKeyPair = generateStealthKeyPair()
 
@@ -482,8 +496,9 @@ describe('Stealth Transfer E2E Tests', () => {
       expect(computed.stealthAddress.toLowerCase()).toBe(result.stealthAddress.toLowerCase())
     })
 
-    it('should handle multiple sequential payments', () => {
-      if (!networkAvailable) return
+    it('should handle multiple sequential payments', (testContext) => {
+      if (!networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const payments: Array<{
         stealthAddress: string

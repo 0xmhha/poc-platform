@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/stablenet/stable-platform/services/order-router/internal/validation"
 	"log"
 	"math/big"
 	"time"
@@ -154,16 +155,16 @@ func (s *RouterService) GetSplitQuote(ctx context.Context, req *model.QuoteReque
 	}
 
 	quote := &model.QuoteResponse{
-		TokenIn:     model.Token{Address: req.TokenIn},
-		TokenOut:    model.Token{Address: req.TokenOut},
-		AmountIn:    req.AmountIn,
-		AmountOut:   splitRoute.TotalOut,
+		TokenIn:      model.Token{Address: req.TokenIn},
+		TokenOut:     model.Token{Address: req.TokenOut},
+		AmountIn:     req.AmountIn,
+		AmountOut:    splitRoute.TotalOut,
 		AmountOutMin: amountOutMin.String(),
-		GasEstimate: splitRoute.GasEstimate,
-		SplitRoute:  splitRoute,
-		Protocols:   protocols,
-		Source:      "split",
-		ExpiresAt:   time.Now().Add(5 * time.Minute),
+		GasEstimate:  splitRoute.GasEstimate,
+		SplitRoute:   splitRoute,
+		Protocols:    protocols,
+		Source:       "split",
+		ExpiresAt:    time.Now().Add(5 * time.Minute),
 	}
 
 	return quote, nil
@@ -182,6 +183,12 @@ func (s *RouterService) BuildSwap(ctx context.Context, req *model.SwapRequest) (
 		return nil, fmt.Errorf("recipient is required")
 	}
 
+	if !validation.IsValidEthereumAddress(req.TokenIn) || !validation.IsValidEthereumAddress(req.TokenOut) || !validation.IsValidEthereumAddress(req.Recipient) || !validation.IsValidAmount(req.AmountIn) || !validation.IsValidAmount(req.AmountOutMin) || !validation.IsValidSlippage(req.Slippage) {
+		return nil, fmt.Errorf("invalid swap parameters")
+	}
+	if req.Deadline != 0 && (req.Deadline <= time.Now().Unix() || req.Deadline > time.Now().Add(30*time.Minute).Unix()) {
+		return nil, fmt.Errorf("invalid deadline")
+	}
 	// Set defaults
 	if req.Slippage == 0 {
 		req.Slippage = s.cfg.DefaultSlippage
@@ -204,10 +211,16 @@ func (s *RouterService) BuildSwap(ctx context.Context, req *model.SwapRequest) (
 		return nil, fmt.Errorf("failed to get quote: %w", err)
 	}
 
+	// The accepted minimum is a hard lower bound, independent of refreshed quote prices.
+	minimum, _ := new(big.Int).SetString(req.AmountOutMin, 10)
+	current, ok := new(big.Int).SetString(quote.AmountOut, 10)
+	if !ok || current.Cmp(minimum) < 0 {
+		return nil, fmt.Errorf("price moved below accepted minimum")
+	}
 	// If aggregator quote, use aggregator to build swap
 	for _, agg := range s.aggregators.GetAvailable() {
 		if agg.Name() == quote.Source {
-			return agg.BuildSwap(ctx, req)
+			return nil, fmt.Errorf("aggregator execution requires a validated minimum-output adapter; select a native DEX protocol")
 		}
 	}
 
@@ -221,7 +234,11 @@ func (s *RouterService) BuildSwap(ctx context.Context, req *model.SwapRequest) (
 		return nil, fmt.Errorf("provider not found: %s", quote.Route.Protocol)
 	}
 
-	to, data, value, err := prov.BuildSwapCalldata(ctx, quote.Route, req.Recipient, req.Deadline, req.Slippage)
+	executionRoute := *quote.Route
+	executionRoute.AmountOut = minimum.String()
+	to, data, value, err := prov.BuildSwapCalldata(ctx, &executionRoute, req.Recipient, req.Deadline, 0)
+	quote.AmountOutMin = minimum.String()
+	quote.ExpiresAt = time.Now().Add(5 * time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build calldata: %w", err)
 	}

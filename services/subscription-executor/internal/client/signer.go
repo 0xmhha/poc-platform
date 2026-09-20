@@ -158,9 +158,9 @@ func signCompact(hash []byte, key *dcrsecp.PrivateKey) ([]byte, error) {
 	// compactSig: [recovery (1 byte)] [R (32 bytes)] [S (32 bytes)]
 	// Ethereum expects: [R (32 bytes)] [S (32 bytes)] [V (1 byte)] where V = recovery + 27
 	ethSig := make([]byte, 65)
-	copy(ethSig[0:32], compactSig[1:33])  // R
+	copy(ethSig[0:32], compactSig[1:33])   // R
 	copy(ethSig[32:64], compactSig[33:65]) // S
-	ethSig[64] = compactSig[0] - 27 + 27  // V (normalize: dcrd uses 27-30, Ethereum uses 27-28)
+	ethSig[64] = compactSig[0] - 27 + 27   // V (normalize: dcrd uses 27-30, Ethereum uses 27-28)
 
 	return ethSig, nil
 }
@@ -240,4 +240,13 @@ func tryHexDecode(hexStr string) ([]byte, error) {
 		return []byte{}, nil
 	}
 	return hex.DecodeString(hexStr)
+}
+
+// UserOpHash identifies a signed operation before network submission for durable retry reconciliation.
+func (s *UserOpSigner) UserOpHash(op *PackedUserOperation) (string, error) {
+	h, err := s.computeUserOpHash(op)
+	if err != nil {
+		return "", err
+	}
+	return "0x" + hex.EncodeToString(h), nil
 }

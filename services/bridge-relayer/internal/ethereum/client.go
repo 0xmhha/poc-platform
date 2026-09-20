@@ -35,18 +35,19 @@ const bridgeABIJSON = `[{
 	],
 	"outputs":[]
 },{
-	"name":"BridgeInitiated","type":"event",
-	"inputs":[
-		{"name":"requestID","type":"bytes32","indexed":true},
-		{"name":"sender","type":"address","indexed":true},
-		{"name":"recipient","type":"address","indexed":false},
-		{"name":"token","type":"address","indexed":false},
-		{"name":"amount","type":"uint256","indexed":false},
-		{"name":"sourceChain","type":"uint256","indexed":false},
-		{"name":"targetChain","type":"uint256","indexed":false},
-		{"name":"nonce","type":"uint256","indexed":false},
-		{"name":"deadline","type":"uint256","indexed":false}
-	]
+ "name":"BridgeInitiated","type":"event",
+ "inputs":[
+ {"name":"requestID","type":"bytes32","indexed":true},
+ {"name":"sender","type":"address","indexed":true},
+ {"name":"recipient","type":"address","indexed":true},
+ {"name":"token","type":"address"},
+ {"name":"amount","type":"uint256"},
+ {"name":"sourceChain","type":"uint256"},
+ {"name":"targetChain","type":"uint256"},
+ {"name":"fee","type":"uint256"},
+ {"name":"nonce","type":"uint256"},
+ {"name":"deadline","type":"uint256"}
+ ]
 },{
 	"name":"BridgeCompleted","type":"event",
 	"inputs":[
@@ -169,12 +170,21 @@ func (c *Client) GetGasPrice(ctx context.Context, isSource bool) (*big.Int, erro
 
 // SendTransaction sends a signed transaction to the blockchain
 func (c *Client) SendTransaction(ctx context.Context, to string, data []byte, value *big.Int, isSource bool) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.privateKey == nil {
 		return "", fmt.Errorf("private key not configured")
 	}
 
 	client := c.getClient(isSource)
 	chainID := c.GetChainID(isSource)
+	actualChain, err := client.ChainID(ctx)
+	if err != nil {
+		return "", err
+	}
+	if actualChain.Cmp(chainID) != 0 {
+		return "", fmt.Errorf("RPC chain ID mismatch")
+	}
 	toAddr := common.HexToAddress(to)
 
 	nonce, err := client.PendingNonceAt(ctx, c.address)
@@ -238,7 +248,7 @@ func (c *Client) WaitForTransaction(ctx context.Context, txHash string, isSource
 				if err != nil {
 					continue
 				}
-				if latestBlock-receipt.BlockNumber.Uint64() < c.confirmBlocks {
+				if latestBlock < receipt.BlockNumber.Uint64() || latestBlock-receipt.BlockNumber.Uint64() < c.confirmBlocks {
 					continue
 				}
 			}
@@ -479,4 +489,53 @@ func HashBridgeMessage(
 	}
 
 	return crypto.Keccak256Hash(encoded)
+}
+
+// FilterLogs queries only the configured contract and confirmed block window.
+func (c *Client) FilterLogs(ctx context.Context, address string, from, to uint64, isSource bool) ([]types.Log, error) {
+	if !common.IsHexAddress(address) || common.HexToAddress(address) == (common.Address{}) {
+		return nil, fmt.Errorf("event contract not configured")
+	}
+	return c.getClient(isSource).FilterLogs(ctx, ethereum.FilterQuery{FromBlock: new(big.Int).SetUint64(from), ToBlock: new(big.Int).SetUint64(to), Addresses: []common.Address{common.HexToAddress(address)}})
+}
+func (c *Client) DecodeBridgeLog(entry types.Log) (map[string]interface{}, error) {
+	event := c.bridgeABI.Events["BridgeInitiated"]
+	if len(entry.Topics) != 4 || entry.Topics[0] != event.ID {
+		return nil, fmt.Errorf("not a BridgeInitiated event")
+	}
+	result := map[string]interface{}{}
+	if err := event.Inputs.NonIndexed().UnpackIntoMap(result, entry.Data); err != nil {
+		return nil, err
+	}
+	result["requestID"] = [32]byte(entry.Topics[1])
+	result["sender"] = common.BytesToAddress(entry.Topics[2].Bytes()[12:])
+	result["recipient"] = common.BytesToAddress(entry.Topics[3].Bytes()[12:])
+	return result, nil
+}
+func (c *Client) ReadContract(ctx context.Context, address string, contractABI, method string, isSource bool, args ...interface{}) ([]interface{}, error) {
+	parsed, err := abi.JSON(strings.NewReader(contractABI))
+	if err != nil {
+		return nil, err
+	}
+	data, err := parsed.Pack(method, args...)
+	if err != nil {
+		return nil, err
+	}
+	target := common.HexToAddress(address)
+	result, err := c.getClient(isSource).CallContract(ctx, ethereum.CallMsg{From: c.address, To: &target, Data: data}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return parsed.Unpack(method, result)
+}
+
+func (c *Client) GetFinalizedBlock(ctx context.Context, isSource bool) (uint64, error) {
+	latest, err := c.GetLatestBlock(ctx, isSource)
+	if err != nil {
+		return 0, err
+	}
+	if latest < c.confirmBlocks {
+		return 0, nil
+	}
+	return latest - c.confirmBlocks, nil
 }

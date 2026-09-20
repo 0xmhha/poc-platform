@@ -60,9 +60,9 @@ describe('Contract Integration Tests', () => {
   })
 
   describe('EntryPoint Contract', () => {
-    it('should check EntryPoint deployment', async () => {
+    it('should check EntryPoint deployment', async (testContext) => {
       if (!networkAvailable || !TEST_CONFIG.contracts.entryPoint) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const code = await publicClient.getCode({
@@ -76,9 +76,9 @@ describe('Contract Integration Tests', () => {
       }
     })
 
-    it('should get nonce from EntryPoint', async () => {
+    it('should get nonce from EntryPoint', async (testContext) => {
       if (!networkAvailable || !TEST_CONFIG.contracts.entryPoint) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const code = await publicClient.getCode({
@@ -99,9 +99,9 @@ describe('Contract Integration Tests', () => {
       expect(nonce).toBeGreaterThanOrEqual(0n)
     })
 
-    it('should deposit to EntryPoint', async () => {
+    it('should deposit to EntryPoint', async (testContext) => {
       if (!networkAvailable || !TEST_CONFIG.contracts.entryPoint) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const code = await publicClient.getCode({
@@ -144,9 +144,9 @@ describe('Contract Integration Tests', () => {
   })
 
   describe('Kernel Factory Contract', () => {
-    it('should check Kernel Factory deployment', async () => {
+    it('should check Kernel Factory deployment', async (testContext) => {
       if (!networkAvailable || !TEST_CONFIG.contracts.kernelFactory) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const code = await publicClient.getCode({
@@ -159,13 +159,13 @@ describe('Contract Integration Tests', () => {
       }
     })
 
-    it('should compute counterfactual address', async () => {
+    it('should compute counterfactual address', async (testContext) => {
       if (
         !networkAvailable ||
         !TEST_CONFIG.contracts.kernelFactory ||
         !TEST_CONFIG.contracts.kernelImplementation
       ) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const code = await publicClient.getCode({
@@ -180,9 +180,9 @@ describe('Contract Integration Tests', () => {
   })
 
   describe('Validator Contract', () => {
-    it('should check ECDSA Validator deployment', async () => {
+    it('should check ECDSA Validator deployment', async (testContext) => {
       if (!networkAvailable || !TEST_CONFIG.contracts.ecdsaValidator) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const code = await publicClient.getCode({
@@ -197,9 +197,9 @@ describe('Contract Integration Tests', () => {
   })
 
   describe('Token Contracts', () => {
-    it('should check USDC deployment', async () => {
+    it('should check USDC deployment', async (testContext) => {
       if (!networkAvailable || !TEST_CONFIG.contracts.usdc) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const code = await publicClient.getCode({
@@ -220,10 +220,10 @@ describe('Contract Integration Tests', () => {
 })
 
 describe('Full UserOperation Flow (E2E)', () => {
-  it('should execute complete UserOp flow when all contracts deployed', async () => {
+  it('should execute complete UserOp flow when all contracts deployed', async (testContext) => {
     const networkAvailable = await isNetworkAvailable()
     if (!networkAvailable) {
-      return
+      return testContext.skip('Required local service or deployment is unavailable')
     }
 
     // This test requires all contracts to be deployed
@@ -236,7 +236,7 @@ describe('Full UserOperation Flow (E2E)', () => {
     const allDeployed = requiredContracts.every((addr) => addr && addr.length > 2)
 
     if (!allDeployed) {
-      return
+      return testContext.skip('Required local service or deployment is unavailable')
     }
     expect(true).toBe(true)
   })

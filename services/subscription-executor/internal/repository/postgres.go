@@ -21,27 +21,27 @@ type PostgresRepository struct {
 
 // PostgresConfig holds database configuration
 type PostgresConfig struct {
-	DatabaseURL         string
-	MaxConns            int32
-	MinConns            int32
-	MaxConnLifetime     time.Duration
-	MaxConnIdleTime     time.Duration
-	HealthCheckPeriod   time.Duration
-	ConnectTimeout      time.Duration
-	StatementTimeout    time.Duration
+	DatabaseURL       string
+	MaxConns          int32
+	MinConns          int32
+	MaxConnLifetime   time.Duration
+	MaxConnIdleTime   time.Duration
+	HealthCheckPeriod time.Duration
+	ConnectTimeout    time.Duration
+	StatementTimeout  time.Duration
 }
 
 // DefaultPostgresConfig returns sensible defaults for PostgreSQL connection
 func DefaultPostgresConfig(databaseURL string) *PostgresConfig {
 	return &PostgresConfig{
-		DatabaseURL:         databaseURL,
-		MaxConns:            10,
-		MinConns:            2,
-		MaxConnLifetime:     30 * time.Minute,
-		MaxConnIdleTime:     10 * time.Minute,
-		HealthCheckPeriod:   1 * time.Minute,
-		ConnectTimeout:      30 * time.Second,
-		StatementTimeout:    30 * time.Second,
+		DatabaseURL:       databaseURL,
+		MaxConns:          10,
+		MinConns:          2,
+		MaxConnLifetime:   30 * time.Minute,
+		MaxConnIdleTime:   10 * time.Minute,
+		HealthCheckPeriod: 1 * time.Minute,
+		ConnectTimeout:    30 * time.Second,
+		StatementTimeout:  30 * time.Second,
 	}
 }
 
@@ -571,4 +571,41 @@ func derefString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func (r *PostgresRepository) SaveExecutionUserOpHash(ctx context.Context, id int64, hash string) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE execution_records SET user_op_hash=$2 WHERE id=$1 AND status='pending' AND (user_op_hash IS NULL OR user_op_hash=$2)`, id, hash)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return fmt.Errorf("pending execution not found")
+	}
+	return nil
+}
+
+// Commit receipt and the next billing period in one transaction; concurrent reconciliation is idempotent.
+func (r *PostgresRepository) FinalizeExecution(ctx context.Context, id int64, txHash string, gasUsed uint64) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var subID, status string
+	if err = tx.QueryRow(ctx, `SELECT subscription_id,status FROM execution_records WHERE id=$1 FOR UPDATE`, id).Scan(&subID, &status); err != nil {
+		return err
+	}
+	if status == "success" {
+		return nil
+	}
+	if status != "pending" {
+		return fmt.Errorf("execution is not pending")
+	}
+	if _, err = tx.Exec(ctx, `UPDATE subscriptions SET last_execution=NOW(),execution_count=execution_count+1,next_execution=NOW()+interval_seconds*INTERVAL '1 second',updated_at=NOW(),status=CASE WHEN max_executions>0 AND execution_count+1>=max_executions THEN 'expired' ELSE status END WHERE id=$1`, subID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE execution_records SET status='success',tx_hash=$2,gas_used=$3,error=NULL WHERE id=$1`, id, txHash, fmt.Sprint(gasUsed)); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

@@ -36,7 +36,7 @@ async fn main() -> std::io::Result<()> {
 
     // Load configuration
     let config = Config::from_env().expect("Failed to load configuration");
-    info!("Configuration loaded: {:?}", config);
+    info!("Configuration loaded");
 
     // Initialize storage
     let storage = Storage::new(&config.database)
@@ -44,9 +44,7 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to connect to database");
 
     // Run migrations
-    if let Err(e) = storage.migrate().await {
-        warn!("Migration failed (may already be applied): {:?}", e);
-    }
+    storage.migrate().await.expect("Database migration failed");
 
     let storage = web::Data::new(storage);
 
@@ -71,11 +69,15 @@ async fn main() -> std::io::Result<()> {
     // Start event processor
     let storage_clone = storage.clone();
     let broadcaster_clone = broadcaster.clone();
+    let expected_announcer = config.stealth.announcer_address.clone();
     tokio::spawn(async move {
         info!("Event processor started");
         while let Some(event) = event_rx.recv().await {
             match event {
                 IndexerEvent::Log(log) => {
+                    if log.removed || !log.address.eq_ignore_ascii_case(&expected_announcer) {
+                        continue;
+                    }
                     // Parse announcement
                     match AnnouncementParser::parse(&log) {
                         Ok(announcement) => {
@@ -87,6 +89,7 @@ async fn main() -> std::io::Result<()> {
                             // Save to database
                             if let Err(e) = storage_clone.save_announcement(&announcement).await {
                                 error!("Failed to save announcement: {:?}", e);
+                                continue;
                             }
 
                             // Broadcast to WebSocket clients
@@ -98,7 +101,10 @@ async fn main() -> std::io::Result<()> {
                     }
                 }
                 IndexerEvent::Connected { subscription_id } => {
-                    info!("Connected to indexer with subscription: {}", subscription_id);
+                    info!(
+                        "Connected to indexer with subscription: {}",
+                        subscription_id
+                    );
                 }
                 IndexerEvent::Error { message } => {
                     error!("Indexer error: {}", message);

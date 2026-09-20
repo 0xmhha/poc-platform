@@ -78,7 +78,11 @@ function packUserOpForHash(userOp: UserOperation): {
  * import { privateKeyToAccount } from 'viem/accounts'
  *
  * const signer = privateKeyToAccount('0x...')
+ * // Read senderNonce from the deployed paymaster for each signed operation.
  * const paymaster = createVerifyingPaymaster({
+ *   getSenderNonce: (sender) => publicClient.readContract({
+ *     address: paymasterAddress, abi: paymasterAbi, functionName: 'senderNonce', args: [sender],
+ *   }),
  *   paymasterAddress: '0x...',
  *   signer,
  *   chainId: 1n,
@@ -104,7 +108,7 @@ export function createVerifyingPaymaster(config: VerifyingPaymasterConfig): Paym
     const payload = encodeVerifyingPayload({
       policyId: '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex,
       sponsor: '0x0000000000000000000000000000000000000000' as Address,
-      maxCost: 0n,
+      maxCost: (1n << 256n) - 1n,
       verifierExtra: '0x',
     })
 
@@ -137,6 +141,10 @@ export function createVerifyingPaymaster(config: VerifyingPaymasterConfig): Paym
     entryPoint: Address,
     _chainId: bigint
   ): Promise<PaymasterData> => {
+    if (!config.getSenderNonce)
+      throw new Error('getSenderNonce is required for signed paymaster data')
+    const nonce = await config.getSenderNonce(userOperation.sender)
+    if (nonce < 0n || nonce > 0xffffffffffffffffn) throw new Error('Invalid paymaster nonce')
     // Set validity window (configurable, default: 1 hour)
     const validUntil = BigInt(Math.floor(Date.now() / 1000) + validitySeconds)
     const validAfter = 0n
@@ -145,7 +153,14 @@ export function createVerifyingPaymaster(config: VerifyingPaymasterConfig): Paym
     const payload = encodeVerifyingPayload({
       policyId: '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex,
       sponsor: '0x0000000000000000000000000000000000000000' as Address,
-      maxCost: 0n,
+      maxCost:
+        (userOperation.callGasLimit +
+          userOperation.verificationGasLimit +
+          userOperation.preVerificationGas +
+          (userOperation.paymasterVerificationGasLimit ??
+            DEFAULT_PAYMASTER_VERIFICATION_GAS_LIMIT) +
+          (userOperation.paymasterPostOpGasLimit ?? DEFAULT_PAYMASTER_POST_OP_GAS_LIMIT)) *
+        userOperation.maxFeePerGas,
       verifierExtra: '0x',
     })
 
@@ -155,7 +170,7 @@ export function createVerifyingPaymaster(config: VerifyingPaymasterConfig): Paym
       flags: 0,
       validUntil,
       validAfter,
-      nonce: 0n,
+      nonce,
       payload,
     })
 
@@ -191,6 +206,7 @@ export function createVerifyingPaymaster(config: VerifyingPaymasterConfig): Paym
 export async function createVerifyingPaymasterFromPrivateKey(config: {
   paymasterAddress: Address
   privateKey: Hex
+  getSenderNonce?: (sender: Address) => Promise<bigint>
   chainId: bigint
   entryPoint?: Address
 }): Promise<PaymasterClient> {
@@ -200,6 +216,7 @@ export async function createVerifyingPaymasterFromPrivateKey(config: {
   return createVerifyingPaymaster({
     paymasterAddress: config.paymasterAddress,
     signer,
+    getSenderNonce: config.getSenderNonce,
     chainId: config.chainId,
     entryPoint: config.entryPoint,
   })

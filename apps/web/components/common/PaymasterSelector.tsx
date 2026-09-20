@@ -292,7 +292,7 @@ function TokenSelector({
             <p className="font-medium text-sm" style={{ color: 'rgb(var(--foreground))' }}>
               {token.symbol}
             </p>
-            {token.exchangeRate && (
+            {token.exchangeRate && token.exchangeRate !== '0' && (
               <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
                 Rate: {token.exchangeRate}
               </p>
@@ -561,7 +561,11 @@ export function PaymasterSelector({
 
       {/* Mode-specific content */}
       {selectedMode === 'native' && (
-        <DepositInfo balance={depositBalance ?? null} onTopUp={onDepositTopUp} isDepositing={isDepositing} />
+        <DepositInfo
+          balance={depositBalance ?? null}
+          onTopUp={onDepositTopUp}
+          isDepositing={isDepositing}
+        />
       )}
 
       {selectedMode === 'sponsor' && (

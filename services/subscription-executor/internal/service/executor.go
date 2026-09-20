@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/stablenet/stable-platform/services/subscription-executor/internal/client"
@@ -51,12 +52,12 @@ func NewExecutorService(cfg *config.Config, repo repository.SubscriptionReposito
 		var err error
 		signer, err = client.NewUserOpSigner(cfg.ExecutorPrivateKey, int64(cfg.ChainID), cfg.EntryPointAddress)
 		if err != nil {
-			log.WithError(err).Warn("failed to initialize signer, using placeholder signatures")
+			log.WithError(err).Warn("failed to initialize signer; payment execution is disabled")
 		} else {
 			log.Info("executor signer initialized", slog.String("address", signer.GetAddress()))
 		}
 	} else {
-		log.Warn("EXECUTOR_PRIVATE_KEY not set, using placeholder signatures")
+		log.Warn("EXECUTOR_PRIVATE_KEY not set; payment execution is disabled")
 	}
 
 	return &ExecutorService{
@@ -233,11 +234,38 @@ func (s *ExecutorService) processDueSubscriptions(ctx context.Context) {
 func (s *ExecutorService) executeSubscription(ctx context.Context, sub *model.Subscription) error {
 	s.log.WithSubscription(sub.ID).Info("executing subscription", slog.String("account", sub.SmartAccount))
 
+	// Reconcile pending submissions before creating another operation, including after restart.
+	records, err := s.repo.GetExecutionRecords(ctx, sub.ID, 100)
+	if err != nil {
+		return err
+	}
+	for _, record := range records {
+		if record.Status == "pending" {
+			if record.UserOpHash == "" {
+				return fmt.Errorf("pending execution has no broadcast journal; manual reconciliation required")
+			}
+			receipt, err := s.bundlerClient.WaitForReceipt(ctx, record.UserOpHash, 60*time.Second)
+			if err != nil {
+				return err
+			}
+			var id int64
+			fmt.Sscanf(record.ID, "%d", &id)
+			if !receipt.Success {
+				return s.repo.UpdateExecutionRecord(ctx, id, "failed", receipt.Receipt.TransactionHash, receipt.Reason, "")
+			}
+			gas, err := parseRPCQuantity(receipt.ActualGasUsed)
+			if err != nil || !gas.IsUint64() {
+				return fmt.Errorf("invalid receipt gas")
+			}
+			return s.repo.FinalizeExecution(ctx, id, receipt.Receipt.TransactionHash, gas.Uint64())
+		}
+	}
+
 	// Validate ERC-7715 permission before execution
 	if sub.PermissionID != "" && s.permissionClient != nil {
 		hasPermission, err := s.permissionClient.IsPermissionValid(ctx, sub.PermissionID)
 		if err != nil {
-			s.log.WithSubscription(sub.ID).WithError(err).Warn("permission check failed, proceeding anyway")
+			return fmt.Errorf("permission check failed: %w", err)
 		} else if !hasPermission {
 			s.log.WithSubscription(sub.ID).Warn("permission revoked or expired")
 			sub.Status = model.StatusPermissionRevoked
@@ -268,47 +296,30 @@ func (s *ExecutorService) executeSubscription(ctx context.Context, sub *model.Su
 	}
 
 	// Execute UserOperation
-	txHash, gasUsed, err := s.submitUserOperation(ctx, sub)
+	prepared := false
+	txHash, gasUsed, err := s.submitUserOperation(ctx, sub, func(hash string) error {
+		if err := s.repo.SaveExecutionUserOpHash(ctx, recordID, hash); err != nil {
+			return err
+		}
+		prepared = true
+		return nil
+	})
 	if err != nil {
 		// Update record as failed
-		if recordID > 0 {
+		if recordID > 0 && !prepared {
 			s.updateExecutionRecord(ctx, recordID, "failed", "", 0, err.Error())
 		}
 		return fmt.Errorf("failed to submit user operation: %w", err)
 	}
 
-	// Update execution record as success
-	if recordID > 0 {
-		s.updateExecutionRecord(ctx, recordID, "success", txHash, gasUsed, "")
-	}
-
-	// Update subscription state
-	now := time.Now()
-	sub.LastExecution = &now
-	sub.ExecutionCount++
-	sub.NextExecution = now.Add(time.Duration(sub.Interval) * time.Second)
-	sub.UpdatedAt = now
-
-	// Check if max executions reached
-	if sub.MaxExecutions > 0 && sub.ExecutionCount >= sub.MaxExecutions {
-		sub.Status = model.StatusExpired
-		s.log.WithSubscription(sub.ID).Info("subscription reached max executions", slog.Int64("count", sub.ExecutionCount))
-	}
-
-	// Update subscription in database
-	if err := s.repo.Update(ctx, sub); err != nil {
-		return fmt.Errorf("failed to update subscription: %w", err)
-	}
-
-	s.log.WithSubscription(sub.ID).Info("successfully executed subscription",
-		slog.String("tx_hash", txHash),
-		slog.Int64("execution_count", sub.ExecutionCount),
-	)
-	return nil
+	return s.repo.FinalizeExecution(ctx, recordID, txHash, gasUsed)
 }
 
 // submitUserOperation builds and submits a UserOperation for a subscription payment
-func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Subscription) (string, uint64, error) {
+func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Subscription, journal func(string) error) (string, uint64, error) {
+	if s.signer == nil {
+		return "", 0, fmt.Errorf("executor signer is not configured")
+	}
 	chainID := fmt.Sprintf("0x%x", s.cfg.ChainID)
 
 	// 1. Get nonce from EntryPoint
@@ -316,8 +327,10 @@ func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Su
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to get nonce: %w", err)
 	}
-	nonceInt := new(big.Int)
-	nonceInt.SetString(nonce[2:], 16)
+	nonceInt, err := parseRPCQuantity(nonce)
+	if err != nil {
+		return "", 0, err
+	}
 
 	// 2. Build UserOperation
 	userOp := s.userOpBuilder.CreateUserOperation(
@@ -333,12 +346,19 @@ func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Su
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to get gas price: %w", err)
 	}
-	maxPriorityFee, _ := s.rpcClient.GetMaxPriorityFeePerGas(ctx)
+	maxPriorityFee, err := s.rpcClient.GetMaxPriorityFeePerGas(ctx)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to get priority fee: %w", err)
+	}
 
-	gasPriceInt := new(big.Int)
-	gasPriceInt.SetString(gasPrice[2:], 16)
-	maxPriorityFeeInt := new(big.Int)
-	maxPriorityFeeInt.SetString(maxPriorityFee[2:], 16)
+	gasPriceInt, err := parseRPCQuantity(gasPrice)
+	if err != nil {
+		return "", 0, err
+	}
+	maxPriorityFeeInt, err := parseRPCQuantity(maxPriorityFee)
+	if err != nil {
+		return "", 0, err
+	}
 
 	// Set gas fees (maxPriorityFeePerGas || maxFeePerGas)
 	userOp.GasFees = client.PackGasFees(maxPriorityFeeInt, gasPriceInt)
@@ -356,10 +376,14 @@ func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Su
 	}
 
 	// Set stub paymaster data for gas estimation
-	pmVerifyGas := new(big.Int)
-	pmVerifyGas.SetString(stubData.PaymasterVerificationGasLimit[2:], 16)
-	pmPostOpGas := new(big.Int)
-	pmPostOpGas.SetString(stubData.PaymasterPostOpGasLimit[2:], 16)
+	pmVerifyGas, err := parseRPCQuantity(stubData.PaymasterVerificationGasLimit)
+	if err != nil {
+		return "", 0, err
+	}
+	pmPostOpGas, err := parseRPCQuantity(stubData.PaymasterPostOpGasLimit)
+	if err != nil {
+		return "", 0, err
+	}
 	userOp.PaymasterAndData = client.PackPaymasterAndData(
 		stubData.Paymaster,
 		pmVerifyGas,
@@ -376,12 +400,18 @@ func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Su
 	}
 
 	// 6. Set estimated gas limits
-	verifyGas := new(big.Int)
-	verifyGas.SetString(gasEstimate.VerificationGasLimit[2:], 16)
-	callGas := new(big.Int)
-	callGas.SetString(gasEstimate.CallGasLimit[2:], 16)
-	preVerifyGas := new(big.Int)
-	preVerifyGas.SetString(gasEstimate.PreVerificationGas[2:], 16)
+	verifyGas, err := parseRPCQuantity(gasEstimate.VerificationGasLimit)
+	if err != nil {
+		return "", 0, err
+	}
+	callGas, err := parseRPCQuantity(gasEstimate.CallGasLimit)
+	if err != nil {
+		return "", 0, err
+	}
+	preVerifyGas, err := parseRPCQuantity(gasEstimate.PreVerificationGas)
+	if err != nil {
+		return "", 0, err
+	}
 
 	userOp.AccountGasLimits = client.PackAccountGasLimits(verifyGas, callGas)
 	userOp.PreVerificationGas = fmt.Sprintf("0x%x", preVerifyGas)
@@ -405,12 +435,16 @@ func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Su
 	finalPmVerifyGas := pmVerifyGas
 	finalPmPostOpGas := pmPostOpGas
 	if pmData.PaymasterVerificationGasLimit != "" {
-		finalPmVerifyGas = new(big.Int)
-		finalPmVerifyGas.SetString(pmData.PaymasterVerificationGasLimit[2:], 16)
+		finalPmVerifyGas, err = parseRPCQuantity(pmData.PaymasterVerificationGasLimit)
+		if err != nil {
+			return "", 0, err
+		}
 	}
 	if pmData.PaymasterPostOpGasLimit != "" {
-		finalPmPostOpGas = new(big.Int)
-		finalPmPostOpGas.SetString(pmData.PaymasterPostOpGasLimit[2:], 16)
+		finalPmPostOpGas, err = parseRPCQuantity(pmData.PaymasterPostOpGasLimit)
+		if err != nil {
+			return "", 0, err
+		}
 	}
 	userOp.PaymasterAndData = client.PackPaymasterAndData(
 		pmData.Paymaster,
@@ -419,22 +453,30 @@ func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Su
 		pmData.PaymasterData,
 	)
 
-	// 8. Sign the UserOperation
-	if s.signer != nil {
-		signature, err := s.signer.SignUserOp(userOp)
-		if err != nil {
-			return "", 0, fmt.Errorf("failed to sign userOp: %w", err)
-		}
-		userOp.Signature = signature
-	} else {
-		// Fallback: placeholder signature for development without a configured private key
-		userOp.Signature = "0x" + fmt.Sprintf("%0130x", 1)
+	// 8. A real configured signer is required for submission.
+	signature, err := s.signer.SignUserOp(userOp)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to sign userOp: %w", err)
+	}
+	userOp.Signature = signature
+
+	// Journal the deterministic hash BEFORE the network call. Lost acknowledgments
+	// remain pending and cannot trigger a second payment with a new nonce.
+	expectedHash, err := s.signer.UserOpHash(userOp)
+	if err != nil {
+		return "", 0, err
+	}
+	if err = journal(expectedHash); err != nil {
+		return "", 0, err
 	}
 
 	// 9. Submit to bundler
 	userOpHash, err := s.bundlerClient.SendUserOperation(ctx, userOp)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to send user operation: %w", err)
+	}
+	if !strings.EqualFold(userOpHash, expectedHash) {
+		return "", 0, fmt.Errorf("bundler returned mismatched operation hash")
 	}
 	s.log.Info("UserOperation submitted", slog.String("userOpHash", userOpHash))
 
@@ -451,8 +493,10 @@ func (s *ExecutorService) submitUserOperation(ctx context.Context, sub *model.Su
 	// Parse gas used
 	gasUsed := uint64(0)
 	if receipt.ActualGasUsed != "" {
-		gasUsedInt := new(big.Int)
-		gasUsedInt.SetString(receipt.ActualGasUsed[2:], 16)
+		gasUsedInt, err := parseRPCQuantity(receipt.ActualGasUsed)
+		if err != nil {
+			return "", 0, err
+		}
 		gasUsed = gasUsedInt.Uint64()
 	}
 
@@ -477,4 +521,22 @@ func (s *ExecutorService) updateExecutionRecord(ctx context.Context, recordID in
 // generateID generates a unique ID
 func generateID() string {
 	return fmt.Sprintf("sub_%d", time.Now().UnixNano())
+}
+
+// Reject malformed external JSON-RPC quantities instead of slicing or silently using zero.
+func parseRPCQuantity(value string) (*big.Int, error) {
+	if !strings.HasPrefix(value, "0x") || len(value) <= 2 {
+		return nil, fmt.Errorf("invalid RPC quantity")
+	}
+	number, ok := new(big.Int).SetString(value[2:], 16)
+	if !ok || number.Sign() < 0 || number.BitLen() > 256 {
+		return nil, fmt.Errorf("invalid RPC quantity")
+	}
+	return number, nil
+}
+func (s *ExecutorService) Ready() error {
+	if s.signer == nil {
+		return fmt.Errorf("executor signer is not configured")
+	}
+	return nil
 }

@@ -46,10 +46,26 @@ const createTestKeyring = (): SerializedKeyring => ({
 
 describe('Vault', () => {
   let vault: Vault
+  let vaults: Vault[]
+
+  const createVault = (autoLockMinutes?: number): Vault => {
+    const instance = new Vault(autoLockMinutes)
+    vaults.push(instance)
+    return instance
+  }
 
   beforeEach(() => {
+    vaults = []
     // Create fresh vault instance for each test
-    vault = new Vault(15) // 15 minutes auto-lock
+    vault = createVault(15) // 15 minutes auto-lock
+  })
+
+  afterEach(() => {
+    // Unlocked vaults retain a production auto-lock timer. Explicitly locking every
+    // instance keeps tests isolated and allows Jest to terminate cleanly.
+    for (const instance of vaults) {
+      instance.lock()
+    }
   })
 
   describe('isInitialized', () => {
@@ -176,7 +192,7 @@ describe('Vault', () => {
       await mockChrome.storage.session.clear()
 
       // Create new vault without initialization
-      const newVault = new Vault()
+      const newVault = createVault()
       await expect(newVault.unlock(TEST_PASSWORD)).rejects.toThrow('Vault is not initialized')
     })
 
@@ -209,7 +225,7 @@ describe('Vault', () => {
     it('should restore selected address if present', async () => {
       // Initialize with selected address
       await mockChrome.storage.local.clear()
-      const vaultWithAddress = new Vault()
+      const vaultWithAddress = createVault()
       await vaultWithAddress.initialize(TEST_PASSWORD, [createTestKeyring()])
       await vaultWithAddress.updateData({
         selectedAddress: '0x1234567890123456789012345678901234567890',
@@ -327,7 +343,7 @@ describe('Vault', () => {
       await vault.initialize(TEST_PASSWORD, [createTestKeyring()])
 
       // Create new vault instance (simulating service worker restart)
-      const newVault = new Vault()
+      const newVault = createVault()
       const restored = await newVault.tryRestoreFromSession()
 
       expect(restored).not.toBeNull()
@@ -336,7 +352,7 @@ describe('Vault', () => {
     })
 
     it('should return null when no session data exists', async () => {
-      const newVault = new Vault()
+      const newVault = createVault()
       const restored = await newVault.tryRestoreFromSession()
 
       expect(restored).toBeNull()
@@ -345,7 +361,7 @@ describe('Vault', () => {
 
     it('should return null when session has expired (SEC-6: encrypted)', async () => {
       // Initialize with 0.001 minute auto-lock (effectively immediate)
-      const shortLockVault = new Vault(0.001)
+      const shortLockVault = createVault(0.001)
       await shortLockVault.initialize(TEST_PASSWORD, [createTestKeyring()])
 
       // Get the salt for encrypting modified session data
@@ -366,7 +382,7 @@ describe('Vault', () => {
       await mockChrome.storage.session.set({ [SESSION_KEYS.VAULT_SESSION]: newEncryptedSession })
 
       // Try restore with new vault
-      const newVault = new Vault(0.001)
+      const newVault = createVault(0.001)
       const restored = await newVault.tryRestoreFromSession()
 
       expect(restored).toBeNull()
@@ -374,7 +390,7 @@ describe('Vault', () => {
 
     it('should not expire session when autoLockMinutes is 0 (SEC-6: encrypted)', async () => {
       // Initialize with 0 auto-lock (disabled)
-      const noLockVault = new Vault(0)
+      const noLockVault = createVault(0)
       await noLockVault.initialize(TEST_PASSWORD, [createTestKeyring()])
 
       // Get the salt for encrypting modified session data
@@ -396,7 +412,7 @@ describe('Vault', () => {
       await mockChrome.storage.session.set({ [SESSION_KEYS.VAULT_SESSION]: newEncryptedSession })
 
       // Try restore
-      const newVault = new Vault(0)
+      const newVault = createVault(0)
       const restored = await newVault.tryRestoreFromSession()
 
       expect(restored).not.toBeNull()
@@ -406,7 +422,7 @@ describe('Vault', () => {
       await vault.initialize(TEST_PASSWORD, [createTestKeyring()])
 
       // Create new vault instance (simulating service worker restart)
-      const newVault = new Vault()
+      const newVault = createVault()
       await newVault.tryRestoreFromSession()
 
       // Should be unlocked but session-restored
@@ -427,7 +443,7 @@ describe('Vault', () => {
       await vault.initialize(TEST_PASSWORD, [createTestKeyring()])
 
       // Create new vault instance and restore
-      const newVault = new Vault()
+      const newVault = createVault()
       await newVault.tryRestoreFromSession()
 
       // Re-authenticate with correct password
@@ -441,7 +457,7 @@ describe('Vault', () => {
     it('should reject reauthenticate with wrong password', async () => {
       await vault.initialize(TEST_PASSWORD, [createTestKeyring()])
 
-      const newVault = new Vault()
+      const newVault = createVault()
       await newVault.tryRestoreFromSession()
 
       await expect(newVault.reauthenticate('wrong-password')).rejects.toThrow('Incorrect password')

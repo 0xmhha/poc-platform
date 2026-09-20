@@ -1,11 +1,14 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Address, Hex } from 'viem'
-import { encodeFunctionData } from 'viem'
+import { erc20Abi as ERC20_ABI, encodeFunctionData, isAddress } from 'viem'
 import { getServiceUrls } from '@/lib/constants'
+import { assertSlippage, optionalDeployment } from '@/lib/contracts/deployment'
+import { validateSwapCall } from '@/lib/contracts/swap'
 import { useStableNetContext } from '@/providers'
 import type { SwapQuote, Token } from '@/types'
+import type { GasPaymentContext } from './useUserOp'
 
 interface SwapParams {
   tokenIn: Token
@@ -15,6 +18,7 @@ interface SwapParams {
 }
 
 interface SwapOptions {
+  gasPayment?: GasPaymentContext
   slippage?: number
 }
 
@@ -27,6 +31,7 @@ interface UseSwapConfig {
       value?: bigint
       data: Hex
       minAmountOut?: bigint
+      gasPayment?: GasPaymentContext
     }
   ) => Promise<{ userOpHash: Hex; transactionHash?: Hex; success: boolean } | null>
   readContract?: (params: {
@@ -39,69 +44,19 @@ interface UseSwapConfig {
   defaultSlippage?: number
 }
 
-// Uniswap V2 Router ABI for swapExactTokensForTokens
-const SWAP_ABI = [
-  {
-    name: 'swapExactTokensForTokens',
-    type: 'function',
-    inputs: [
-      { name: 'amountIn', type: 'uint256' },
-      { name: 'amountOutMin', type: 'uint256' },
-      { name: 'path', type: 'address[]' },
-      { name: 'to', type: 'address' },
-      { name: 'deadline', type: 'uint256' },
-    ],
-    outputs: [{ name: 'amounts', type: 'uint256[]' }],
-  },
-  {
-    name: 'swapExactETHForTokens',
-    type: 'function',
-    inputs: [
-      { name: 'amountOutMin', type: 'uint256' },
-      { name: 'path', type: 'address[]' },
-      { name: 'to', type: 'address' },
-      { name: 'deadline', type: 'uint256' },
-    ],
-    outputs: [{ name: 'amounts', type: 'uint256[]' }],
-  },
-] as const
-
-// ERC-20 ABI fragments for allowance check and approve
-const ERC20_ABI = [
-  {
-    name: 'allowance',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-    ],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'approve',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-  },
-] as const
-
 const DEFAULT_SLIPPAGE = 0.5 // 0.5%
 const ETH_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
 export function useSwap(config: UseSwapConfig = {}) {
-  const { chainId } = useStableNetContext()
+  const { chainId, publicClient } = useStableNetContext()
   const serviceUrls = useMemo(() => getServiceUrls(chainId), [chainId])
 
   const {
     orderRouterUrl = serviceUrls?.orderRouter,
     sendUserOp,
     readContract,
-    routerAddress,
+    routerAddress = optionalDeployment(chainId, 'uniswapV2Router') ??
+      optionalDeployment(chainId, 'swapRouter'),
     defaultSlippage = DEFAULT_SLIPPAGE,
   } = config
 
@@ -110,39 +65,30 @@ export function useSwap(config: UseSwapConfig = {}) {
   const [error, setError] = useState<Error | null>(null)
 
   const fetchIdRef = useRef(0)
+  const quoteTimes = useRef(new WeakMap<SwapQuote, number>())
+  const clearQuote = useCallback(() => {
+    fetchIdRef.current++
+    quoteTimes.current = new WeakMap()
+    setQuote(null)
+    setIsLoading(false)
+  }, [])
+  const previousChain = useRef(chainId)
+  useEffect(() => {
+    if (previousChain.current !== chainId) {
+      clearQuote()
+      previousChain.current = chainId
+    }
+  }, [chainId, clearQuote])
 
   /**
    * Calculate minimum amount out with slippage
    */
   const calculateMinAmountOut = useCallback((amountOut: bigint, slippage: number): bigint => {
-    const slippageBps = BigInt(Math.floor(slippage * 100))
+    const bps = Math.round(slippage * 100)
+    assertSlippage(bps)
+    const slippageBps = BigInt(bps)
     return amountOut - (amountOut * slippageBps) / BigInt(10000)
   }, [])
-
-  /**
-   * Build swap calldata for router
-   */
-  const buildSwapCalldata = useCallback(
-    (swapQuote: SwapQuote, recipient: Address, minAmountOut: bigint): Hex => {
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800) // 30 minutes
-      const isETHIn = swapQuote.tokenIn.address.toLowerCase() === ETH_ADDRESS.toLowerCase()
-
-      if (isETHIn) {
-        return encodeFunctionData({
-          abi: SWAP_ABI,
-          functionName: 'swapExactETHForTokens',
-          args: [minAmountOut, swapQuote.route, recipient, deadline],
-        })
-      }
-
-      return encodeFunctionData({
-        abi: SWAP_ABI,
-        functionName: 'swapExactTokensForTokens',
-        args: [swapQuote.amountIn, minAmountOut, swapQuote.route, recipient, deadline],
-      })
-    },
-    []
-  )
 
   /**
    * Get swap quote from order router
@@ -151,19 +97,30 @@ export function useSwap(config: UseSwapConfig = {}) {
     async (params: SwapParams): Promise<SwapQuote | null> => {
       const id = ++fetchIdRef.current
       setIsLoading(true)
+      setQuote(null)
       setError(null)
 
       try {
         const { tokenIn, tokenOut, amountIn } = params
 
-        const response = await fetch(`${orderRouterUrl}/quote`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tokenIn: tokenIn.address,
-            tokenOut: tokenOut.address,
-            amountIn: amountIn.toString(),
-          }),
+        if (!orderRouterUrl) throw Error('Order router is not configured for this chain')
+        if (
+          amountIn <= 0n ||
+          !isAddress(tokenIn.address) ||
+          !isAddress(tokenOut.address) ||
+          tokenIn.address.toLowerCase() === tokenOut.address.toLowerCase()
+        )
+          throw Error('Invalid swap pair or amount')
+        const bps = Math.round((params.slippage ?? defaultSlippage) * 100)
+        assertSlippage(bps)
+        const query = new URLSearchParams({
+          tokenIn: tokenIn.address,
+          tokenOut: tokenOut.address,
+          amountIn: amountIn.toString(),
+          slippage: String(bps),
+        })
+        const response = await fetch(`${orderRouterUrl.replace(/\/$/, '')}/api/v1/quote?${query}`, {
+          signal: AbortSignal.timeout(10000),
         })
 
         if (!response.ok) {
@@ -181,10 +138,21 @@ export function useSwap(config: UseSwapConfig = {}) {
           amountIn,
           amountOut: BigInt(result.amountOut),
           priceImpact: result.priceImpact,
-          route: result.route || [tokenIn.address, tokenOut.address],
+          route: result.route?.hops?.length
+            ? [
+                tokenIn.address,
+                ...result.route.hops.map(
+                  (hop: { tokenOut: { address: Address } }) => hop.tokenOut.address
+                ),
+              ]
+            : [tokenIn.address, tokenOut.address],
           gasEstimate: BigInt(result.gasEstimate || '150000'),
         }
 
+        if (swapQuote.amountOut <= 0n) throw Error('No output liquidity')
+        const expiresAt = result.expiresAt ? Date.parse(result.expiresAt) : Date.now() + 60000
+        if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) throw Error('Quote is expired')
+        quoteTimes.current.set(swapQuote, Math.min(expiresAt, Date.now() + 300000))
         setQuote(swapQuote)
         return swapQuote
       } catch (err) {
@@ -198,7 +166,7 @@ export function useSwap(config: UseSwapConfig = {}) {
         }
       }
     },
-    [orderRouterUrl]
+    [orderRouterUrl, defaultSlippage]
   )
 
   /**
@@ -226,12 +194,37 @@ export function useSwap(config: UseSwapConfig = {}) {
       try {
         const slippage = options.slippage ?? defaultSlippage
         const minAmountOut = calculateMinAmountOut(swapQuote.amountOut, slippage)
-        const calldata = buildSwapCalldata(swapQuote, recipient, minAmountOut)
+        if ((quoteTimes.current.get(swapQuote) ?? 0) <= Date.now())
+          throw Error('Request a fresh quote before swapping')
+        const response = await fetch(`${orderRouterUrl?.replace(/\/$/, '')}/api/v1/swap`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
+          body: JSON.stringify({
+            tokenIn: swapQuote.tokenIn.address,
+            tokenOut: swapQuote.tokenOut.address,
+            amountIn: swapQuote.amountIn.toString(),
+            amountOutMin: minAmountOut.toString(),
+            recipient,
+            slippage: Math.round(slippage * 100),
+            deadline: Math.floor(Date.now() / 1000) + 1200,
+          }),
+        })
+        const transaction = await response.json()
+        if (!response.ok) throw Error(transaction.message ?? 'Unable to build swap')
+        if (
+          !isAddress(transaction.to) ||
+          transaction.to.toLowerCase() !== routerAddress.toLowerCase()
+        )
+          throw Error('Swap router is not an approved deployment')
+        const calldata = transaction.data as Hex
+        const value = BigInt(transaction.value)
+        validateSwapCall(calldata, value, swapQuote, recipient, minAmountOut)
         const isETHIn = swapQuote.tokenIn.address.toLowerCase() === ETH_ADDRESS.toLowerCase()
 
         // ERC-20: Check allowance and approve if needed
-        if (!isETHIn && readContract) {
-          const currentAllowance = await readContract({
+        if (!isETHIn) {
+          const currentAllowance = await (readContract ?? publicClient.readContract)({
             address: swapQuote.tokenIn.address as Address,
             abi: ERC20_ABI,
             functionName: 'allowance',
@@ -239,6 +232,18 @@ export function useSwap(config: UseSwapConfig = {}) {
           })
 
           if (currentAllowance < swapQuote.amountIn) {
+            if (currentAllowance > 0n) {
+              const reset = await sendUserOp(recipient, {
+                to: swapQuote.tokenIn.address,
+                data: encodeFunctionData({
+                  abi: ERC20_ABI,
+                  functionName: 'approve',
+                  args: [routerAddress, 0n],
+                }),
+                gasPayment: options.gasPayment,
+              })
+              if (!reset?.success) throw Error('Approval reset not confirmed')
+            }
             const approveData = encodeFunctionData({
               abi: ERC20_ABI,
               functionName: 'approve',
@@ -248,6 +253,7 @@ export function useSwap(config: UseSwapConfig = {}) {
             const approveResult = await sendUserOp(recipient, {
               to: swapQuote.tokenIn.address as Address,
               data: approveData,
+              gasPayment: options.gasPayment,
             })
 
             if (!approveResult || !approveResult.success) {
@@ -256,9 +262,14 @@ export function useSwap(config: UseSwapConfig = {}) {
           }
         }
 
+        if ((quoteTimes.current.get(swapQuote) ?? 0) <= Date.now())
+          throw Error('Quote expired while approving tokens; request a fresh quote')
+        validateSwapCall(calldata, value, swapQuote, recipient, minAmountOut)
+        quoteTimes.current.delete(swapQuote)
         const result = await sendUserOp(recipient, {
           to: routerAddress,
-          value: isETHIn ? swapQuote.amountIn : undefined,
+          value,
+          gasPayment: options.gasPayment,
           data: calldata,
           minAmountOut,
         })
@@ -284,7 +295,8 @@ export function useSwap(config: UseSwapConfig = {}) {
       routerAddress,
       defaultSlippage,
       calculateMinAmountOut,
-      buildSwapCalldata,
+      orderRouterUrl,
+      publicClient,
     ]
   )
 
@@ -294,7 +306,7 @@ export function useSwap(config: UseSwapConfig = {}) {
     executeSwap,
     isLoading,
     error,
-    clearQuote: () => setQuote(null),
+    clearQuote,
     clearError: () => setError(null),
   }
 }

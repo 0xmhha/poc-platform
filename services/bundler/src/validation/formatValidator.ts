@@ -197,7 +197,9 @@ export class FormatValidator implements IFormatValidator {
     const result = userOperationSchema.safeParse(userOp)
 
     if (!result.success) {
-      const errors = result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')
+      const errors = result.error.issues
+        .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+        .join(', ')
 
       throw new RpcError(`Invalid UserOperation format: ${errors}`, RPC_ERROR_CODES.INVALID_PARAMS)
     }

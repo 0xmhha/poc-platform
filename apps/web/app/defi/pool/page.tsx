@@ -71,6 +71,7 @@ export default function PoolPage() {
       const hash = await removeLiquidity({
         pool,
         liquidity: position.liquidity,
+        tokenId: position.tokenId,
       })
 
       if (hash) {

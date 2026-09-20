@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 interface PaymentData {
   date: string
   successful: number
-  failed: number
   revenue: number
 }
 
@@ -14,35 +13,29 @@ interface PaymentAnalyticsCardProps {
   data: PaymentData[]
   timeRange: '7d' | '30d' | '90d'
   onTimeRangeChange: (range: '7d' | '30d' | '90d') => void
+  revenueUnit: string | null
 }
 
 export function PaymentAnalyticsCard({
   data,
   timeRange,
   onTimeRangeChange,
+  revenueUnit,
 }: PaymentAnalyticsCardProps) {
   const [activeTab, setActiveTab] = useState<'payments' | 'revenue'>('payments')
 
   const totalSuccessful = data.reduce((sum, d) => sum + d.successful, 0)
-  const totalFailed = data.reduce((sum, d) => sum + d.failed, 0)
   const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0)
-  const successRate =
-    totalSuccessful + totalFailed > 0
-      ? ((totalSuccessful / (totalSuccessful + totalFailed)) * 100).toFixed(1)
-      : '0.0'
 
   const maxValue = Math.max(
-    ...data.map((d) => (activeTab === 'payments' ? d.successful + d.failed : d.revenue))
+    ...data.map((d) => (activeTab === 'payments' ? d.successful : d.revenue)),
+    0
   )
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
+  const formatRevenue = (amount: number) =>
+    revenueUnit
+      ? `${amount.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${revenueUnit}`
+      : 'Unavailable'
 
   return (
     <Card>
@@ -73,7 +66,7 @@ export function PaymentAnalyticsCard({
       </CardHeader>
       <CardContent>
         {/* Summary Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div
             className="text-center p-3 rounded-lg"
             style={{ backgroundColor: 'rgb(var(--secondary))' }}
@@ -82,18 +75,7 @@ export function PaymentAnalyticsCard({
               {totalSuccessful.toLocaleString()}
             </p>
             <p className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
-              Successful
-            </p>
-          </div>
-          <div
-            className="text-center p-3 rounded-lg"
-            style={{ backgroundColor: 'rgb(var(--secondary))' }}
-          >
-            <p className="text-2xl font-bold" style={{ color: 'rgb(var(--destructive))' }}>
-              {totalFailed.toLocaleString()}
-            </p>
-            <p className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
-              Failed
+              Processed
             </p>
           </div>
           <div
@@ -101,10 +83,10 @@ export function PaymentAnalyticsCard({
             style={{ backgroundColor: 'rgb(var(--secondary))' }}
           >
             <p className="text-2xl font-bold" style={{ color: 'rgb(var(--success))' }}>
-              {successRate}%
+              —
             </p>
             <p className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
-              Success Rate
+              Failure tracking unavailable
             </p>
           </div>
           <div
@@ -112,7 +94,7 @@ export function PaymentAnalyticsCard({
             style={{ backgroundColor: 'rgb(var(--secondary))' }}
           >
             <p className="text-2xl font-bold" style={{ color: 'rgb(var(--primary))' }}>
-              {formatCurrency(totalRevenue)}
+              {formatRevenue(totalRevenue)}
             </p>
             <p className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
               Revenue
@@ -139,7 +121,8 @@ export function PaymentAnalyticsCard({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('revenue')}
+            onClick={() => revenueUnit && setActiveTab('revenue')}
+            disabled={!revenueUnit}
             className="px-4 py-2 text-sm font-medium transition-colors"
             style={{
               borderBottom:
@@ -155,7 +138,7 @@ export function PaymentAnalyticsCard({
         {/* Simple Bar Chart */}
         <div className="h-64 flex items-end gap-1">
           {data.map((d, index) => {
-            const value = activeTab === 'payments' ? d.successful + d.failed : d.revenue
+            const value = activeTab === 'payments' ? d.successful : d.revenue
             const height = maxValue > 0 ? (value / maxValue) * 100 : 0
             const successHeight =
               activeTab === 'payments' && maxValue > 0 ? (d.successful / maxValue) * 100 : height
@@ -174,11 +157,9 @@ export function PaymentAnalyticsCard({
                   {d.date}
                   <br />
                   {activeTab === 'payments' ? (
-                    <>
-                      Success: {d.successful} | Failed: {d.failed}
-                    </>
+                    <>Processed: {d.successful}</>
                   ) : (
-                    <>Revenue: {formatCurrency(d.revenue)}</>
+                    <>Revenue: {formatRevenue(d.revenue)}</>
                   )}
                 </div>
 
@@ -186,22 +167,13 @@ export function PaymentAnalyticsCard({
                 <div className="w-full flex flex-col" style={{ height: '200px' }}>
                   <div className="flex-1" />
                   {activeTab === 'payments' ? (
-                    <>
-                      <div
-                        className="w-full rounded-t-sm"
-                        style={{
-                          height: `${(d.failed / maxValue) * 100}%`,
-                          backgroundColor: 'rgb(var(--destructive) / 0.6)',
-                        }}
-                      />
-                      <div
-                        className="w-full"
-                        style={{
-                          height: `${successHeight}%`,
-                          backgroundColor: 'rgb(var(--success))',
-                        }}
-                      />
-                    </>
+                    <div
+                      className="w-full rounded-t-sm"
+                      style={{
+                        height: `${successHeight}%`,
+                        backgroundColor: 'rgb(var(--success))',
+                      }}
+                    />
                   ) : (
                     <div
                       className="w-full rounded-t-sm"
@@ -225,26 +197,12 @@ export function PaymentAnalyticsCard({
         {/* Legend */}
         <div className="flex justify-center gap-6 mt-4">
           {activeTab === 'payments' ? (
-            <>
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 rounded"
-                  style={{ backgroundColor: 'rgb(var(--success))' }}
-                />
-                <span className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
-                  Successful
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 rounded"
-                  style={{ backgroundColor: 'rgb(var(--destructive) / 0.6)' }}
-                />
-                <span className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
-                  Failed
-                </span>
-              </div>
-            </>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgb(var(--success))' }} />
+              <span className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
+                Processed
+              </span>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgb(var(--primary))' }} />

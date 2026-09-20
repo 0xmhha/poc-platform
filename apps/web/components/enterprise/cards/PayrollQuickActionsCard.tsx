@@ -3,12 +3,14 @@
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/common'
 
 interface PayrollQuickActionsCardProps {
+  isProcessing?: boolean
   onProcessPayments?: () => void
   onExportReport?: () => void
 }
 
 export function PayrollQuickActionsCard({
   onProcessPayments,
+  isProcessing,
   onExportReport,
 }: PayrollQuickActionsCardProps) {
   return (
@@ -18,7 +20,7 @@ export function PayrollQuickActionsCard({
       </CardHeader>
       <CardContent>
         <div className="flex gap-4">
-          <Button variant="secondary" onClick={onProcessPayments}>
+          <Button variant="secondary" onClick={onProcessPayments} disabled={isProcessing}>
             <svg
               className="w-5 h-5 mr-2"
               fill="none"

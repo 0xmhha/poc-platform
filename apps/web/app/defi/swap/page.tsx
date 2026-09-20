@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Address } from 'viem'
 import { parseUnits } from 'viem'
 import { ConnectWalletCard, PageHeader, useToast } from '@/components/common'
-import { PaymasterSelector, type GasPaymentMode } from '@/components/common/PaymasterSelector'
+import { type GasPaymentMode, PaymasterSelector } from '@/components/common/PaymasterSelector'
 import { SwapCard } from '@/components/defi'
 import type { SupportedToken } from '@/hooks'
 import { usePaymaster, useSwap, useUserOp, useWallet } from '@/hooks'
@@ -16,7 +16,7 @@ export default function SwapPage() {
   const { address, isConnected } = useWallet()
   const { sendUserOp } = useUserOp()
   const { tokens, isLoading: tokensLoading } = useTokens()
-  const { quote, isLoading, error, getQuote, executeSwap } = useSwap({
+  const { quote, isLoading, error, getQuote, executeSwap, clearQuote } = useSwap({
     sendUserOp,
   })
   const {
@@ -36,6 +36,11 @@ export default function SwapPage() {
   const [gasSponsored, setGasSponsored] = useState<boolean | null>(null)
   const [supportedTokens, setSupportedTokens] = useState<SupportedToken[] | null>(null)
   const [isLoadingTokens, setIsLoadingTokens] = useState(false)
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: changing any quote input invalidates the current quote.
+  useEffect(() => {
+    clearQuote()
+  }, [tokenIn?.address, tokenOut?.address, amountIn, slippage, clearQuote])
 
   // Initialize default tokens when loaded
   useEffect(() => {
@@ -103,7 +108,7 @@ export default function SwapPage() {
   async function handleGetQuote() {
     if (!amountIn || Number(amountIn) <= 0 || !tokenIn || !tokenOut) return
     const amountInBigInt = parseUnits(amountIn, tokenIn.decimals)
-    await getQuote({ tokenIn, tokenOut, amountIn: amountInBigInt })
+    await getQuote({ tokenIn, tokenOut, amountIn: amountInBigInt, slippage })
   }
 
   async function handleSwap() {
@@ -115,7 +120,14 @@ export default function SwapPage() {
       persistent: true,
     })
     try {
-      await executeSwap(quote, address)
+      const result = await executeSwap(quote, address, {
+        slippage,
+        gasPayment: {
+          type: gasMode === 'native' ? 'none' : gasMode,
+          tokenAddress: gasTokenAddress,
+        },
+      })
+      if (!result) throw Error('Swap was not confirmed')
       updateToast(toastId, {
         type: 'success',
         title: 'Swap Complete',

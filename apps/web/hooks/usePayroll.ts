@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAccount, useChainId } from 'wagmi'
+import { enterpriseStorageKey, validatePayroll } from '@/lib/enterprise/records'
 import type { PayrollEntry } from '@/types'
-
-const STORAGE_KEY = 'stablenet:payroll'
 
 interface UsePayrollConfig {
   fetchPayroll?: () => Promise<PayrollEntry[]>
@@ -58,10 +58,10 @@ function deserializeEntries(json: string): PayrollEntry[] {
   })) as PayrollEntry[]
 }
 
-function loadFromStorage(): PayrollEntry[] {
-  if (typeof window === 'undefined') return []
+function loadFromStorage(storageKey: string | null): PayrollEntry[] {
+  if (typeof window === 'undefined' || !storageKey) return []
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(storageKey)
     if (!stored) return []
     return deserializeEntries(stored)
   } catch {
@@ -69,16 +69,20 @@ function loadFromStorage(): PayrollEntry[] {
   }
 }
 
-function saveToStorage(entries: PayrollEntry[]): void {
-  if (typeof window === 'undefined') return
+function saveToStorage(storageKey: string | null, entries: PayrollEntry[]): void {
+  if (typeof window === 'undefined' || !storageKey)
+    throw Error('Connect a wallet to save enterprise records')
   try {
-    localStorage.setItem(STORAGE_KEY, serializeEntries(entries))
+    localStorage.setItem(storageKey, serializeEntries(entries))
   } catch {
-    // Storage full or unavailable
+    throw Error('Unable to persist enterprise record')
   }
 }
 
 export function usePayroll(config: UsePayrollConfig = {}): UsePayrollReturn {
+  const { address } = useAccount()
+  const chainId = useChainId()
+  const storageKey = enterpriseStorageKey('payroll', chainId, address)
   const { fetchPayroll, autoFetch = true } = config
   const [payrollEntries, setPayrollEntries] = useState<PayrollEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -110,60 +114,73 @@ export function usePayroll(config: UsePayrollConfig = {}): UsePayrollReturn {
     }
 
     // Default: load from localStorage
-    const entries = loadFromStorage()
+    const entries = loadFromStorage(storageKey)
     if (id !== fetchIdRef.current) return
     setPayrollEntries(entries)
     setIsLoading(false)
-  }, [fetchPayroll])
+  }, [fetchPayroll, storageKey])
 
   useEffect(() => {
+    setPayrollEntries([])
     if (autoFetch) {
       refresh()
     }
+    return () => {
+      fetchIdRef.current++
+    }
   }, [autoFetch, refresh])
 
-  const addEntry = useCallback((entry: PayrollEntry) => {
-    setPayrollEntries((prev) => {
-      const next = [...prev, entry]
-      saveToStorage(next)
-      return next
-    })
-  }, [])
+  const addEntry = useCallback(
+    (entry: PayrollEntry) => {
+      const next = [...loadFromStorage(storageKey).filter((e) => e.id !== entry.id), entry]
+      next.forEach(validatePayroll)
+      saveToStorage(storageKey, next)
+      setPayrollEntries(next)
+    },
+    [storageKey]
+  )
 
-  const updateEntry = useCallback((id: string, updates: Partial<PayrollEntry>) => {
-    setPayrollEntries((prev) => {
-      const next = prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
-      saveToStorage(next)
-      return next
-    })
-  }, [])
+  const updateEntry = useCallback(
+    (id: string, updates: Partial<PayrollEntry>) => {
+      const next = loadFromStorage(storageKey).map((e) => (e.id === id ? { ...e, ...updates } : e))
+      next.forEach(validatePayroll)
+      saveToStorage(storageKey, next)
+      setPayrollEntries(next)
+    },
+    [storageKey]
+  )
 
-  const removeEntry = useCallback((id: string) => {
-    setPayrollEntries((prev) => {
-      const next = prev.filter((e) => e.id !== id)
-      saveToStorage(next)
-      return next
-    })
-  }, [])
+  const removeEntry = useCallback(
+    (id: string) => {
+      const next = loadFromStorage(storageKey).filter((e) => e.id !== id)
+      next.forEach(validatePayroll)
+      saveToStorage(storageKey, next)
+      setPayrollEntries(next)
+    },
+    [storageKey]
+  )
 
   const summary = useMemo<PayrollSummary>(() => {
     const activeEntries = payrollEntries.filter((e) => e.status === 'active')
 
     // Calculate total monthly (converting from token amount)
-    const totalMonthly = activeEntries.reduce((sum, entry) => {
-      const decimals = entry.token?.decimals ?? 6
-      const amount = Number(entry.amount) / 10 ** decimals
+    const totalMonthly =
+      new Set(activeEntries.map((e) => e.token.address.toLowerCase())).size > 1
+        ? 0
+        : activeEntries.reduce((sum, entry) => {
+            const decimals = entry.token?.decimals ?? 6
+            const amount = Number(entry.amount) / 10 ** decimals
 
-      // Convert to monthly equivalent
-      switch (entry.frequency) {
-        case 'weekly':
-          return sum + amount * 4.33 // ~4.33 weeks per month
-        case 'biweekly':
-          return sum + amount * 2.17 // ~2.17 bi-weeks per month
-        default:
-          return sum + amount
-      }
-    }, 0)
+            // Convert to monthly equivalent
+            switch (entry.frequency) {
+              case 'weekly':
+                return sum + amount * 4.33 // ~4.33 weeks per month
+              case 'biweekly':
+                return sum + amount * 2.17 // ~2.17 bi-weeks per month
+              default:
+                return sum + amount
+            }
+          }, 0)
 
     // Find next payment date
     const nextPaymentDate = activeEntries.reduce<Date | null>((nearest, entry) => {
@@ -172,12 +189,18 @@ export function usePayroll(config: UsePayrollConfig = {}): UsePayrollReturn {
       return entry.nextPaymentDate < nearest ? entry.nextPaymentDate : nearest
     }, null)
 
-    // Estimate YTD from monthly total and months elapsed this year
-    const now = new Date()
-    const yearStart = new Date(now.getFullYear(), 0, 1)
-    const msElapsed = now.getTime() - yearStart.getTime()
-    const monthsElapsed = msElapsed / (30.44 * 24 * 60 * 60 * 1000)
-    const ytdTotal = totalMonthly * monthsElapsed
+    const year = new Date().getFullYear()
+    const ytdTotal =
+      new Set(payrollEntries.map((e) => e.token.address.toLowerCase())).size > 1
+        ? 0
+        : payrollEntries.reduce(
+            (sum, e) =>
+              sum +
+              (e.payments ?? [])
+                .filter((p) => new Date(p.paidAt).getFullYear() === year)
+                .reduce((paid, p) => paid + Number(BigInt(p.amount)) / 10 ** e.token.decimals, 0),
+            0
+          )
 
     return {
       totalMonthly,

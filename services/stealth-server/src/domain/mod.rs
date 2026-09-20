@@ -1,5 +1,5 @@
-mod stealth;
 mod registry;
+mod stealth;
 
-pub use stealth::*;
 pub use registry::*;
+pub use stealth::*;

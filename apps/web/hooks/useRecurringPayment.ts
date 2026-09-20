@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Address, Hash } from 'viem'
 import { decodeEventLog } from 'viem'
 import { useAccount, useChainId, usePublicClient, useWalletClient } from 'wagmi'
-import { getContractAddresses } from '../lib/config'
+import { assertConfirmed, optionalDeployment } from '@/lib/contracts/deployment'
+import { RECURRING_EXECUTOR_ABI as recurringPaymentManager_ABI } from '@/lib/contracts/runtimeAbis'
 
 // No default fallback — callers must ensure the contract is configured for the active chain
 
@@ -63,107 +64,6 @@ export interface CreateScheduleParams {
   startTime?: bigint
 }
 
-// ABI fragments for RecurringPaymentManager
-const recurringPaymentManager_ABI = [
-  {
-    name: 'createSchedule',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'recipient', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'token', type: 'address' },
-      { name: 'interval', type: 'uint256' },
-      { name: 'maxPayments', type: 'uint256' },
-      { name: 'startTime', type: 'uint256' },
-    ],
-    outputs: [{ name: 'scheduleId', type: 'uint256' }],
-  },
-  {
-    name: 'cancelSchedule',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'scheduleId', type: 'uint256' }],
-    outputs: [],
-  },
-  {
-    name: 'pauseSchedule',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'scheduleId', type: 'uint256' }],
-    outputs: [],
-  },
-  {
-    name: 'resumeSchedule',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'scheduleId', type: 'uint256' }],
-    outputs: [],
-  },
-  {
-    name: 'updateAmount',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'scheduleId', type: 'uint256' },
-      { name: 'newAmount', type: 'uint256' },
-    ],
-    outputs: [],
-  },
-  {
-    name: 'getSchedule',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'scheduleId', type: 'uint256' }],
-    outputs: [
-      { name: 'payer', type: 'address' },
-      { name: 'recipient', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'token', type: 'address' },
-      { name: 'interval', type: 'uint256' },
-      { name: 'nextPaymentTime', type: 'uint256' },
-      { name: 'paymentsMade', type: 'uint256' },
-      { name: 'maxPayments', type: 'uint256' },
-      { name: 'status', type: 'uint8' },
-      { name: 'createdAt', type: 'uint256' },
-    ],
-  },
-  {
-    name: 'getSchedulesByPayer',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'payer', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256[]' }],
-  },
-  {
-    name: 'isPaymentDue',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'scheduleId', type: 'uint256' }],
-    outputs: [{ name: '', type: 'bool' }],
-  },
-  {
-    name: 'getNextPaymentTime',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'scheduleId', type: 'uint256' }],
-    outputs: [{ name: '', type: 'uint256' }],
-  },
-  {
-    name: 'ScheduleCreated',
-    type: 'event',
-    inputs: [
-      { name: 'scheduleId', type: 'uint256', indexed: true },
-      { name: 'payer', type: 'address', indexed: true },
-      { name: 'recipient', type: 'address', indexed: false },
-      { name: 'amount', type: 'uint256', indexed: false },
-      { name: 'token', type: 'address', indexed: false },
-      { name: 'interval', type: 'uint256', indexed: false },
-    ],
-  },
-] as const
-
-// ERC20 ABI for token info
 const ERC20_ABI = [
   {
     name: 'symbol',
@@ -180,22 +80,6 @@ const ERC20_ABI = [
     outputs: [{ name: '', type: 'uint8' }],
   },
 ] as const
-
-// Convert status number to enum
-function parseStatus(status: number): PaymentScheduleStatus {
-  switch (status) {
-    case 0:
-      return 'active'
-    case 1:
-      return 'paused'
-    case 2:
-      return 'cancelled'
-    case 3:
-      return 'completed'
-    default:
-      return 'active'
-  }
-}
 
 export interface UseRecurringPaymentReturn {
   // State
@@ -241,18 +125,7 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
   // Use provided account or connected address
   const targetAccount = account || connectedAddress
 
-  // Get contract address from config based on chain ID
-  const recurringPaymentManager = useMemo(() => {
-    const contracts = getContractAddresses(chainId)
-    const addr = contracts?.recurringPaymentManager as Address | undefined
-    if (!addr) {
-      throw new Error(
-        `RecurringPaymentManager contract not configured for chain ${chainId}. ` +
-          'Add the address to @stablenet/contracts or deploy it first.'
-      )
-    }
-    return addr
-  }, [chainId])
+  const recurringPaymentManager = optionalDeployment(chainId, 'recurringPaymentExecutor')
 
   // State
   const [schedules, setSchedules] = useState<PaymentScheduleInfo[]>([])
@@ -323,45 +196,46 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
   // Fetch schedule info from contract
   const getSchedule = useCallback(
     async (scheduleId: bigint): Promise<PaymentScheduleInfo | null> => {
-      if (!publicClient) return null
+      if (!publicClient || !targetAccount || !recurringPaymentManager) return null
 
       try {
         const result = await publicClient.readContract({
           address: recurringPaymentManager,
           abi: recurringPaymentManager_ABI,
           functionName: 'getSchedule',
-          args: [scheduleId],
+          args: [targetAccount, scheduleId],
         })
 
-        const [
-          payer,
+        const {
           recipient,
           amount,
           token,
           interval,
-          nextPaymentTime,
+          startTime,
+          lastPaymentTime,
           paymentsMade,
           maxPayments,
-          status,
-          createdAt,
-        ] = result as [
-          Address,
-          Address,
-          bigint,
-          Address,
-          bigint,
-          bigint,
-          bigint,
-          bigint,
-          number,
-          bigint,
-        ]
-
+          isActive,
+        } = result
+        const paused = await publicClient.readContract({
+          address: recurringPaymentManager,
+          abi: recurringPaymentManager_ABI,
+          functionName: 'isSchedulePaused',
+          args: [targetAccount, scheduleId],
+        })
+        const nextPaymentTime = lastPaymentTime === 0n ? startTime : lastPaymentTime + interval
+        const status: PaymentScheduleStatus = !isActive
+          ? maxPayments > 0n && paymentsMade >= maxPayments
+            ? 'completed'
+            : 'cancelled'
+          : paused
+            ? 'paused'
+            : 'active'
         const tokenInfo = await getTokenInfo(token)
 
         return {
           scheduleId,
-          payer,
+          payer: targetAccount,
           recipient,
           amount,
           token: tokenInfo,
@@ -369,28 +243,28 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
           nextPaymentTime,
           paymentsMade,
           maxPayments,
-          status: parseStatus(status),
-          createdAt,
+          status,
+          createdAt: startTime,
         }
       } catch {
         // Schedule fetch failed, return null
         return null
       }
     },
-    [publicClient, getTokenInfo, recurringPaymentManager]
+    [publicClient, getTokenInfo, recurringPaymentManager, targetAccount]
   )
 
   // Check if payment is due
   const isPaymentDue = useCallback(
     async (scheduleId: bigint): Promise<boolean> => {
-      if (!publicClient) return false
+      if (!publicClient || !targetAccount || !recurringPaymentManager) return false
 
       try {
         const result = await publicClient.readContract({
           address: recurringPaymentManager,
           abi: recurringPaymentManager_ABI,
           functionName: 'isPaymentDue',
-          args: [scheduleId],
+          args: [targetAccount, scheduleId],
         })
 
         return result as boolean
@@ -399,20 +273,20 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
         return false
       }
     },
-    [publicClient, recurringPaymentManager]
+    [publicClient, recurringPaymentManager, targetAccount]
   )
 
   // Get next payment time
   const getNextPaymentTime = useCallback(
     async (scheduleId: bigint): Promise<bigint | null> => {
-      if (!publicClient) return null
+      if (!publicClient || !targetAccount || !recurringPaymentManager) return null
 
       try {
         const result = await publicClient.readContract({
           address: recurringPaymentManager,
           abi: recurringPaymentManager_ABI,
           functionName: 'getNextPaymentTime',
-          args: [scheduleId],
+          args: [targetAccount, scheduleId],
         })
 
         return result as bigint
@@ -421,17 +295,21 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
         return null
       }
     },
-    [publicClient, recurringPaymentManager]
+    [publicClient, recurringPaymentManager, targetAccount]
   )
 
   // Refresh all schedules for the account
   const refresh = useCallback(async () => {
-    if (!targetAccount || !publicClient) {
+    const id = ++fetchIdRef.current
+    setSchedules([])
+    if (!targetAccount || !publicClient || !recurringPaymentManager) {
+      setIsLoading(false)
+      if (targetAccount && !recurringPaymentManager)
+        setError(`Recurring executor is not deployed on chain ${chainId}`)
       setSchedules([])
       return
     }
 
-    const id = ++fetchIdRef.current
     setIsLoading(true)
     setError(null)
 
@@ -440,7 +318,7 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
       const result = await publicClient.readContract({
         address: recurringPaymentManager,
         abi: recurringPaymentManager_ABI,
-        functionName: 'getSchedulesByPayer',
+        functionName: 'getActiveSchedules',
         args: [targetAccount],
       })
 
@@ -467,21 +345,32 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
         setIsLoading(false)
       }
     }
-  }, [targetAccount, publicClient, getSchedule, recurringPaymentManager])
+  }, [targetAccount, publicClient, getSchedule, recurringPaymentManager, chainId])
 
   // Load schedules on mount and when account changes
   useEffect(() => {
     if (isConnected && targetAccount) {
       refresh()
     } else {
+      fetchIdRef.current++
       setSchedules([])
+      setIsLoading(false)
+    }
+    return () => {
+      fetchIdRef.current++
     }
   }, [isConnected, targetAccount, refresh])
 
   // Create a new payment schedule
   const createSchedule = useCallback(
     async (params: CreateScheduleParams): Promise<{ scheduleId: bigint; txHash: Hash } | null> => {
-      if (!walletClient || !targetAccount) {
+      if (
+        !walletClient ||
+        !publicClient ||
+        !targetAccount ||
+        !recurringPaymentManager ||
+        targetAccount.toLowerCase() !== connectedAddress?.toLowerCase()
+      ) {
         setError('Wallet not connected')
         return null
       }
@@ -512,18 +401,19 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
           functionName: 'createSchedule',
           args: [
             params.recipient,
-            params.amount,
             params.token,
+            params.amount,
             params.interval,
-            maxPayments,
             startTime,
+            maxPayments,
           ],
         })
 
         // Wait for receipt and parse ScheduleCreated event for the actual scheduleId
-        let scheduleId = BigInt(0)
+        let scheduleId: bigint | undefined
         if (publicClient) {
           const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+          assertConfirmed(receipt)
           for (const log of receipt.logs) {
             try {
               const decoded = decodeEventLog({
@@ -531,7 +421,11 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
                 data: log.data,
                 topics: log.topics,
               })
-              if (decoded.eventName === 'ScheduleCreated') {
+              if (
+                decoded.eventName === 'PaymentScheduleCreated' &&
+                log.address.toLowerCase() === recurringPaymentManager.toLowerCase() &&
+                decoded.args.account.toLowerCase() === targetAccount.toLowerCase()
+              ) {
                 scheduleId = (decoded.args as { scheduleId: bigint }).scheduleId
                 break
               }
@@ -541,6 +435,8 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
           }
         }
 
+        if (scheduleId === undefined)
+          throw Error('Schedule transaction confirmed but its creation event was not found')
         // Refresh schedules
         await refresh()
 
@@ -553,13 +449,19 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
         setIsCreating(false)
       }
     },
-    [walletClient, publicClient, targetAccount, refresh, recurringPaymentManager]
+    [walletClient, publicClient, targetAccount, connectedAddress, refresh, recurringPaymentManager]
   )
 
   // Cancel a payment schedule
   const cancelSchedule = useCallback(
     async (scheduleId: bigint): Promise<{ txHash: Hash } | null> => {
-      if (!walletClient || !targetAccount) {
+      if (
+        !walletClient ||
+        !publicClient ||
+        !targetAccount ||
+        !recurringPaymentManager ||
+        targetAccount.toLowerCase() !== connectedAddress?.toLowerCase()
+      ) {
         setError('Wallet not connected')
         return null
       }
@@ -575,6 +477,7 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
           args: [scheduleId],
         })
 
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: txHash }))
         // Refresh schedules
         await refresh()
 
@@ -587,13 +490,19 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
         setIsCancelling(false)
       }
     },
-    [walletClient, targetAccount, refresh, recurringPaymentManager]
+    [walletClient, publicClient, targetAccount, connectedAddress, refresh, recurringPaymentManager]
   )
 
   // Pause a payment schedule
   const pauseSchedule = useCallback(
     async (scheduleId: bigint): Promise<{ txHash: Hash } | null> => {
-      if (!walletClient || !targetAccount) {
+      if (
+        !walletClient ||
+        !publicClient ||
+        !targetAccount ||
+        !recurringPaymentManager ||
+        targetAccount.toLowerCase() !== connectedAddress?.toLowerCase()
+      ) {
         setError('Wallet not connected')
         return null
       }
@@ -609,6 +518,7 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
           args: [scheduleId],
         })
 
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: txHash }))
         // Refresh schedules
         await refresh()
 
@@ -621,13 +531,19 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
         setIsUpdating(false)
       }
     },
-    [walletClient, targetAccount, refresh, recurringPaymentManager]
+    [walletClient, publicClient, targetAccount, connectedAddress, refresh, recurringPaymentManager]
   )
 
   // Resume a payment schedule
   const resumeSchedule = useCallback(
     async (scheduleId: bigint): Promise<{ txHash: Hash } | null> => {
-      if (!walletClient || !targetAccount) {
+      if (
+        !walletClient ||
+        !publicClient ||
+        !targetAccount ||
+        !recurringPaymentManager ||
+        targetAccount.toLowerCase() !== connectedAddress?.toLowerCase()
+      ) {
         setError('Wallet not connected')
         return null
       }
@@ -643,6 +559,7 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
           args: [scheduleId],
         })
 
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: txHash }))
         // Refresh schedules
         await refresh()
 
@@ -655,13 +572,19 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
         setIsUpdating(false)
       }
     },
-    [walletClient, targetAccount, refresh, recurringPaymentManager]
+    [walletClient, publicClient, targetAccount, connectedAddress, refresh, recurringPaymentManager]
   )
 
   // Update payment amount
   const updateAmount = useCallback(
     async (scheduleId: bigint, newAmount: bigint): Promise<{ txHash: Hash } | null> => {
-      if (!walletClient || !targetAccount) {
+      if (
+        !walletClient ||
+        !publicClient ||
+        !targetAccount ||
+        !recurringPaymentManager ||
+        targetAccount.toLowerCase() !== connectedAddress?.toLowerCase()
+      ) {
         setError('Wallet not connected')
         return null
       }
@@ -677,6 +600,7 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
           args: [scheduleId, newAmount],
         })
 
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: txHash }))
         // Refresh schedules
         await refresh()
 
@@ -689,7 +613,7 @@ export function useRecurringPayment(account?: Address): UseRecurringPaymentRetur
         setIsUpdating(false)
       }
     },
-    [walletClient, targetAccount, refresh, recurringPaymentManager]
+    [walletClient, publicClient, targetAccount, connectedAddress, refresh, recurringPaymentManager]
   )
 
   return {

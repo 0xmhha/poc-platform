@@ -21,6 +21,7 @@
     "lint:fix": "biome lint --write src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:ci": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist"
   },
@@ -28,13 +29,13 @@
     "@noble/curves": "^1.7.0",
     "@noble/hashes": "^1.6.1",
     "@stablenet/core": "workspace:*",
-    "viem": "^2.46.3"
+    "viem": "^2.47.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
     "viem": "^2.46.3"

@@ -66,7 +66,7 @@ func IsValidAmount(amount string) bool {
 	}
 
 	// Must be positive (> 0)
-	return n.Sign() > 0
+	return n.Sign() > 0 && n.BitLen() <= 256
 }
 
 // IsValidAmountOrZero checks if a string is a valid non-negative integer amount
@@ -83,7 +83,7 @@ func IsValidAmountOrZero(amount string) bool {
 	}
 
 	// Must be non-negative (>= 0)
-	return n.Sign() >= 0
+	return n.Sign() >= 0 && n.BitLen() <= 256
 }
 
 // IsValidSlippage checks if slippage is within valid range (0-10000 basis points = 0-100%)

@@ -136,6 +136,7 @@ vi.mock('@/hooks', () => ({
     isLoading: false,
     error: null,
     getQuote: vi.fn(),
+    clearQuote: vi.fn(),
     executeSwap: vi.fn(),
   })),
   useUserOp: vi.fn(() => ({

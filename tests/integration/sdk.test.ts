@@ -37,20 +37,20 @@ describe('SDK Integration Tests', () => {
   })
 
   describe('Network Connection', () => {
-    it('should connect to local network', async () => {
+    it('should connect to local network', async (testContext) => {
       const networkAvailable = await isNetworkAvailable()
       if (!networkAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const chainId = await publicClient.getChainId()
       expect(chainId).toBe(TEST_CONFIG.chainId)
     })
 
-    it('should get block number', async () => {
+    it('should get block number', async (testContext) => {
       const networkAvailable = await isNetworkAvailable()
       if (!networkAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const blockNumber = await publicClient.getBlockNumber()
@@ -59,10 +59,10 @@ describe('SDK Integration Tests', () => {
   })
 
   describe('Account Operations', () => {
-    it('should get account balance', async () => {
+    it('should get account balance', async (testContext) => {
       const networkAvailable = await isNetworkAvailable()
       if (!networkAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const balance = await publicClient.getBalance({
@@ -71,10 +71,10 @@ describe('SDK Integration Tests', () => {
       expect(balance).toBeGreaterThan(0n)
     })
 
-    it('should send ETH transaction', async () => {
+    it('should send ETH transaction', async (testContext) => {
       const networkAvailable = await isNetworkAvailable()
       if (!networkAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const hash = await walletClient.sendTransaction({

@@ -1,3 +1,10 @@
+import {
+  getEcdsaValidator,
+  getEntryPoint,
+  getKernel,
+  getKernelFactory,
+  getVerifyingPaymaster,
+} from '@stablenet/contracts'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -5,6 +12,8 @@ import { describe, expect, it, vi } from 'vitest'
 // F-02: Gas payment mode types and hook
 // RED phase — useGasPaymentMode does not exist yet
 // ============================================================================
+
+const TEST_CHAIN_ID = 8283
 
 // Mock useSmartAccount to control isSmartAccount state
 const mockSmartAccountStatus = {
@@ -21,10 +30,10 @@ vi.mock('../useSmartAccount', async (importOriginal) => {
     useSmartAccount: () => ({
       status: mockSmartAccountStatus,
       contracts: {
-        entryPoint: '0x2ef7E4897d71647502e2Fe60F707AcD9a110660C',
-        kernel: '0x92458C9920376Ddd0152dbA56888ac60547408E6',
-        kernelFactory: '0xA18C1d76de513FEa27127E2508de43AdC0820a72',
-        ecdsaValidator: '0xFaf73bf2E642ADD50cf9d9853C44553ECCdFC670',
+        entryPoint: getEntryPoint(TEST_CHAIN_ID),
+        kernel: getKernel(TEST_CHAIN_ID),
+        kernelFactory: getKernelFactory(TEST_CHAIN_ID),
+        ecdsaValidator: getEcdsaValidator(TEST_CHAIN_ID),
       },
     }),
   }
@@ -35,9 +44,9 @@ vi.mock('@/providers', () => ({
   useStableNetContext: () => ({
     bundlerUrl: 'http://localhost:4337',
     paymasterUrl: 'http://localhost:4338',
-    paymaster: '0x513488a46Dd77Cf35E0b36Cf331911882952CB73',
-    entryPoint: '0x2ef7E4897d71647502e2Fe60F707AcD9a110660C',
-    chainId: 8283,
+    paymaster: getVerifyingPaymaster(TEST_CHAIN_ID),
+    entryPoint: getEntryPoint(TEST_CHAIN_ID),
+    chainId: TEST_CHAIN_ID,
   }),
 }))
 

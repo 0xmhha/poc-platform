@@ -256,7 +256,9 @@ export function AddLiquidityModal({
               <div className="flex justify-between text-sm mt-2">
                 <span style={{ color: 'rgb(var(--muted-foreground))' }}>APR</span>
                 <span className="font-medium" style={{ color: 'rgb(var(--success))' }}>
-                  {selectedPool.apr.toFixed(2)}%
+                  {selectedPool.metricsAvailable === false
+                    ? 'Unavailable'
+                    : `${selectedPool.apr.toFixed(2)}%`}
                 </span>
               </div>
               <div className="flex justify-between text-sm mt-2">

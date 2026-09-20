@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StableNetProvider } from '../../src/provider/StableNetProvider'
 import { createMockProvider } from '../setup'
 
@@ -9,6 +9,75 @@ describe('StableNetProvider', () => {
   beforeEach(() => {
     mockProvider = createMockProvider()
     provider = new StableNetProvider(mockProvider)
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('restores both account and chain from a saved session without prompting', async () => {
+    const entries = new Map<string, string>()
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => entries.get(key) ?? null,
+        setItem: (key: string, value: string) => entries.set(key, value),
+        removeItem: (key: string) => entries.delete(key),
+      },
+    })
+    entries.set(
+      'stablenet:session',
+      JSON.stringify({
+        accounts: ['0x1234567890abcdef1234567890abcdef12345678'],
+        chainId: '0x205b',
+        connectedAt: Date.now(),
+      })
+    )
+    const rpc = createMockProvider({ eth_chainId: '0x205b' })
+    const request = vi.spyOn(rpc, 'request')
+    const restored = new StableNetProvider(rpc, { enableSession: true })
+    await restored.reconnect()
+    expect(restored.account).toBe('0x1234567890abcdef1234567890abcdef12345678')
+    expect(restored.chainIdNumber).toBe(8283)
+    expect(request).not.toHaveBeenCalledWith({ method: 'eth_requestAccounts' })
+    restored.destroy()
+  })
+
+  it('clears restored accounts when the chain cannot be read', async () => {
+    const entries = new Map<string, string>()
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (key: string) => entries.get(key) ?? null,
+        setItem: (key: string, value: string) => entries.set(key, value),
+        removeItem: (key: string) => entries.delete(key),
+      },
+    })
+    entries.set(
+      'stablenet:session',
+      JSON.stringify({
+        accounts: ['0x1234567890abcdef1234567890abcdef12345678'],
+        chainId: '0x205b',
+        connectedAt: Date.now(),
+      })
+    )
+    const rpc = createMockProvider()
+    const request = rpc.request.bind(rpc)
+    vi.spyOn(rpc, 'request').mockImplementation(async (args) => {
+      if (args.method === 'eth_chainId') throw new Error('RPC unavailable')
+      return request(args)
+    })
+    const restored = new StableNetProvider(rpc, { enableSession: true })
+    expect(await restored.reconnect()).toEqual([])
+    expect(restored.account).toBeNull()
+    expect(restored.chainId).toBeNull()
+    expect(restored.isConnected).toBe(false)
+    restored.destroy()
+  })
+
+  it('adopts an existing provider connection using only silent RPC methods', async () => {
+    const request = vi.spyOn(mockProvider, 'request')
+    await provider.syncConnection()
+    expect(provider.isConnected).toBe(true)
+    expect(provider.chainIdNumber).toBe(1)
+    expect(request).not.toHaveBeenCalledWith({ method: 'eth_requestAccounts' })
+    expect(await provider.signMessage('hello')).toBe('0xsignature')
   })
 
   describe('constructor', () => {

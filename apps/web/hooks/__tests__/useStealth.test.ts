@@ -1,15 +1,18 @@
+import { getEntryPoint, getStealthAnnouncer } from '@stablenet/contracts'
 import { act, renderHook } from '@testing-library/react'
 import type { Hex } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useStealth } from '../useStealth'
 
+const TEST_CHAIN_ID = 31337
+
 // Mock the context provider
 const mockContext = {
   stealthServerUrl: 'http://localhost:4339',
-  stealthAnnouncer: '0x8fc8cfb7f7362e44e472c690a6e025b80e406458',
-  chainId: 31337,
+  stealthAnnouncer: getStealthAnnouncer(TEST_CHAIN_ID),
+  chainId: TEST_CHAIN_ID,
   bundlerUrl: 'http://localhost:4337',
-  entryPoint: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+  entryPoint: getEntryPoint(TEST_CHAIN_ID),
 }
 
 vi.mock('@/providers', () => ({
@@ -23,14 +26,14 @@ const _mockGetViewingKey = vi.fn()
 
 describe('useStealth', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   describe('generateOwnMetaAddress', () => {
     it('should derive stealth keys from wallet', async () => {
       // Mock wallet functions to return deterministic keys
-      const mockSpendingPubKey = `0x${'11'.repeat(33)}` as Hex
-      const mockViewingPubKey = `0x${'22'.repeat(33)}` as Hex
+      const mockSpendingPubKey = `0x${'02' + '11'.repeat(32)}` as Hex
+      const mockViewingPubKey = `0x${'03' + '22'.repeat(32)}` as Hex
 
       const { result } = renderHook(() =>
         useStealth({
@@ -55,7 +58,7 @@ describe('useStealth', () => {
           getSpendingPublicKey: async () => {
             throw new Error('Wallet locked')
           },
-          getViewingPublicKey: async () => `0x${'22'.repeat(33)}` as Hex,
+          getViewingPublicKey: async () => `0x${'03' + '22'.repeat(32)}` as Hex,
         })
       )
 
@@ -69,8 +72,8 @@ describe('useStealth', () => {
     })
 
     it('should generate valid stealth meta address URI', async () => {
-      const mockSpendingPubKey = `0x${'aa'.repeat(33)}` as Hex
-      const mockViewingPubKey = `0x${'bb'.repeat(33)}` as Hex
+      const mockSpendingPubKey = `0x${'02' + 'aa'.repeat(32)}` as Hex
+      const mockViewingPubKey = `0x${'03' + 'bb'.repeat(32)}` as Hex
 
       const { result } = renderHook(() =>
         useStealth({
@@ -86,15 +89,15 @@ describe('useStealth', () => {
       const uri = result.current.getStealthMetaAddressURI()
       expect(uri).toMatch(/^st:eth:0x[a-fA-F0-9]+$/)
       // URI should contain both keys
-      expect(uri).toContain('aa'.repeat(33))
-      expect(uri).toContain('bb'.repeat(33))
+      expect(uri).toContain('02' + 'aa'.repeat(32))
+      expect(uri).toContain('03' + 'bb'.repeat(32))
     })
   })
 
   describe('registerStealthMetaAddress', () => {
     it('should sign and register meta address on-chain', async () => {
-      const mockSpendingPubKey = `0x${'11'.repeat(33)}` as Hex
-      const mockViewingPubKey = `0x${'22'.repeat(33)}` as Hex
+      const mockSpendingPubKey = `0x${'02' + '11'.repeat(32)}` as Hex
+      const mockViewingPubKey = `0x${'03' + '22'.repeat(32)}` as Hex
       const mockSignature = `0x${'ff'.repeat(65)}` as Hex
 
       const mockSignTypedData = vi.fn().mockResolvedValue(mockSignature)
@@ -133,8 +136,8 @@ describe('useStealth', () => {
     })
 
     it('should handle registration failure', async () => {
-      const mockSpendingPubKey = `0x${'11'.repeat(33)}` as Hex
-      const mockViewingPubKey = `0x${'22'.repeat(33)}` as Hex
+      const mockSpendingPubKey = `0x${'02' + '11'.repeat(32)}` as Hex
+      const mockViewingPubKey = `0x${'03' + '22'.repeat(32)}` as Hex
       const mockSignature = `0x${'ff'.repeat(65)}` as Hex
 
       const mockSignTypedData = vi.fn().mockResolvedValue(mockSignature)
@@ -191,7 +194,7 @@ describe('useStealth', () => {
 
       const { result } = renderHook(() => useStealth({}))
 
-      const recipientMetaAddress = `st:eth:0x${'aa'.repeat(33)}${'bb'.repeat(33)}`
+      const recipientMetaAddress = `st:eth:0x${'02' + 'aa'.repeat(32)}${'03' + 'bb'.repeat(32)}`
 
       let stealthResult: unknown
       await act(async () => {
@@ -218,8 +221,8 @@ describe('useStealth', () => {
     it('should parse valid stealth meta address URI', () => {
       const { result } = renderHook(() => useStealth({}))
 
-      const spendingKey = 'aa'.repeat(33)
-      const viewingKey = 'bb'.repeat(33)
+      const spendingKey = '02' + 'aa'.repeat(32)
+      const viewingKey = '03' + 'bb'.repeat(32)
       const uri = `st:eth:0x${spendingKey}${viewingKey}`
 
       const parsed = result.current.parseStealthMetaAddress(uri)
@@ -374,7 +377,7 @@ describe('useStealth', () => {
         {
           schemeId: 1,
           stealthAddress: '0x1111111111111111111111111111111111111111',
-          ephemeralPubKey: `0x${'aa'.repeat(33)}`,
+          ephemeralPubKey: `0x${'02' + 'aa'.repeat(32)}`,
           viewTag: 42,
           caller: '0x2222222222222222222222222222222222222222',
           blockNumber: '1000',

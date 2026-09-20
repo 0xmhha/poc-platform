@@ -18,7 +18,9 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum WsMessage {
     /// Subscribe to announcements with optional view tag filter
-    Subscribe { view_tag: Option<u8> },
+    Subscribe {
+        view_tag: Option<u8>,
+    },
     /// Unsubscribe from announcements
     Unsubscribe,
     /// Announcement notification
@@ -27,7 +29,9 @@ pub enum WsMessage {
     Ping,
     Pong,
     /// Error message
-    Error { message: String },
+    Error {
+        message: String,
+    },
 }
 
 /// Message for broadcasting announcements

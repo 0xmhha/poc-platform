@@ -29,6 +29,17 @@ import {
 
 const VALID_CHAIN_ID = 8283
 
+describe('default EntryPoint', () => {
+  it('uses the deployed EntryPoint rather than the CREATE2 deployer', () => {
+    const deployment = getChainAddresses(VALID_CHAIN_ID)
+    expect(ENTRY_POINT_ADDRESS).toBe(deployment.core.entryPoint)
+    expect(ENTRY_POINT_ADDRESS).toBe(deployment.raw.entryPoint)
+    expect(ENTRY_POINT_ADDRESS.toLowerCase()).not.toBe(
+      deployment.raw.create2Deployer?.toLowerCase()
+    )
+  })
+})
+
 describe('isZeroAddress', () => {
   it('returns true for zero address', () => {
     expect(isZeroAddress(ZERO_ADDRESS)).toBe(true)

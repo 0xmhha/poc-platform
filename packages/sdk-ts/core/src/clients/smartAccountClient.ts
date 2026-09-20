@@ -283,6 +283,9 @@ function getUrlFromTransport(transport: Transport): string {
   // For http transport, extract the URL
   // This is a simplified implementation
   const transportConfig = transport({ chain: undefined, retryCount: 0 } as Parameters<Transport>[0])
+  if (typeof transportConfig.value?.url === 'string') {
+    return transportConfig.value.url
+  }
   if ('url' in transportConfig && typeof transportConfig.url === 'string') {
     return transportConfig.url
   }

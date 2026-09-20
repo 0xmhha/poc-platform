@@ -20,7 +20,7 @@ export const ContractEntrySchema = z.object({
   abi: z.string().optional(),
   deployedAt: z.number().optional(),
   txHash: hexHash.optional(),
-  metadata: z.record(z.unknown()),
+  metadata: z.record(z.string(), z.unknown()),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

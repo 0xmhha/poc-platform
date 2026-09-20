@@ -1,3 +1,4 @@
+import { ENTRY_POINT_ADDRESS, getEntryPoint, isChainSupported } from '@stablenet/contracts'
 import type { Address } from 'viem'
 
 /**
@@ -138,19 +139,33 @@ function parseChainIds(name: string, defaultValue: readonly number[]): number[] 
 }
 
 /**
- * Parse comma-separated EntryPoint addresses
- * Defaults to ERC-4337 v0.9 EntryPoint
+ * Parse comma-separated EntryPoint addresses.
+ * Defaults to chain-specific EntryPoint from @stablenet/contracts.
  */
 export function parseEntryPoints(): Address[] {
-  const DEFAULT_ENTRY_POINT = '0xEf6817fe73741A8F10088f9511c64b666a338A14'
   const value = process.env[PAYMASTER_ENV_VARS.SUPPORTED_ENTRY_POINTS]
-  if (value === undefined || value === '') {
-    return [DEFAULT_ENTRY_POINT as Address]
+  if (value !== undefined && value !== '') {
+    return value
+      .split(',')
+      .map((addr) => addr.trim() as Address)
+      .filter((addr) => /^0x[0-9a-fA-F]{40}$/.test(addr))
   }
-  return value
-    .split(',')
-    .map((addr) => addr.trim() as Address)
-    .filter((addr) => /^0x[0-9a-fA-F]{40}$/.test(addr))
+
+  // Derive from supported chains — each chain may have a different EntryPoint
+  const chainIds = parseChainIds(PAYMASTER_ENV_VARS.SUPPORTED_CHAIN_IDS, DEFAULTS.supportedChainIds)
+  const entryPoints = new Set<Address>()
+  for (const chainId of chainIds) {
+    if (isChainSupported(chainId)) {
+      entryPoints.add(getEntryPoint(chainId) as Address)
+    }
+  }
+
+  if (entryPoints.size > 0) {
+    return [...entryPoints]
+  }
+
+  // Final fallback: canonical EntryPoint from @stablenet/contracts
+  return [ENTRY_POINT_ADDRESS]
 }
 
 /**
@@ -269,7 +284,7 @@ Server:
   ${PAYMASTER_ENV_VARS.DEBUG}                          Enable debug mode (default: false)
   ${PAYMASTER_ENV_VARS.SPONSOR_NAME}                   Sponsor name in responses (default: StableNet Paymaster)
   ${PAYMASTER_ENV_VARS.SUPPORTED_CHAIN_IDS}            Supported chain IDs, comma-separated (default: 8283,1,11155111,84532)
-  ${PAYMASTER_ENV_VARS.SUPPORTED_ENTRY_POINTS}         Supported EntryPoint addresses, comma-separated (default: 0xEf6817fe73741A8F10088f9511c64b666a338A14)
+  ${PAYMASTER_ENV_VARS.SUPPORTED_ENTRY_POINTS}         Supported EntryPoint addresses, comma-separated (auto-resolved from @stablenet/contracts)
 
 Signer:
   ${PAYMASTER_ENV_VARS.VALIDITY_SECONDS}               Signature validity in seconds (default: 300 = 5 minutes)

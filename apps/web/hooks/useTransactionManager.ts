@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import type { Hex } from 'viem'
+import { type Hex, TransactionReceiptNotFoundError } from 'viem'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 
 export interface UseTransactionManagerReturn {
@@ -12,6 +12,9 @@ export interface UseTransactionManagerReturn {
   error: string | null
   clearError: () => void
 }
+
+const bump = (fee: bigint) =>
+  (fee * GAS_BUMP_PERCENT + GAS_BUMP_BASE - 1n) / GAS_BUMP_BASE + (fee === 0n ? 1n : 0n)
 
 // Gas bump percentage (10% increase, matching wallet-extension behavior)
 const GAS_BUMP_PERCENT = 110n
@@ -43,8 +46,15 @@ export function useTransactionManager(): UseTransactionManagerReturn {
           throw new Error('Transaction not found')
         }
 
+        if (tx.from.toLowerCase() !== address.toLowerCase())
+          throw new Error('Transaction belongs to another account')
         // 2. Check if already confirmed
-        const receipt = await publicClient.getTransactionReceipt({ hash: txHash }).catch(() => null)
+        const receipt = await publicClient
+          .getTransactionReceipt({ hash: txHash })
+          .catch((error: unknown) => {
+            if (error instanceof TransactionReceiptNotFoundError) return null
+            throw error
+          })
         if (receipt) {
           throw new Error('Transaction already confirmed')
         }
@@ -54,12 +64,11 @@ export function useTransactionManager(): UseTransactionManagerReturn {
 
         if (tx.maxFeePerGas != null && tx.maxPriorityFeePerGas != null) {
           // EIP-1559 transaction
-          gasParams.maxFeePerGas = (tx.maxFeePerGas * GAS_BUMP_PERCENT) / GAS_BUMP_BASE
-          gasParams.maxPriorityFeePerGas =
-            (tx.maxPriorityFeePerGas * GAS_BUMP_PERCENT) / GAS_BUMP_BASE
+          gasParams.maxFeePerGas = bump(tx.maxFeePerGas)
+          gasParams.maxPriorityFeePerGas = bump(tx.maxPriorityFeePerGas)
         } else if (tx.gasPrice != null) {
           // Legacy transaction
-          gasParams.gasPrice = (tx.gasPrice * GAS_BUMP_PERCENT) / GAS_BUMP_BASE
+          gasParams.gasPrice = bump(tx.gasPrice)
         }
 
         // 4. Resend with same nonce and bumped gas
@@ -101,8 +110,15 @@ export function useTransactionManager(): UseTransactionManagerReturn {
           throw new Error('Transaction not found')
         }
 
+        if (tx.from.toLowerCase() !== address.toLowerCase())
+          throw new Error('Transaction belongs to another account')
         // 2. Check if already confirmed
-        const receipt = await publicClient.getTransactionReceipt({ hash: txHash }).catch(() => null)
+        const receipt = await publicClient
+          .getTransactionReceipt({ hash: txHash })
+          .catch((error: unknown) => {
+            if (error instanceof TransactionReceiptNotFoundError) return null
+            throw error
+          })
         if (receipt) {
           throw new Error('Transaction already confirmed, cannot cancel')
         }
@@ -111,11 +127,10 @@ export function useTransactionManager(): UseTransactionManagerReturn {
         const gasParams: Record<string, bigint> = {}
 
         if (tx.maxFeePerGas != null && tx.maxPriorityFeePerGas != null) {
-          gasParams.maxFeePerGas = (tx.maxFeePerGas * GAS_BUMP_PERCENT) / GAS_BUMP_BASE
-          gasParams.maxPriorityFeePerGas =
-            (tx.maxPriorityFeePerGas * GAS_BUMP_PERCENT) / GAS_BUMP_BASE
+          gasParams.maxFeePerGas = bump(tx.maxFeePerGas)
+          gasParams.maxPriorityFeePerGas = bump(tx.maxPriorityFeePerGas)
         } else if (tx.gasPrice != null) {
-          gasParams.gasPrice = (tx.gasPrice * GAS_BUMP_PERCENT) / GAS_BUMP_BASE
+          gasParams.gasPrice = bump(tx.gasPrice)
         }
 
         // 4. Self-transfer with 0 value to replace original tx
@@ -124,7 +139,7 @@ export function useTransactionManager(): UseTransactionManagerReturn {
           value: 0n,
           data: '0x' as Hex,
           nonce: tx.nonce,
-          gas: 21000n,
+
           ...gasParams,
         })
 

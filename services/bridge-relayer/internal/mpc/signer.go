@@ -3,8 +3,10 @@ package mpc
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -21,7 +23,7 @@ type SignerClient struct {
 	timeout      time.Duration
 	httpClient   *http.Client
 
-	mu          sync.RWMutex
+	mu           sync.RWMutex
 	signerStatus map[int]bool // Track which signers are online
 }
 
@@ -41,12 +43,13 @@ func NewSignerClient(cfg config.MPCConfig) *SignerClient {
 
 // CollectSignatures collects signatures from MPC signers for a bridge message
 func (c *SignerClient) CollectSignatures(ctx context.Context, msg domain.BridgeMessage) ([][]byte, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
+	if c.threshold <= 0 || c.threshold > c.totalSigners || c.threshold > len(c.endpoints) {
+		return nil, fmt.Errorf("invalid MPC quorum configuration")
+	}
 	// Channel to collect signature responses
 	responseChan := make(chan domain.SignatureResponse, c.totalSigners)
 	var wg sync.WaitGroup
@@ -70,19 +73,25 @@ func (c *SignerClient) CollectSignatures(ctx context.Context, msg domain.BridgeM
 	}()
 
 	// Collect signatures
+	seen := make(map[string]bool)
 	var signatures [][]byte
 	var errors []string
 
 	for resp := range responseChan {
 		if resp.Error != "" {
 			errors = append(errors, fmt.Sprintf("signer %d: %s", resp.SignerID, resp.Error))
+			c.mu.Lock()
 			c.signerStatus[resp.SignerID] = false
+			c.mu.Unlock()
 			continue
 		}
 
-		if len(resp.Signature) > 0 {
+		if len(resp.Signature) == 65 && !seen[hex.EncodeToString(resp.Signature)] {
+			seen[hex.EncodeToString(resp.Signature)] = true
 			signatures = append(signatures, resp.Signature)
+			c.mu.Lock()
 			c.signerStatus[resp.SignerID] = true
+			c.mu.Unlock()
 		}
 
 		// Check if we have enough signatures
@@ -152,7 +161,7 @@ func (c *SignerClient) requestSignature(
 	}
 
 	var sigResp domain.SignatureResponse
-	if err := json.NewDecoder(resp.Body).Decode(&sigResp); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&sigResp); err != nil {
 		responseChan <- domain.SignatureResponse{
 			SignerID: signerID,
 			Error:    fmt.Sprintf("failed to decode response: %v", err),
@@ -166,8 +175,6 @@ func (c *SignerClient) requestSignature(
 
 // HealthCheck checks the health of all MPC signers
 func (c *SignerClient) HealthCheck(ctx context.Context) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -200,7 +207,9 @@ func (c *SignerClient) HealthCheck(ctx context.Context) (int, error) {
 
 	onlineCount := 0
 	for result := range results {
+		c.mu.Lock()
 		c.signerStatus[result.signerID] = result.online
+		c.mu.Unlock()
 		if result.online {
 			onlineCount++
 		}

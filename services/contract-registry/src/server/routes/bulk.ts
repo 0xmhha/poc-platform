@@ -15,7 +15,7 @@ export function registerBulkRoutes(
   app: FastifyInstance,
   store: InMemoryStore,
   apiKey: string | undefined,
-  onMutation: () => void
+  onMutation: () => void | Promise<void>
 ) {
   const authHook = createAuthHook(apiKey)
 
@@ -37,7 +37,7 @@ export function registerBulkRoutes(
           metadata: c.metadata,
         }))
       )
-      onMutation()
+      await onMutation()
       return reply.status(200).send(result)
     }
   )

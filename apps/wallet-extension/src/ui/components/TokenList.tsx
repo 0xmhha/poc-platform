@@ -27,12 +27,16 @@ interface TokenListProps {
   onAddToken?: () => void
   /** Toggle visibility callback */
   onToggleVisibility?: (address: string) => void
+  /** Remove token callback */
+  onRemoveToken?: (address: string) => void
   /** Show hidden tokens */
   showHidden?: boolean
   /** Token prices in USD (keyed by symbol) */
   tokenPrices?: Record<string, number>
   /** Native token price in USD */
   nativePriceUsd?: number | null
+  /** Known token addresses from contracts (symbol → address) for dedup */
+  knownTokenAddresses?: Record<string, string>
 }
 
 /**
@@ -59,33 +63,54 @@ function formatBalance(balance: string | bigint, decimals = 18): string {
 }
 
 /**
- * Merge indexer tokens with asset tokens
- * Prioritizes asset tokens for metadata, indexer tokens for balances
+ * Merge indexer tokens with asset tokens.
+ * Deduplicates by address AND symbol — when the same symbol appears at two
+ * different addresses, the known (contracts-package) address wins.
  */
 function mergeTokens(
   indexerTokens: TokenBalance[] = [],
-  assetTokens: AssetToken[] = []
+  assetTokens: AssetToken[] = [],
+  knownTokenAddresses: Record<string, string> = {}
 ): (TokenBalance | AssetToken)[] {
   const tokenMap = new Map<string, TokenBalance | AssetToken>()
+  const symbolMap = new Map<string, string>() // symbol → canonical address
+
+  // Build symbol → canonical address lookup from contracts package
+  for (const [symbol, addr] of Object.entries(knownTokenAddresses)) {
+    symbolMap.set(symbol.toUpperCase(), addr.toLowerCase())
+  }
 
   // Add asset tokens first (these have visibility info)
   for (const token of assetTokens) {
-    tokenMap.set(token.address.toLowerCase(), token)
+    const addr = token.address.toLowerCase()
+    const sym = (token.symbol ?? '').toUpperCase()
+    const canonical = symbolMap.get(sym)
+
+    // Skip if this token's symbol has a known canonical address that differs
+    if (canonical && canonical !== addr) continue
+
+    tokenMap.set(addr, token)
   }
 
   // Merge indexer tokens (update balances if available)
   for (const token of indexerTokens) {
-    const existing = tokenMap.get(token.address.toLowerCase())
+    const addr = token.address.toLowerCase()
+    const sym = (token.symbol ?? '').toUpperCase()
+    const canonical = symbolMap.get(sym)
+
+    // Skip if this token's symbol has a known canonical address that differs
+    if (canonical && canonical !== addr) continue
+
+    const existing = tokenMap.get(addr)
     if (existing) {
       // Update balance from indexer
-      tokenMap.set(token.address.toLowerCase(), {
+      tokenMap.set(addr, {
         ...existing,
         balance: token.balance,
         formattedBalance: token.formattedBalance || formatBalance(token.balance, token.decimals),
       })
     } else {
-      // Add new token from indexer
-      tokenMap.set(token.address.toLowerCase(), {
+      tokenMap.set(addr, {
         ...token,
         isVisible: true,
       } as AssetToken)
@@ -104,15 +129,17 @@ export function TokenList({
   onTokenClick,
   onAddToken,
   onToggleVisibility,
+  onRemoveToken,
   showHidden = false,
   tokenPrices = {},
   nativePriceUsd,
+  knownTokenAddresses = {},
 }: TokenListProps) {
   const { symbol: nativeSymbol, name: nativeName } = useNetworkCurrency()
   const [showMenu, setShowMenu] = useState<string | null>(null)
 
-  // Merge tokens from both sources
-  const allTokens = mergeTokens(tokenBalances, assetTokens)
+  // Merge tokens from both sources (dedup by symbol using known addresses)
+  const allTokens = mergeTokens(tokenBalances, assetTokens, knownTokenAddresses)
 
   // Filter by visibility
   const visibleTokens = showHidden
@@ -126,6 +153,11 @@ export function TokenList({
 
   const handleToggleVisibility = (address: string) => {
     onToggleVisibility?.(address)
+    setShowMenu(null)
+  }
+
+  const handleRemoveToken = (address: string) => {
+    onRemoveToken?.(address)
     setShowMenu(null)
   }
 
@@ -191,7 +223,7 @@ export function TokenList({
 
       {/* Token List */}
       <div
-        className="rounded-xl overflow-hidden"
+        className="rounded-xl overflow-visible"
         style={{ backgroundColor: 'rgb(var(--secondary))' }}
       >
         {/* Native Token */}
@@ -337,67 +369,97 @@ export function TokenList({
                   </div>
                 </button>
 
-                {/* Token Context Menu */}
+                {/* Token Context Menu — opens upward to avoid clipping */}
                 {showMenu === token.address && (
                   <div
-                    className="absolute right-4 top-12 z-10 min-w-[120px] rounded-lg shadow-lg overflow-hidden"
+                    className="absolute right-4 bottom-full mb-1 z-10 min-w-[140px] rounded-lg shadow-lg"
                     style={{
                       backgroundColor: 'rgb(var(--card-hover))',
                       border: '1px solid rgb(var(--border))',
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleToggleVisibility(token.address)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted"
-                      style={{ color: 'rgb(var(--foreground))' }}
-                    >
-                      {isHidden ? (
-                        <>
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            role="img"
-                          >
-                            <title>Show token</title>
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                            />
-                          </svg>
-                          Show
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            role="img"
-                          >
-                            <title>Hide token</title>
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                            />
-                          </svg>
-                          Hide
-                        </>
-                      )}
-                    </button>
+                    {onToggleVisibility && (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleVisibility(token.address)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted"
+                        style={{ color: 'rgb(var(--foreground))' }}
+                      >
+                        {isHidden ? (
+                          <>
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              role="img"
+                            >
+                              <title>Show token</title>
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                              />
+                            </svg>
+                            Show
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              role="img"
+                            >
+                              <title>Hide token</title>
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                              />
+                            </svg>
+                            Hide
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {onRemoveToken && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveToken(token.address)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm transition-colors hover:bg-muted border-t"
+                        style={{
+                          color: 'rgb(var(--destructive, 239 68 68))',
+                          borderColor: 'rgb(var(--border))',
+                        }}
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          role="img"
+                        >
+                          <title>Remove token</title>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                        Remove
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

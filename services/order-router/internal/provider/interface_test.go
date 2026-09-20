@@ -227,8 +227,8 @@ func TestProviderRegistry_Exclude_All(t *testing.T) {
 
 func TestMockDEXProvider_GetQuote(t *testing.T) {
 	mock := &MockDEXProvider{
-		name:  "uniswap_v3",
-		isV3:  true,
+		name: "uniswap_v3",
+		isV3: true,
 		quote: &model.Route{
 			AmountIn:    "1000000000000000000",
 			AmountOut:   "1800000000",

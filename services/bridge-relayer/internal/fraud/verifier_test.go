@@ -151,12 +151,12 @@ func TestFraudProofVerifier_SubmitDuplicateProof(t *testing.T) {
 
 func TestFraudProofVerifier_VerifyFraudProof(t *testing.T) {
 	tests := []struct {
-		name       string
-		proofType  domain.FraudProofType
-		evidence   []byte
-		stateProof []byte
+		name        string
+		proofType   domain.FraudProofType
+		evidence    []byte
+		stateProof  []byte
 		merkleProof [][32]byte
-		wantValid  bool
+		wantValid   bool
 	}{
 		{
 			name:      "valid invalid signature proof",
@@ -232,6 +232,7 @@ func TestFraudProofVerifier_VerifyFraudProof(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			verifier := NewFraudProofVerifier(config.ContractConfig{})
 			ctx := context.Background()
+			verifier.SetVerificationBackend(func(context.Context, *domain.FraudProof) (bool, error) { return tt.wantValid, nil })
 
 			requestID := [32]byte{1, 2, 3}
 			proof := &domain.FraudProof{
@@ -309,6 +310,7 @@ func TestFraudProofVerifier_GetPendingProof(t *testing.T) {
 
 func TestFraudProofVerifier_GetVerifiedProof(t *testing.T) {
 	verifier := NewFraudProofVerifier(config.ContractConfig{})
+	verifier.SetVerificationBackend(func(context.Context, *domain.FraudProof) (bool, error) { return false, nil })
 	ctx := context.Background()
 
 	requestID := [32]byte{1, 2, 3}
@@ -340,6 +342,7 @@ func TestFraudProofVerifier_GetVerifiedProof(t *testing.T) {
 
 func TestFraudProofVerifier_ProofsCounts(t *testing.T) {
 	verifier := NewFraudProofVerifier(config.ContractConfig{})
+	verifier.SetVerificationBackend(func(context.Context, *domain.FraudProof) (bool, error) { return false, nil })
 	ctx := context.Background()
 
 	// Initially 0
@@ -434,5 +437,19 @@ func TestIsValidProofType(t *testing.T) {
 		if got := isValidProofType(tt.proofType); got != tt.want {
 			t.Errorf("isValidProofType(%d) = %v, want %v", tt.proofType, got, tt.want)
 		}
+	}
+}
+
+func TestUnconfiguredVerifierNeverTreatsByteLengthAsEvidence(t *testing.T) {
+	v := NewFraudProofVerifier(config.ContractConfig{})
+	p := &domain.FraudProof{RequestID: [32]byte{1}, ProofType: domain.FraudProofInvalidSignature, Evidence: make([]byte, 65)}
+	if err := v.SubmitFraudProof(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+	if result, err := v.VerifyFraudProof(context.Background(), p.RequestID); err != ErrVerificationUnavailable || result != nil {
+		t.Fatal("unconfigured verifier accepted evidence")
+	}
+	if v.GetPendingProofsCount() != 1 || v.GetVerifiedProofsCount() != 0 {
+		t.Fatal("unverified evidence was consumed")
 	}
 }

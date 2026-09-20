@@ -3,8 +3,12 @@ package executor
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"log"
 	"math/big"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,10 +22,10 @@ import (
 
 // BridgeExecutor handles the execution of bridge requests
 type BridgeExecutor struct {
-	ethClient    *ethereum.Client
-	mpcClient    *mpc.SignerClient
-	monitor      *monitor.EventMonitor
-	contracts    config.ContractConfig
+	ethClient *ethereum.Client
+	mpcClient *mpc.SignerClient
+	monitor   *monitor.EventMonitor
+	contracts config.ContractConfig
 
 	// Request tracking
 	mu              sync.RWMutex
@@ -32,6 +36,8 @@ type BridgeExecutor struct {
 	// Event deduplication
 	eventTracker *middleware.ProcessedEventTracker
 
+	statePath string
+	stateLock *os.File
 	// State
 	isRunning bool
 	isPaused  bool
@@ -72,6 +78,7 @@ func (e *BridgeExecutor) Start(ctx context.Context) error {
 	go e.processApprovedRequests(ctx)
 	go e.processChallenges(ctx)
 	go e.processEmergencyPause(ctx)
+	go e.retryPending(ctx)
 
 	return nil
 }
@@ -94,7 +101,7 @@ func (e *BridgeExecutor) processBridgeInitiated(ctx context.Context) {
 			return
 		case event := <-bridgeInitiatedChan:
 			e.mu.RLock()
-			if !e.isRunning || e.isPaused {
+			if !e.isRunning {
 				e.mu.RUnlock()
 				continue
 			}
@@ -109,10 +116,13 @@ func (e *BridgeExecutor) processBridgeInitiated(ctx context.Context) {
 
 // handleBridgeInitiated handles a BridgeInitiated event
 func (e *BridgeExecutor) handleBridgeInitiated(ctx context.Context, event domain.BridgeInitiatedEvent) error {
-	// Check for duplicate event processing
-	if e.eventTracker != nil && !e.eventTracker.MarkProcessed(event.RequestID, "BridgeInitiated") {
-		log.Printf("Skipping duplicate BridgeInitiated event: requestId=%x", event.RequestID[:8])
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if _, exists := e.pendingRequests[event.RequestID]; exists {
 		return nil
+	}
+	if event.Amount == nil || event.Amount.Sign() <= 0 || event.SourceChain != e.ethClient.GetChainID(true).Uint64() || event.TargetChain != e.ethClient.GetChainID(false).Uint64() {
+		return fmt.Errorf("invalid bridge event")
 	}
 
 	log.Printf("Processing BridgeInitiated: requestId=%x, amount=%s, sender=%s",
@@ -130,12 +140,15 @@ func (e *BridgeExecutor) handleBridgeInitiated(ctx context.Context, event domain
 		Fee:         event.Fee,
 		Status:      domain.StatusPending,
 		InitiatedAt: time.Now(),
+		Nonce:       event.Nonce, Deadline: event.Deadline, BlockNumber: event.BlockNumber,
 	}
 
-	// Store in pending requests
-	e.mu.Lock()
+	// Persist before execution. Replay reconstructs events after a restart.
 	e.pendingRequests[event.RequestID] = request
-	e.mu.Unlock()
+	if err := e.saveLocked(); err != nil {
+		e.isPaused = true
+		return err
+	}
 
 	log.Printf("Bridge request %x added to pending queue", event.RequestID[:8])
 
@@ -152,7 +165,7 @@ func (e *BridgeExecutor) processApprovedRequests(ctx context.Context) {
 			return
 		case event := <-requestApprovedChan:
 			e.mu.RLock()
-			if !e.isRunning || e.isPaused {
+			if !e.isRunning {
 				e.mu.RUnlock()
 				continue
 			}
@@ -167,43 +180,13 @@ func (e *BridgeExecutor) processApprovedRequests(ctx context.Context) {
 
 // handleRequestApproved handles a RequestApproved event
 func (e *BridgeExecutor) handleRequestApproved(ctx context.Context, event domain.RequestApprovedEvent) error {
-	// Check for duplicate event processing
-	if e.eventTracker != nil && !e.eventTracker.MarkProcessed(event.RequestID, "RequestApproved") {
-		log.Printf("Skipping duplicate RequestApproved event: requestId=%x", event.RequestID[:8])
-		return nil
-	}
-
-	log.Printf("Processing RequestApproved: requestId=%x", event.RequestID[:8])
-
-	// Get pending request
-	e.mu.RLock()
-	request, exists := e.pendingRequests[event.RequestID]
-	e.mu.RUnlock()
-
-	if !exists {
-		return fmt.Errorf("request %x not found in pending requests", event.RequestID[:8])
-	}
-
-	// Update status
-	request.Status = domain.StatusApproved
-
-	// Execute the bridge completion
-	if err := e.executeBridgeCompletion(ctx, request); err != nil {
-		e.mu.Lock()
-		e.failedCount++
-		e.mu.Unlock()
-		return fmt.Errorf("failed to execute bridge completion: %w", err)
-	}
-
-	// Update status and counts
+	// Approval events may arrive before source events. The retry worker always reads authoritative target status.
 	e.mu.Lock()
-	request.Status = domain.StatusExecuted
-	delete(e.pendingRequests, event.RequestID)
-	e.processedCount++
-	e.mu.Unlock()
-
-	log.Printf("Bridge request %x completed successfully", event.RequestID[:8])
-
+	defer e.mu.Unlock()
+	if request, ok := e.pendingRequests[event.RequestID]; ok && request.Status == domain.StatusPending {
+		request.Status = domain.StatusApproved
+		return e.saveLocked()
+	}
 	return nil
 }
 
@@ -226,12 +209,7 @@ func (e *BridgeExecutor) executeBridgeCompletion(ctx context.Context, request *d
 	log.Printf("Collecting MPC signatures for request %x", request.RequestID[:8])
 	signatures, err := e.mpcClient.CollectSignatures(ctx, msg)
 	if err != nil {
-		// Fallback to simulated signatures for PoC testing
-		log.Printf("MPC signature collection failed, using simulated signatures: %v", err)
-		signatures, err = e.mpcClient.SimulateSignatures(msg)
-		if err != nil {
-			return fmt.Errorf("failed to collect signatures: %w", err)
-		}
+		return fmt.Errorf("failed to collect MPC signatures: %w", err)
 	}
 	request.Signatures = signatures
 
@@ -260,6 +238,9 @@ func (e *BridgeExecutor) executeBridgeCompletion(ctx context.Context, request *d
 
 	log.Printf("Transaction sent: %s", txHash)
 	request.TxHash = txHash
+	if err := e.persistRequest(request); err != nil {
+		return err
+	}
 
 	// 5. Wait for confirmation
 	success, err := e.ethClient.WaitForTransaction(ctx, txHash, false)
@@ -313,7 +294,7 @@ func (e *BridgeExecutor) handleChallengeResolved(event domain.ChallengeResolvedE
 	if request, exists := e.pendingRequests[event.RequestID]; exists {
 		if event.ChallengeSuccess {
 			request.Status = domain.StatusRefunded
-			delete(e.pendingRequests, event.RequestID)
+			// Retain terminal records for durable deduplication.
 		} else {
 			request.Status = domain.StatusApproved
 		}
@@ -340,6 +321,9 @@ func (e *BridgeExecutor) Pause() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.isPaused = true
+	if err := e.saveLocked(); err != nil {
+		log.Printf("Persist pause failed: %v", err)
+	}
 	log.Println("Bridge executor paused")
 }
 
@@ -348,6 +332,10 @@ func (e *BridgeExecutor) Resume() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.isPaused = false
+	if err := e.saveLocked(); err != nil {
+		e.isPaused = true
+		log.Printf("Persist resume failed: %v", err)
+	}
 	log.Println("Bridge executor resumed")
 }
 
@@ -362,7 +350,13 @@ func (e *BridgeExecutor) IsPaused() bool {
 func (e *BridgeExecutor) GetPendingRequestCount() int {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return len(e.pendingRequests)
+	count := 0
+	for _, r := range e.pendingRequests {
+		if r.Status != domain.StatusExecuted && r.Status != domain.StatusRefunded && r.Status != domain.StatusCancelled {
+			count++
+		}
+	}
+	return count
 }
 
 // GetProcessedCount returns the number of processed requests
@@ -386,7 +380,9 @@ func (e *BridgeExecutor) GetPendingRequests() []*domain.BridgeRequest {
 
 	requests := make([]*domain.BridgeRequest, 0, len(e.pendingRequests))
 	for _, req := range e.pendingRequests {
-		requests = append(requests, req)
+		if req.Status != domain.StatusExecuted && req.Status != domain.StatusRefunded && req.Status != domain.StatusCancelled {
+			requests = append(requests, cloneRequest(req))
+		}
 	}
 	return requests
 }
@@ -396,5 +392,153 @@ func (e *BridgeExecutor) GetRequest(requestID [32]byte) (*domain.BridgeRequest, 
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	req, exists := e.pendingRequests[requestID]
-	return req, exists
+	if !exists {
+		return nil, false
+	}
+	return cloneRequest(req), true
+}
+
+const verifierABI = `[
+ {"type":"function","name":"getRequestStatus","inputs":[{"type":"bytes32"}],"outputs":[{"type":"uint8"}]},
+ {"type":"function","name":"canApprove","inputs":[{"type":"bytes32"}],"outputs":[{"type":"bool"}]},
+ {"type":"function","name":"approveRequest","inputs":[{"type":"bytes32"}],"outputs":[]},
+ {"type":"function","name":"submitRequest","inputs":[{"type":"bytes32"},{"type":"address"},{"type":"address"},{"type":"address"},{"type":"uint256"},{"type":"uint256"},{"type":"uint256"}],"outputs":[{"type":"uint256"}]}
+]`
+
+func (e *BridgeExecutor) persistRequest(request *domain.BridgeRequest) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.pendingRequests[request.RequestID] = cloneRequest(request)
+	if err := e.saveLocked(); err != nil {
+		e.isPaused = true
+		return err
+	}
+	return nil
+}
+func (e *BridgeExecutor) retryPending(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			e.mu.RLock()
+			running := e.isRunning && !e.isPaused
+			e.mu.RUnlock()
+			if !running {
+				continue
+			}
+			for _, request := range e.GetPendingRequests() {
+				if e.IsPaused() {
+					break
+				}
+				stepCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				err := e.advance(stepCtx, request)
+				cancel()
+				if err != nil {
+					request.LastError = err.Error()
+					log.Printf("Bridge %x awaiting retry: %v", request.RequestID[:8], err)
+				} else {
+					request.LastError = ""
+				}
+				if err = e.persistRequest(request); err != nil {
+					log.Printf("Bridge persistence failed; paused: %v", err)
+					break
+				}
+			}
+		}
+	}
+}
+func (e *BridgeExecutor) advance(ctx context.Context, request *domain.BridgeRequest) error {
+	result, err := e.ethClient.ReadContract(ctx, e.contracts.OptimisticVerifier, verifierABI, "getRequestStatus", false, request.RequestID)
+	if err != nil {
+		return err
+	}
+	status := domain.RequestStatus(result[0].(uint8))
+	if status == domain.StatusExecuted || status == domain.StatusRefunded || status == domain.StatusCancelled {
+		if status == domain.StatusExecuted && request.Status != status {
+			e.mu.Lock()
+			e.processedCount++
+			e.mu.Unlock()
+		}
+		request.Status = status
+		return nil
+	}
+	request.Status = status
+	if request.Deadline == 0 || uint64(time.Now().Unix()) > request.Deadline {
+		return fmt.Errorf("bridge authorization expired; source refund requires review")
+	}
+	parsed, err := abi.JSON(strings.NewReader(verifierABI))
+	if err != nil {
+		return err
+	}
+	if status == domain.StatusNone {
+		if request.RegistrationTxHash != "" {
+			ok, err := e.ethClient.WaitForTransaction(ctx, request.RegistrationTxHash, false)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return fmt.Errorf("target registration reverted; operator review required")
+			}
+			return nil
+		}
+		data, err := parsed.Pack("submitRequest", request.RequestID, common.HexToAddress(request.Sender), common.HexToAddress(request.Recipient), common.HexToAddress(request.Token), request.Amount, new(big.Int).SetUint64(request.SourceChain), new(big.Int).SetUint64(request.TargetChain))
+		if err != nil {
+			return err
+		}
+		hash, err := e.ethClient.SendTransaction(ctx, e.contracts.OptimisticVerifier, data, big.NewInt(0), false)
+		if err != nil {
+			return err
+		}
+		request.RegistrationTxHash = hash
+		return e.persistRequest(request)
+	}
+	if status == domain.StatusPending {
+		if request.ApprovalTxHash != "" {
+			ok, err := e.ethClient.WaitForTransaction(ctx, request.ApprovalTxHash, false)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return fmt.Errorf("target approval reverted; operator review required")
+			}
+			return nil
+		}
+		ready, err := e.ethClient.ReadContract(ctx, e.contracts.OptimisticVerifier, verifierABI, "canApprove", false, request.RequestID)
+		if err != nil {
+			return err
+		}
+		if !ready[0].(bool) {
+			return nil
+		}
+		data, err := parsed.Pack("approveRequest", request.RequestID)
+		if err != nil {
+			return err
+		}
+		hash, err := e.ethClient.SendTransaction(ctx, e.contracts.OptimisticVerifier, data, big.NewInt(0), false)
+		if err != nil {
+			return err
+		}
+		request.ApprovalTxHash = hash
+		return e.persistRequest(request)
+	}
+	if status == domain.StatusChallenged {
+		return nil
+	}
+	if status != domain.StatusApproved {
+		return fmt.Errorf("unsupported bridge status")
+	}
+	if request.TxHash != "" {
+		ok, err := e.ethClient.WaitForTransaction(ctx, request.TxHash, false)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("bridge completion reverted; operator review required")
+		}
+		return nil
+	}
+	return e.executeBridgeCompletion(ctx, request)
 }

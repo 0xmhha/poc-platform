@@ -11,15 +11,17 @@ export interface RegistryServerConfig {
   host: string
   seedData: boolean
   apiKey?: string
+  dataFile?: string
 }
 
 export class ModuleRegistryServer {
   private readonly app = Fastify({ logger: false, bodyLimit: 1_048_576 })
-  private readonly store = new ModuleStore()
+  private readonly store: ModuleStore
   private readonly config: RegistryServerConfig
   private readonly logger: Logger
 
   constructor(config: RegistryServerConfig, logger: Logger) {
+    this.store = new ModuleStore(config.dataFile)
     this.config = config
     this.logger = logger
   }

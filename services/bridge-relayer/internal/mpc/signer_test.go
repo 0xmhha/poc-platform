@@ -186,6 +186,7 @@ func TestSignerClient_CollectSignatures_Success(t *testing.T) {
 					SignerID:  signerID,
 					Signature: make([]byte, 65),
 				}
+				resp.Signature[0] = byte(signerID + 1)
 				resp.Signature[64] = 27 // v value
 				json.NewEncoder(w).Encode(resp)
 			}

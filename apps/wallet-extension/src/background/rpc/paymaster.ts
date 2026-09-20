@@ -221,15 +221,16 @@ export async function sponsorAndSign(params: {
       context,
     ])) as typeof stubResult
   } catch (err) {
-    logger.error(
-      `[sponsorAndSign] Step 1 FAILED (stub RPC): ${err instanceof Error ? err.message : String(err)}`
-    )
-    return null
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.error(`[sponsorAndSign] Step 1 FAILED (stub RPC): ${msg}`)
+    throw new Error(`Paymaster stub failed: ${msg}`)
   }
 
   if (!stubResult?.paymaster) {
-    logger.warn('[sponsorAndSign] Step 1: stub returned no paymaster, falling back to self-pay')
-    return null
+    logger.warn('[sponsorAndSign] Step 1: stub returned no paymaster')
+    throw new Error(
+      'Paymaster returned no sponsor address. Check paymaster configuration and deposit.'
+    )
   }
 
   logger.info(
@@ -270,10 +271,14 @@ export async function sponsorAndSign(params: {
         `[sponsorAndSign] Step 2: ERC-20 gas estimation failed (expected during simulation), using stub gas limits: ${err instanceof Error ? err.message : String(err)}`
       )
 
-      // Use conservative defaults if stub didn't provide gas limits
+      // Use conservative defaults if stub didn't provide gas limits.
+      // ERC20Paymaster validatePaymasterUserOp costs ~15k gas (oracle + balanceOf + allowance).
+      // Account verification (ECDSA) costs ~150k. Combined: ~165k + buffer → 300k.
       const FALLBACK_PRE_VERIFICATION_GAS = 60000n
-      const FALLBACK_VERIFICATION_GAS = 500000n
+      const FALLBACK_VERIFICATION_GAS = 300000n
       const FALLBACK_CALL_GAS = 300000n
+      const FALLBACK_PAYMASTER_VERIFICATION_GAS = 100000n
+      const FALLBACK_PAYMASTER_POST_OP_GAS = 60000n
 
       if (userOp.preVerificationGas === 0n) {
         userOp.preVerificationGas = FALLBACK_PRE_VERIFICATION_GAS
@@ -284,15 +289,20 @@ export async function sponsorAndSign(params: {
       if (userOp.callGasLimit === 0n) {
         userOp.callGasLimit = FALLBACK_CALL_GAS
       }
+      if (userOp.paymasterVerificationGasLimit === 0n) {
+        userOp.paymasterVerificationGasLimit = FALLBACK_PAYMASTER_VERIFICATION_GAS
+      }
+      if (userOp.paymasterPostOpGasLimit === 0n) {
+        userOp.paymasterPostOpGasLimit = FALLBACK_PAYMASTER_POST_OP_GAS
+      }
 
       logger.info(
-        `[sponsorAndSign] Step 2 (ERC-20 fallback): preVerif=${userOp.preVerificationGas}, verifLimit=${userOp.verificationGasLimit}, callLimit=${userOp.callGasLimit}`
+        `[sponsorAndSign] Step 2 (ERC-20 fallback): preVerif=${userOp.preVerificationGas}, verifLimit=${userOp.verificationGasLimit}, callLimit=${userOp.callGasLimit}, pmVerif=${userOp.paymasterVerificationGasLimit}, pmPostOp=${userOp.paymasterPostOpGasLimit}`
       )
     } else {
-      logger.error(
-        `[sponsorAndSign] Step 2 FAILED (gas estimation): ${err instanceof Error ? err.message : String(err)}`
-      )
-      return null
+      const msg = err instanceof Error ? err.message : String(err)
+      logger.error(`[sponsorAndSign] Step 2 FAILED (gas estimation): ${msg}`)
+      throw new Error(`Gas estimation failed: ${msg}`)
     }
   }
 
@@ -311,10 +321,8 @@ export async function sponsorAndSign(params: {
       ])) as { paymaster?: string; paymasterData?: string } | undefined
 
       if (!finalResult?.paymaster) {
-        logger.warn(
-          '[sponsorAndSign] Step 3: final RPC returned no paymaster, falling back to self-pay'
-        )
-        return null
+        logger.warn('[sponsorAndSign] Step 3: final RPC returned no paymaster')
+        throw new Error('Paymaster final RPC returned no sponsor address')
       }
 
       userOp.paymaster = finalResult.paymaster as Address
@@ -323,10 +331,9 @@ export async function sponsorAndSign(params: {
         `[sponsorAndSign] Step 3 OK: paymaster=${finalResult.paymaster}, dataLen=${(finalResult.paymasterData ?? '0x').length}`
       )
     } catch (err) {
-      logger.error(
-        `[sponsorAndSign] Step 3 FAILED (final RPC): ${err instanceof Error ? err.message : String(err)}`
-      )
-      return null
+      const msg = err instanceof Error ? err.message : String(err)
+      logger.error(`[sponsorAndSign] Step 3 FAILED (final RPC): ${msg}`)
+      throw new Error(`Paymaster final RPC failed: ${msg}`)
     }
   } else {
     logger.info('[sponsorAndSign] Step 3: SKIPPED (isFinal=true)')
@@ -340,9 +347,8 @@ export async function sponsorAndSign(params: {
     logger.info(`[sponsorAndSign] Step 4 OK: sigLen=${signature.length} chars`)
     return { ...userOp, signature }
   } catch (err) {
-    logger.error(
-      `[sponsorAndSign] Step 4 FAILED (signing): ${err instanceof Error ? err.message : String(err)}`
-    )
-    return null
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.error(`[sponsorAndSign] Step 4 FAILED (signing): ${msg}`)
+    throw new Error(`UserOp signing failed: ${msg}`)
   }
 }

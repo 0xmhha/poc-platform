@@ -638,7 +638,7 @@ describe('Live Network Integration', () => {
     } catch {}
   })
 
-  it('should verify wallet can query balances', async () => {
+  it('should verify wallet can query balances', async (testContext) => {
     let networkAvailable = false
     try {
       await publicClient.getChainId()
@@ -648,7 +648,7 @@ describe('Live Network Integration', () => {
     }
 
     if (!networkAvailable) {
-      return
+      return testContext.skip('Required local service or deployment is unavailable')
     }
 
     const account = TEST_CONFIG.accounts.deployer.address as Address
@@ -658,7 +658,7 @@ describe('Live Network Integration', () => {
     expect(balance).toBeGreaterThan(0n)
   })
 
-  it('should verify wallet can query block number', async () => {
+  it('should verify wallet can query block number', async (testContext) => {
     let networkAvailable = false
     try {
       await publicClient.getChainId()
@@ -668,14 +668,14 @@ describe('Live Network Integration', () => {
     }
 
     if (!networkAvailable) {
-      return
+      return testContext.skip('Required local service or deployment is unavailable')
     }
 
     const blockNumber = await publicClient.getBlockNumber()
     expect(blockNumber).toBeGreaterThanOrEqual(0n)
   })
 
-  it('should verify wallet can query gas price', async () => {
+  it('should verify wallet can query gas price', async (testContext) => {
     let networkAvailable = false
     try {
       await publicClient.getChainId()
@@ -685,14 +685,14 @@ describe('Live Network Integration', () => {
     }
 
     if (!networkAvailable) {
-      return
+      return testContext.skip('Required local service or deployment is unavailable')
     }
 
     const gasPrice = await publicClient.getGasPrice()
     expect(gasPrice).toBeGreaterThan(0n)
   })
 
-  it('should sign and broadcast transaction', async () => {
+  it('should sign and broadcast transaction', async (testContext) => {
     let networkAvailable = false
     try {
       await publicClient.getChainId()
@@ -702,7 +702,7 @@ describe('Live Network Integration', () => {
     }
 
     if (!networkAvailable) {
-      return
+      return testContext.skip('Required local service or deployment is unavailable')
     }
 
     const account = privateKeyToAccount(TEST_CONFIG.accounts.user1.privateKey as Hex)

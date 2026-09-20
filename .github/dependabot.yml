@@ -57,6 +57,16 @@ updates:
     schedule:
       interval: "weekly"
 
+  - package-ecosystem: "gomod"
+    directory: "/packages/sdk-go"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "gomod"
+    directory: "/services/shared/go"
+    schedule:
+      interval: "weekly"
+
   # Rust dependencies
   - package-ecosystem: "cargo"
     directory: "/services/stealth-server"

@@ -13,7 +13,7 @@ export const createContractSchema = z.object({
   abi: z.string().optional(),
   deployedAt: z.number().int().nonnegative().optional(),
   txHash: hexHash.optional(),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
 })
 
 export const contractParamsSchema = z.object({

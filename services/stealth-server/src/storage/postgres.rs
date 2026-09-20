@@ -87,7 +87,8 @@ impl Storage {
             // Set statement timeout on each connection to prevent runaway queries
             .after_connect(move |conn, _meta| {
                 Box::pin(async move {
-                    sqlx::query(&format!("SET statement_timeout = '{}s'", statement_timeout_secs))
+                    sqlx::query("SELECT set_config('statement_timeout', $1, false)")
+                        .bind(format!("{}s", statement_timeout_secs))
                         .execute(conn)
                         .await?;
                     Ok(())
@@ -111,7 +112,10 @@ impl Storage {
     }
 
     /// Save an announcement
-    pub async fn save_announcement(&self, announcement: &Announcement) -> Result<i64, StorageError> {
+    pub async fn save_announcement(
+        &self,
+        announcement: &Announcement,
+    ) -> Result<i64, StorageError> {
         let row: Option<(i64,)> = sqlx::query_as(
             r#"
             INSERT INTO announcements (
@@ -417,9 +421,7 @@ impl Storage {
 
     /// Health check - verify database connectivity
     pub async fn health_check(&self) -> Result<(), StorageError> {
-        sqlx::query("SELECT 1")
-            .execute(&self.pool)
-            .await?;
+        sqlx::query("SELECT 1").execute(&self.pool).await?;
         Ok(())
     }
 }

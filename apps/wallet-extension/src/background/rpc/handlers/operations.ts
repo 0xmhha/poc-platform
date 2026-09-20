@@ -85,6 +85,28 @@ export const operationsHandlers: Record<string, RpcHandler> = {
       })
     }
 
+    const now = BigInt(Math.floor(Date.now() / 1000))
+    if (
+      !/^[0-9]+$/.test(amountIn) ||
+      !/^[0-9]+$/.test(amountOutMinimum) ||
+      !/^[0-9]+$/.test(deadline) ||
+      BigInt(amountIn) <= 0n ||
+      BigInt(amountIn) >= 1n << 256n ||
+      BigInt(amountOutMinimum) <= 0n ||
+      BigInt(amountOutMinimum) >= 1n << 256n ||
+      BigInt(deadline) <= now ||
+      BigInt(deadline) > now + 1800n ||
+      ![100, 500, 3000, 10000].includes(fee) ||
+      tokenIn.toLowerCase() === tokenOut.toLowerCase() ||
+      BigInt(tokenIn) === 0n ||
+      BigInt(tokenOut) === 0n
+    ) {
+      throw createRpcError({
+        code: RPC_ERRORS.INVALID_PARAMS.code,
+        message: 'Invalid swap amount, token pair, fee, minimum output or deadline',
+      })
+    }
+
     // Verify account is connected
     const connectedAccounts = walletState.getConnectedAccounts(origin)
     const normalizedAccount = account.toLowerCase()
@@ -145,19 +167,19 @@ export const operationsHandlers: Record<string, RpcHandler> = {
 
     // Get current nonce from EntryPoint (authoritative source for ERC-4337)
     const entryPoint = getEntryPointForChain(chainId)
-    const nonce = await client
-      .readContract({
-        address: entryPoint,
-        abi: ENTRY_POINT_ABI,
-        functionName: 'getNonce',
-        args: [account, await getNonceKeyForAccount(account)],
-      })
-      .catch(() => 0n)
+    const nonce = await client.readContract({
+      address: entryPoint,
+      abi: ENTRY_POINT_ABI,
+      functionName: 'getNonce',
+      args: [account, await getNonceKeyForAccount(account)],
+    })
 
-    const feeData = await client.estimateFeesPerGas().catch(() => ({
-      maxFeePerGas: BigInt(1e9),
-      maxPriorityFeePerGas: BigInt(1e8),
-    }))
+    const feeData = await client.estimateFeesPerGas()
+    if (feeData.maxFeePerGas == null || feeData.maxPriorityFeePerGas == null)
+      throw createRpcError({
+        code: RPC_ERRORS.RESOURCE_UNAVAILABLE.code,
+        message: 'Network fee estimate unavailable',
+      })
 
     // Resolve factory for undeployed accounts
     const factoryInfo = network.rpcUrl ? await resolveFactory(account, network.rpcUrl) : null

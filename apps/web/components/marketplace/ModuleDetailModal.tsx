@@ -1,5 +1,6 @@
 'use client'
 
+import { useChainId } from 'wagmi'
 import { Button, Modal, ModalActions } from '@/components/common'
 import { getModuleEntry } from '@/lib/moduleAddresses'
 import type { ModuleCardData } from './ModuleCard'
@@ -29,7 +30,7 @@ const moduleTypeLabelMap: Record<string, string> = {
 }
 
 const auditBadges: Record<string, { label: string; bg: string; color: string }> = {
-  verified: { label: 'Verified', bg: 'rgb(var(--primary) / 0.1)', color: 'rgb(var(--primary))' },
+  official: { label: 'Official', bg: 'rgb(var(--primary) / 0.1)', color: 'rgb(var(--primary))' },
   audited: { label: 'Audited', bg: 'rgb(var(--info) / 0.1)', color: 'rgb(var(--info))' },
   'community-reviewed': {
     label: 'Community Reviewed',
@@ -38,6 +39,11 @@ const auditBadges: Record<string, { label: string; bg: string; color: string }> 
   },
   unaudited: {
     label: 'Unaudited',
+    bg: 'rgb(var(--secondary))',
+    color: 'rgb(var(--muted-foreground))',
+  },
+  unverified: {
+    label: 'Not verified',
     bg: 'rgb(var(--secondary))',
     color: 'rgb(var(--muted-foreground))',
   },
@@ -106,9 +112,10 @@ export function ModuleDetailModal({
   onInstallClick,
   onUninstallClick,
 }: ModuleDetailModalProps) {
+  const chainId = useChainId()
   if (!module) return null
 
-  const entry = getModuleEntry(module.id)
+  const entry = getModuleEntry(module.id, chainId)
   const audit = auditBadges[module.auditStatus] ?? auditBadges.unaudited
 
   return (
@@ -120,7 +127,13 @@ export function ModuleDetailModal({
         </p>
 
         {/* Rating */}
-        <StarRating rating={module.rating} count={module.ratingCount} />
+        {module.rating !== undefined && module.ratingCount !== undefined ? (
+          <StarRating rating={module.rating} count={module.ratingCount} />
+        ) : (
+          <p className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
+            No verified rating data is available.
+          </p>
+        )}
 
         {/* Details grid */}
         <div
@@ -138,14 +151,23 @@ export function ModuleDetailModal({
           </DetailRow>
           <DetailRow label="Version">v{module.version}</DetailRow>
           <DetailRow label="Author">{module.author}</DetailRow>
-          <DetailRow label="Installs">{module.installCount.toLocaleString()}</DetailRow>
-          <DetailRow label="Audit Status">
+          <DetailRow label="Installs">
+            {module.installCount === undefined
+              ? 'Not tracked'
+              : module.installCount.toLocaleString()}
+          </DetailRow>
+          <DetailRow label="Registry Status">
             <span
               className="inline-block text-xs px-2 py-0.5 rounded-full font-medium"
               style={{ backgroundColor: audit.bg, color: audit.color }}
             >
               {audit.label}
             </span>
+            {module.auditUrl && (
+              <a className="ml-2 underline" href={module.auditUrl} target="_blank" rel="noreferrer">
+                Report
+              </a>
+            )}
           </DetailRow>
           {entry && (
             <DetailRow label="Contract">
@@ -178,6 +200,18 @@ export function ModuleDetailModal({
             </div>
           </div>
         )}
+
+        {!module.installable && module.unavailableReason && (
+          <div
+            className="rounded-lg p-3 text-sm"
+            style={{
+              backgroundColor: 'rgb(var(--warning) / 0.1)',
+              color: 'rgb(var(--warning))',
+            }}
+          >
+            {module.unavailableReason}
+          </div>
+        )}
       </div>
 
       <ModalActions>
@@ -196,9 +230,10 @@ export function ModuleDetailModal({
           <Button
             variant={installed ? 'secondary' : 'primary'}
             onClick={onInstallClick}
-            disabled={installed}
+            disabled={installed || !module.installable}
+            title={module.unavailableReason}
           >
-            {installed ? 'Installed' : 'Install'}
+            {installed ? 'Installed' : module.installable ? 'Install' : 'Installation Unavailable'}
           </Button>
         )}
       </ModalActions>

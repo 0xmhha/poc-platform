@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/crypto"
 	"log"
 	"math/big"
 	"sync"
@@ -23,8 +24,8 @@ type EventMonitor struct {
 	retryDelay         time.Duration
 
 	// Event channels
-	bridgeInitiated chan domain.BridgeInitiatedEvent
-	requestApproved chan domain.RequestApprovedEvent
+	bridgeInitiated   chan domain.BridgeInitiatedEvent
+	requestApproved   chan domain.RequestApprovedEvent
 	requestChallenged chan domain.RequestChallengedEvent
 	challengeResolved chan domain.ChallengeResolvedEvent
 	emergencyPause    chan domain.EmergencyPauseEvent
@@ -32,25 +33,37 @@ type EventMonitor struct {
 	// State
 	mu                  sync.RWMutex
 	lastProcessedBlock  uint64
+	lastOptimisticBlock uint64
+	lastGuardianBlock   uint64
 	isRunning           bool
 	isPaused            bool
 }
 
 // NewEventMonitor creates a new event monitor
 func NewEventMonitor(ethClient *ethereum.Client, cfg config.MonitorConfig, contracts config.ContractConfig) *EventMonitor {
+	if contracts.SourceBridge == "" {
+		contracts.SourceBridge = contracts.SecureBridge
+	}
+	if cfg.MaxBlockRange == 0 {
+		cfg.MaxBlockRange = 1000
+	}
+	if cfg.PollInterval <= 0 {
+		cfg.PollInterval = 5 * time.Second
+	}
 	return &EventMonitor{
-		ethClient:           ethClient,
-		contracts:           contracts,
-		pollInterval:        cfg.PollInterval,
-		blockConfirmations:  cfg.BlockConfirmations,
-		maxBlockRange:       cfg.MaxBlockRange,
-		retryAttempts:       cfg.RetryAttempts,
-		retryDelay:          cfg.RetryDelay,
-		bridgeInitiated:     make(chan domain.BridgeInitiatedEvent, 100),
-		requestApproved:     make(chan domain.RequestApprovedEvent, 100),
-		requestChallenged:   make(chan domain.RequestChallengedEvent, 100),
-		challengeResolved:   make(chan domain.ChallengeResolvedEvent, 100),
-		emergencyPause:      make(chan domain.EmergencyPauseEvent, 10),
+		lastProcessedBlock: cfg.StartBlock, lastOptimisticBlock: cfg.TargetStartBlock, lastGuardianBlock: cfg.TargetStartBlock,
+		ethClient:          ethClient,
+		contracts:          contracts,
+		pollInterval:       cfg.PollInterval,
+		blockConfirmations: cfg.BlockConfirmations,
+		maxBlockRange:      cfg.MaxBlockRange,
+		retryAttempts:      cfg.RetryAttempts,
+		retryDelay:         cfg.RetryDelay,
+		bridgeInitiated:    make(chan domain.BridgeInitiatedEvent, 100),
+		requestApproved:    make(chan domain.RequestApprovedEvent, 100),
+		requestChallenged:  make(chan domain.RequestChallengedEvent, 100),
+		challengeResolved:  make(chan domain.ChallengeResolvedEvent, 100),
+		emergencyPause:     make(chan domain.EmergencyPauseEvent, 10),
 	}
 }
 
@@ -65,13 +78,6 @@ func (m *EventMonitor) Start(ctx context.Context) error {
 	m.mu.Unlock()
 
 	log.Println("Starting event monitor...")
-
-	// Get initial block number
-	latestBlock, err := m.ethClient.GetLatestBlock(ctx, true)
-	if err != nil {
-		return err
-	}
-	m.lastProcessedBlock = latestBlock - m.blockConfirmations
 
 	// Start monitoring goroutines
 	go m.monitorSourceChain(ctx)
@@ -121,12 +127,18 @@ func (m *EventMonitor) processSourceChainEvents(ctx context.Context) error {
 	}
 
 	// Apply confirmations
+	if latestBlock < m.blockConfirmations {
+		return nil
+	}
 	confirmedBlock := latestBlock - m.blockConfirmations
-	if confirmedBlock <= m.lastProcessedBlock {
+	m.mu.RLock()
+	last := m.lastProcessedBlock
+	m.mu.RUnlock()
+	if confirmedBlock <= last {
 		return nil
 	}
 
-	fromBlock := m.lastProcessedBlock + 1
+	fromBlock := last + 1
 	toBlock := confirmedBlock
 
 	// Limit block range
@@ -136,13 +148,18 @@ func (m *EventMonitor) processSourceChainEvents(ctx context.Context) error {
 
 	log.Printf("Processing blocks %d to %d for BridgeInitiated events", fromBlock, toBlock)
 
-	// In production, this would:
-	// 1. Query logs from the SecureBridge contract
-	// 2. Decode BridgeInitiated events
-	// 3. Send to the bridgeInitiated channel
-
-	// For PoC, we simulate event discovery
-	// Actual implementation would use ethClient.SubscribeToEvents or getLogs
+	logs, err := m.ethClient.FilterLogs(ctx, m.contracts.SourceBridge, fromBlock, toBlock, true)
+	if err != nil {
+		return err
+	}
+	topic := crypto.Keccak256Hash([]byte("BridgeInitiated(bytes32,address,address,address,uint256,uint256,uint256,uint256,uint256,uint256)"))
+	for _, entry := range logs {
+		if len(entry.Topics) > 0 && entry.Topics[0] == topic {
+			if err = m.dispatchBridge(ctx, entry); err != nil {
+				return err
+			}
+		}
+	}
 
 	m.mu.Lock()
 	m.lastProcessedBlock = toBlock
@@ -177,11 +194,16 @@ func (m *EventMonitor) monitorOptimisticVerifier(ctx context.Context) {
 
 // processOptimisticEvents processes events from the OptimisticVerifier
 func (m *EventMonitor) processOptimisticEvents(ctx context.Context) error {
-	// In production, this would:
-	// 1. Query logs from the OptimisticVerifier contract
-	// 2. Decode RequestApproved, RequestChallenged, ChallengeResolved events
-	// 3. Send to appropriate channels
-
+	m.mu.RLock()
+	last := m.lastOptimisticBlock
+	m.mu.RUnlock()
+	next, err := m.controlLogs(ctx, m.contracts.OptimisticVerifier, last)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.lastOptimisticBlock = next
+	m.mu.Unlock()
 	return nil
 }
 
@@ -211,11 +233,16 @@ func (m *EventMonitor) monitorGuardian(ctx context.Context) {
 
 // processGuardianEvents processes events from the BridgeGuardian
 func (m *EventMonitor) processGuardianEvents(ctx context.Context) error {
-	// In production, this would:
-	// 1. Query logs from the BridgeGuardian contract
-	// 2. Decode EmergencyPause events
-	// 3. Send to the emergencyPause channel and pause the relayer
-
+	m.mu.RLock()
+	last := m.lastGuardianBlock
+	m.mu.RUnlock()
+	next, err := m.controlLogs(ctx, m.contracts.BridgeGuardian, last)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.lastGuardianBlock = next
+	m.mu.Unlock()
 	return nil
 }
 
@@ -317,4 +344,22 @@ func CreateBridgeInitiatedEvent(
 		TargetChain: targetChain,
 		Fee:         fee,
 	}
+}
+
+// SyncStatus reports observed progress against finalized chain heads. RPC failure is not healthy.
+func (m *EventMonitor) SyncStatus(ctx context.Context) (bool, bool) {
+	source, err := m.ethClient.GetLatestBlock(ctx, true)
+	if err != nil {
+		return false, false
+	}
+	target, err := m.ethClient.GetLatestBlock(ctx, false)
+	if err != nil {
+		return false, false
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if !m.isRunning || source < m.blockConfirmations || target < m.blockConfirmations {
+		return false, false
+	}
+	return m.lastProcessedBlock >= source-m.blockConfirmations, m.lastOptimisticBlock >= target-m.blockConfirmations && m.lastGuardianBlock >= target-m.blockConfirmations
 }

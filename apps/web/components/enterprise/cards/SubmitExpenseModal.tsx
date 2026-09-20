@@ -10,6 +10,7 @@ interface SubmitExpenseModalProps {
 }
 
 export interface ExpenseFormData {
+  recipient?: string
   description: string
   amount: string
   category: string
@@ -73,6 +74,12 @@ export function SubmitExpenseModal({ isOpen, onClose, onSubmit }: SubmitExpenseM
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Submit Expense">
       <div className="space-y-4">
+        <Input
+          label="Reimbursement wallet (optional)"
+          placeholder="0x… (defaults to connected wallet)"
+          value={formData.recipient ?? ''}
+          onChange={handleChange('recipient')}
+        />
         <div>
           <Input
             label="Description"

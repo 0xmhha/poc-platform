@@ -249,7 +249,7 @@ export default function LendingPage() {
                           {position.asset.symbol}
                         </p>
                         <p className="text-xs" style={{ color: 'rgb(var(--primary))' }}>
-                          APY {position.supplyAPY}%
+                          APR {position.supplyAPY}%
                         </p>
                       </div>
                       <button
@@ -295,7 +295,7 @@ export default function LendingPage() {
                           {position.asset.symbol}
                         </p>
                         <p className="text-xs" style={{ color: 'rgb(var(--destructive))' }}>
-                          APY {position.borrowAPY}%
+                          APR {position.borrowAPY}%
                         </p>
                       </div>
                       <button
@@ -353,7 +353,7 @@ export default function LendingPage() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
-                    {actionMode === 'supply' ? 'Supply APY' : 'Borrow APY'}
+                    {actionMode === 'supply' ? 'Supply APR' : 'Borrow APR'}
                   </p>
                   <p
                     className="font-semibold"
@@ -410,8 +410,8 @@ export default function LendingPage() {
                 style={{ color: 'rgb(var(--muted-foreground))' }}
               >
                 <span>Asset</span>
-                <span className="text-right">Supply APY</span>
-                <span className="text-right">Borrow APY</span>
+                <span className="text-right">Supply APR</span>
+                <span className="text-right">Borrow APR</span>
                 <span className="text-right">Utilization</span>
                 <span className="text-right">Actions</span>
               </div>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Hex } from 'viem'
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
+import { useAccount, useChainId, usePublicClient, useWalletClient } from 'wagmi'
 import { getModuleEntry } from '@/lib/moduleAddresses'
 
 import { useModule } from './useModule'
@@ -52,6 +52,7 @@ export interface UseModuleInstallReturn {
 
 export function useModuleInstall(): UseModuleInstallReturn {
   const { address, isConnected } = useAccount()
+  const chainId = useChainId()
   const { status } = useSmartAccount()
   const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient()
@@ -72,12 +73,12 @@ export function useModuleInstall(): UseModuleInstallReturn {
     async (moduleId: string): Promise<boolean> => {
       if (!address || !status.isSmartAccount) return false
 
-      const entry = getModuleEntry(moduleId)
+      const entry = getModuleEntry(moduleId, chainId)
       if (!entry) return false
 
       return isModuleInstalled(address, entry.moduleType, entry.address)
     },
-    [address, status.isSmartAccount, isModuleInstalled]
+    [address, chainId, status.isSmartAccount, isModuleInstalled]
   )
 
   // ============================================================================
@@ -138,7 +139,7 @@ export function useModuleInstall(): UseModuleInstallReturn {
         return { success: false, error: 'Public client not available' }
       }
 
-      const entry = getModuleEntry(request.moduleId)
+      const entry = getModuleEntry(request.moduleId, chainId)
       if (!entry) {
         return { success: false, error: `Unknown module: ${request.moduleId}` }
       }
@@ -194,6 +195,7 @@ export function useModuleInstall(): UseModuleInstallReturn {
     [
       isConnected,
       address,
+      chainId,
       status.isSmartAccount,
       walletClient,
       publicClient,
@@ -224,7 +226,7 @@ export function useModuleInstall(): UseModuleInstallReturn {
         return { success: false, error: 'Public client not available' }
       }
 
-      const entry = getModuleEntry(request.moduleId)
+      const entry = getModuleEntry(request.moduleId, chainId)
       if (!entry) {
         return { success: false, error: `Unknown module: ${request.moduleId}` }
       }
@@ -287,6 +289,7 @@ export function useModuleInstall(): UseModuleInstallReturn {
     [
       isConnected,
       address,
+      chainId,
       status.isSmartAccount,
       walletClient,
       publicClient,

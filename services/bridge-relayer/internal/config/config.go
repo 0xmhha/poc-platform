@@ -39,14 +39,14 @@ type ServerConfig struct {
 
 // EthereumConfig holds Ethereum node configuration
 type EthereumConfig struct {
-	SourceRPCURL    string
-	TargetRPCURL    string
-	SourceChainID   uint64
-	TargetChainID   uint64
-	PrivateKey      string // Relayer's private key for signing transactions
-	GasLimitBuffer  uint64 // Buffer to add to estimated gas
-	MaxGasPrice     uint64 // Maximum gas price in gwei
-	ConfirmBlocks   uint64 // Number of blocks to wait for confirmation
+	SourceRPCURL   string
+	TargetRPCURL   string
+	SourceChainID  uint64
+	TargetChainID  uint64
+	PrivateKey     string // Relayer's private key for signing transactions
+	GasLimitBuffer uint64 // Buffer to add to estimated gas
+	MaxGasPrice    uint64 // Maximum gas price in gwei
+	ConfirmBlocks  uint64 // Number of blocks to wait for confirmation
 }
 
 // MPCConfig holds MPC signer configuration
@@ -59,6 +59,7 @@ type MPCConfig struct {
 
 // ContractConfig holds contract addresses
 type ContractConfig struct {
+	SourceBridge       string
 	SecureBridge       string
 	BridgeValidator    string
 	BridgeRateLimiter  string
@@ -69,6 +70,8 @@ type ContractConfig struct {
 
 // MonitorConfig holds event monitoring configuration
 type MonitorConfig struct {
+	StartBlock         uint64
+	TargetStartBlock   uint64
 	PollInterval       time.Duration
 	BlockConfirmations uint64
 	MaxBlockRange      uint64 // Maximum blocks to query at once
@@ -108,6 +111,7 @@ func Load() (*Config, error) {
 			Timeout:         getDurationEnv("MPC_TIMEOUT", 30*time.Second),
 		},
 		Contracts: ContractConfig{
+			SourceBridge:       getEnv("CONTRACT_SOURCE_BRIDGE", getEnv("CONTRACT_SECURE_BRIDGE", "")),
 			SecureBridge:       getEnv("CONTRACT_SECURE_BRIDGE", ""),
 			BridgeValidator:    getEnv("CONTRACT_BRIDGE_VALIDATOR", ""),
 			BridgeRateLimiter:  getEnv("CONTRACT_BRIDGE_RATE_LIMITER", ""),
@@ -116,6 +120,8 @@ func Load() (*Config, error) {
 			BridgeGuardian:     getEnv("CONTRACT_BRIDGE_GUARDIAN", ""),
 		},
 		Monitor: MonitorConfig{
+			StartBlock:         getUint64Env("MONITOR_SOURCE_START_BLOCK", 0),
+			TargetStartBlock:   getUint64Env("MONITOR_TARGET_START_BLOCK", 0),
 			PollInterval:       getDurationEnv("MONITOR_POLL_INTERVAL", 5*time.Second),
 			BlockConfirmations: getUint64Env("MONITOR_BLOCK_CONFIRMATIONS", 12),
 			MaxBlockRange:      getUint64Env("MONITOR_MAX_BLOCK_RANGE", 1000),

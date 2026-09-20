@@ -247,30 +247,22 @@ describe('stealth plugin', () => {
         const matches = checkViewTag(
           generated.ephemeralPubKey,
           viewingKeyPair.privateKey,
-          '0xff' as Hex // Wrong view tag
+          (generated.viewTag === '0xff' ? '0x00' : '0xff') as Hex
         )
 
-        // May match by chance (1/256 probability), but usually won't
-        // This test verifies the function works
-        expect(typeof matches).toBe('boolean')
+        expect(matches).toBe(false)
       })
 
-      it('should return false for different viewing key', () => {
-        const generated = generateStealthAddressCrypto(
-          spendingKeyPair.publicKey,
-          viewingKeyPair.publicKey
-        )
-        const otherViewingKeyPair = generateStealthKeyPair()
+      it('should reject a viewing key with a different deterministic tag', () => {
+        // ECDH with ephemeral scalar 1 and viewing scalar 2 hashes to tag 0x69.
+        // Scalar 3 hashes to 0x9d. Random keys can legitimately collide (1/256).
+        const ephemeralPubKey = derivePublicKey(`0x${'1'.padStart(64, '0')}`)
+        const viewingKey = `0x${'2'.padStart(64, '0')}` as Hex
+        const otherViewingKey = `0x${'3'.padStart(64, '0')}` as Hex
 
-        // The view tag computed with a different viewing key should not match
-        const computedMatches = checkViewTag(
-          generated.ephemeralPubKey,
-          otherViewingKeyPair.privateKey,
-          generated.viewTag
-        )
-
-        // Very unlikely to match by chance
-        expect(computedMatches).toBe(false)
+        expect(checkViewTag(ephemeralPubKey, viewingKey, '0x69')).toBe(true)
+        expect(checkViewTag(ephemeralPubKey, otherViewingKey, '0x9d')).toBe(true)
+        expect(checkViewTag(ephemeralPubKey, otherViewingKey, '0x69')).toBe(false)
       })
     })
 

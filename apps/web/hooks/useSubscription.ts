@@ -1,16 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  type Address,
-  encodePacked,
-  formatUnits,
-  keccak256,
-  maxUint256,
-  parseEventLogs,
-  toHex,
-} from 'viem'
+import { type Address, formatUnits, maxUint256, parseEventLogs, zeroAddress } from 'viem'
 import { useChainId, useWalletClient } from 'wagmi'
+import { assertConfirmed, optionalDeployment } from '@/lib/contracts/deployment'
 import { getContractAddresses } from '../lib/config'
 import { useStableNetContext } from '../providers/StableNetProvider'
 import type {
@@ -22,11 +15,6 @@ import type {
 } from '../types/subscription'
 import { getIntervalLabel, getStatusInfo } from '../types/subscription'
 import { useWallet } from './useWallet'
-
-// Default fallback addresses for development
-const DEFAULT_subscriptionManager = '0x9d4454B023096f34B160D6B654540c56A1F81688' as const
-const DEFAULT_permissionManager = '0x8f86403A4DE0BB5791fa46B8e795C547942fE4Cf' as const
-const DEFAULT_recurringPaymentExecutor = '0x998abeb3E57409262aE5b751f60747921B33613E' as const
 
 // ABI fragments for PermissionManager (ERC-7715)
 const permissionManager_ABI = [
@@ -212,12 +200,6 @@ const ERC20_ABI = [
   },
 ] as const
 
-// Token info cache
-const TOKEN_INFO: Record<string, { symbol: string; decimals: number }> = {
-  '0x0000000000000000000000000000000000000000': { symbol: 'ETH', decimals: 18 },
-  '0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44': { symbol: 'USDC', decimals: 6 },
-}
-
 interface UseSubscriptionConfig {
   autoRefresh?: boolean
   refreshInterval?: number
@@ -268,15 +250,42 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
   const { data: walletClient } = useWalletClient()
   const chainId = useChainId()
 
-  // Get contract addresses from config based on chain ID
-  const { subscriptionManager, permissionManager, recurringPaymentExecutor } = useMemo(() => {
-    const contracts = getContractAddresses(chainId)
-    return {
-      subscriptionManager: (contracts?.subscriptionManager ??
-        DEFAULT_subscriptionManager) as Address,
-      permissionManager: (contracts?.permissionManager ?? DEFAULT_permissionManager) as Address,
-      recurringPaymentExecutor: DEFAULT_recurringPaymentExecutor as Address, // Not in config yet
-    }
+  // Resolve only deployments that belong to the active chain. Stale development
+  // addresses must never be used as a fallback after a chain reset.
+  const { subscriptionManager, permissionManager, recurringPaymentExecutor, configurationError } =
+    useMemo(() => {
+      const contracts = getContractAddresses(chainId)
+      const resolved = {
+        subscriptionManager: optionalDeployment(chainId, 'subscriptionManager'),
+        permissionManager: optionalDeployment(chainId, 'permissionManager'),
+        recurringPaymentExecutor: optionalDeployment(chainId, 'recurringPaymentExecutor'),
+      }
+      const missing = Object.entries(resolved)
+        .filter(([, address]) => !address)
+        .map(([name]) => name)
+      return {
+        subscriptionManager: resolved.subscriptionManager ?? zeroAddress,
+        permissionManager: resolved.permissionManager ?? zeroAddress,
+        recurringPaymentExecutor: resolved.recurringPaymentExecutor ?? zeroAddress,
+        configurationError:
+          !contracts || missing.length > 0
+            ? new Error(
+                `Subscription contracts are not deployed on chain ${chainId}: ${missing.join(', ')}`
+              )
+            : null,
+      }
+    }, [chainId])
+
+  const ensureConfigured = useCallback(() => {
+    if (configurationError) throw configurationError
+  }, [configurationError])
+  const knownTokens = useMemo(() => {
+    const tokens = new Map<string, { symbol: string; decimals: number }>([
+      [zeroAddress, { symbol: 'WKRC', decimals: 18 }],
+    ])
+    const usdc = optionalDeployment(chainId, 'usdc')
+    if (usdc) tokens.set(usdc.toLowerCase(), { symbol: 'USDC', decimals: 6 })
+    return tokens
   }, [chainId])
 
   // State
@@ -289,7 +298,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
   const [isSubscribing, setIsSubscribing] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isCreatingPlan, setIsCreatingPlan] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+  const [error, setError] = useState<Error | null>(configurationError)
 
   const fetchIdRef = useRef(0)
 
@@ -322,7 +331,8 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         bigint,
       ]
 
-      const tokenInfo = TOKEN_INFO[token.toLowerCase()] || { symbol: 'TOKEN', decimals: 18 }
+      const tokenInfo = knownTokens.get(token.toLowerCase())
+      if (!tokenInfo) throw new Error(`Unsupported plan token metadata: ${token}`)
 
       return {
         id,
@@ -343,7 +353,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         tokenDecimals: tokenInfo.decimals,
       }
     },
-    []
+    [knownTokens]
   )
 
   // Load all plans
@@ -355,6 +365,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
     setError(null)
 
     try {
+      ensureConfigured()
       const planCount = (await publicClient.readContract({
         address: subscriptionManager,
         abi: subscriptionManager_ABI,
@@ -386,7 +397,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         setIsLoading(false)
       }
     }
-  }, [publicClient, toPlanDisplayInfo, subscriptionManager])
+  }, [publicClient, toPlanDisplayInfo, subscriptionManager, ensureConfigured])
 
   // Load user's subscriptions
   const loadMySubscriptions = useCallback(async () => {
@@ -397,6 +408,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
     setError(null)
 
     try {
+      ensureConfigured()
       const planIds = (await publicClient.readContract({
         address: subscriptionManager,
         abi: subscriptionManager_ABI,
@@ -453,7 +465,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         setIsLoading(false)
       }
     }
-  }, [publicClient, address, toPlanDisplayInfo, subscriptionManager])
+  }, [publicClient, address, toPlanDisplayInfo, subscriptionManager, ensureConfigured])
 
   // Load merchant's plans
   const loadMerchantPlans = useCallback(async () => {
@@ -464,6 +476,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
     setError(null)
 
     try {
+      ensureConfigured()
       const planIds = (await publicClient.readContract({
         address: subscriptionManager,
         abi: subscriptionManager_ABI,
@@ -526,7 +539,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         setIsLoading(false)
       }
     }
-  }, [publicClient, address, toPlanDisplayInfo, subscriptionManager])
+  }, [publicClient, address, toPlanDisplayInfo, subscriptionManager, ensureConfigured])
 
   // Request ERC-7715 permission
   const requestPermission = useCallback(
@@ -534,6 +547,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
       if (!walletClient || !publicClient) {
         throw new Error('Wallet not connected')
       }
+      ensureConfigured()
 
       // Calculate permission parameters
       const allowancePerPeriod = plan.price
@@ -610,6 +624,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
 
           // Wait for transaction and extract permissionId from logs
           const receipt = await publicClient.waitForTransactionReceipt({ hash: permissionTxHash })
+          assertConfirmed(receipt)
 
           // Type-safe event log parsing via viem
           const parsedLogs = parseEventLogs({
@@ -626,30 +641,14 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
             return permissionLog.args.permissionId as `0x${string}`
           }
 
-          // Fallback: generate a cryptographically random permissionId via
-          // keccak256(abi.encodePacked(address, operator, token, randomNonce))
-          // This prevents collision and is unpredictable.
-          const randomNonce = toHex(crypto.getRandomValues(new Uint8Array(32)))
-          const permissionId = keccak256(
-            encodePacked(
-              ['address', 'address', 'address', 'bytes32'],
-              [
-                address as Address,
-                recurringPaymentExecutor,
-                plan.token,
-                randomNonce as `0x${string}`,
-              ]
-            )
-          )
-
-          return permissionId
+          throw new Error('Confirmed permission transaction did not emit PermissionGranted')
         }
 
         // Re-throw other errors
         throw err
       }
     },
-    [walletClient, publicClient, address, permissionManager, recurringPaymentExecutor]
+    [walletClient, publicClient, permissionManager, recurringPaymentExecutor, ensureConfigured]
   )
 
   // Subscribe to a plan
@@ -663,6 +662,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
       setError(null)
 
       try {
+        ensureConfigured()
         // Get the plan to check if payment is needed and for permission request
         const planData = (await publicClient.readContract({
           address: subscriptionManager,
@@ -693,7 +693,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
               functionName: 'approve',
               args: [subscriptionManager, maxUint256],
             })
-            await publicClient.waitForTransactionReceipt({ hash: approveTxHash })
+            assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: approveTxHash }))
           }
 
           // Also approve permissionManager for recurring payment execution
@@ -711,7 +711,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
               functionName: 'approve',
               args: [permissionManager, maxUint256],
             })
-            await publicClient.waitForTransactionReceipt({ hash: pmApproveTxHash })
+            assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: pmApproveTxHash }))
           }
         }
 
@@ -726,7 +726,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         })
 
         // Wait for transaction confirmation
-        await publicClient.waitForTransactionReceipt({ hash: txHash })
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: txHash }))
 
         return txHash
       } catch (err) {
@@ -745,6 +745,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
       requestPermission,
       subscriptionManager,
       permissionManager,
+      ensureConfigured,
     ]
   )
 
@@ -759,6 +760,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
       setError(null)
 
       try {
+        ensureConfigured()
         // Send cancel subscription transaction
         const txHash = await walletClient.writeContract({
           address: subscriptionManager,
@@ -768,7 +770,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         })
 
         // Wait for transaction confirmation
-        await publicClient.waitForTransactionReceipt({ hash: txHash })
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: txHash }))
 
         return txHash
       } catch (err) {
@@ -779,7 +781,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         setIsCancelling(false)
       }
     },
-    [address, walletClient, publicClient, subscriptionManager]
+    [address, walletClient, publicClient, subscriptionManager, ensureConfigured]
   )
 
   // Create a new plan (for merchants)
@@ -793,6 +795,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
       setError(null)
 
       try {
+        ensureConfigured()
         // Send create plan transaction
         const txHash = await walletClient.writeContract({
           address: subscriptionManager,
@@ -810,7 +813,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         })
 
         // Wait for transaction receipt to get the plan ID from logs
-        const _receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash: txHash }))
 
         // Get the new plan count (the plan ID is planCount - 1 since it's 0-indexed after creation)
         const planCount = (await publicClient.readContract({
@@ -829,7 +832,7 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
         setIsCreatingPlan(false)
       }
     },
-    [address, walletClient, publicClient, subscriptionManager]
+    [address, walletClient, publicClient, subscriptionManager, ensureConfigured]
   )
 
   // Refetch all data
@@ -847,6 +850,10 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
   }, [])
 
   // Auto-refresh
+  useEffect(() => {
+    if (configurationError) setError(configurationError)
+  }, [configurationError])
+
   useEffect(() => {
     if (autoRefresh && isConnected) {
       const interval = setInterval(refetch, refreshInterval)
@@ -886,11 +893,3 @@ export function useSubscription(config: UseSubscriptionConfig = {}): UseSubscrip
     clearError,
   }
 }
-
-// Export default contract addresses for external use
-// For chain-specific addresses, use getContractAddresses(chainId)
-export const SUBSCRIPTION_CONTRACTS = {
-  subscriptionManager: DEFAULT_subscriptionManager,
-  permissionManager: DEFAULT_permissionManager,
-  recurringPaymentExecutor: DEFAULT_recurringPaymentExecutor,
-} as const

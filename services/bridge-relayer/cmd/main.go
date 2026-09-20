@@ -76,6 +76,11 @@ func main() {
 	// Initialize bridge executor
 	bridgeExecutor := executor.NewBridgeExecutor(ethClient, mpcClient, eventMonitor, cfg.Contracts, eventTracker)
 
+	if err := bridgeExecutor.EnablePersistence(getEnv("BRIDGE_STATE_FILE", "./data/bridge-state.json")); err != nil {
+		log.Error("Failed to load bridge state", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 	// Start monitors
 	if err := eventMonitor.Start(ctx); err != nil {
 		log.Error("Failed to start event monitor", slog.String("error", err.Error()))

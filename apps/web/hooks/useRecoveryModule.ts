@@ -1,69 +1,13 @@
 'use client'
-
 import { MODULE_TYPE } from '@stablenet/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Address, Hex } from 'viem'
-import { encodeFunctionData } from 'viem'
-import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
+import { type Address, encodeFunctionData } from 'viem'
+import { useAccount, useChainId, usePublicClient, useWalletClient } from 'wagmi'
+import { assertConfirmed, optionalDeployment } from '@/lib/contracts/deployment'
+import { encodeRecoveryInit, GUARDIAN_SENTINEL, recoveryParameters } from '@/lib/contracts/recovery'
+import { WEIGHTED_VALIDATOR_ABI } from '@/lib/contracts/runtimeAbis'
 import { useModule } from './useModule'
 import { useSmartAccount } from './useSmartAccount'
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const SOCIAL_RECOVERY_VALIDATOR = '0x38fb544beee122a2ea593e7d9c8f019751273287' as const
-
-const STORAGE_KEY = 'stablenet_recovery_guardians'
-
-// WeightedECDSA Validator ABI (minimal)
-const WEIGHTED_ECDSA_ABI = [
-  {
-    type: 'function',
-    name: 'getGuardians',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [
-      { name: 'guardians', type: 'address[]' },
-      { name: 'weights', type: 'uint256[]' },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'getThreshold',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'addGuardian',
-    inputs: [
-      { name: 'guardian', type: 'address' },
-      { name: 'weight', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'removeGuardian',
-    inputs: [{ name: 'guardian', type: 'address' }],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    name: 'setThreshold',
-    inputs: [{ name: 'threshold', type: 'uint256' }],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-] as const
-
-// ============================================================================
-// Types
-// ============================================================================
 
 export interface Guardian {
   address: Address
@@ -99,199 +43,134 @@ export interface UseRecoveryModuleReturn {
   setGuardianLabel: (address: Address, label: string) => void
 }
 
-// ============================================================================
-// Helper: encode init data for WeightedECDSA
-// ============================================================================
-
-function encodeWeightedECDSAInit(guardians: Guardian[], threshold: number): Hex {
-  const thresholdHex = threshold.toString(16).padStart(64, '0')
-  const countHex = guardians.length.toString(16).padStart(64, '0')
-  const guardiansHex = guardians
-    .map((g) => {
-      const addrHex = g.address.slice(2).toLowerCase().padStart(64, '0')
-      const weightHex = g.weight.toString(16).padStart(64, '0')
-      return `${addrHex}${weightHex}`
-    })
-    .join('')
-  return `0x${thresholdHex}${countHex}${guardiansHex}` as Hex
-}
-
-// ============================================================================
-// Hook
-// ============================================================================
-
+const emptyConfig: RecoveryConfig = { guardians: [], threshold: 0, isInstalled: false }
 export function useRecoveryModule(): UseRecoveryModuleReturn {
   const { address } = useAccount()
+  const chainId = useChainId()
+  const moduleAddress = optionalDeployment(chainId, 'weightedEcdsaValidator')
   const { status } = useSmartAccount()
   const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient()
   const { buildInstallModuleCall, isModuleInstalled } = useModule()
-
-  const [config, setConfig] = useState<RecoveryConfig>({
-    guardians: [],
-    threshold: 0,
-    isInstalled: false,
-  })
-  const [isLoading, setIsLoading] = useState(true)
+  const [config, setConfig] = useState<RecoveryConfig>(emptyConfig)
+  const [isLoading, setIsLoading] = useState(false)
   const [isInstalling, setIsInstalling] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const fetchIdRef = useRef(0)
-
-  // Load guardian labels from localStorage
+  const delayRef = useRef(0)
+  const generation = useRef(0)
+  const storageKey = `stablenet:recovery:${chainId}:${address?.toLowerCase()}`
   const loadLabels = useCallback((): Record<string, string> => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) return JSON.parse(stored)
+      return JSON.parse(localStorage.getItem(storageKey) || '{}')
     } catch {
-      // ignore
+      return {}
     }
-    return {}
-  }, [])
-
-  const saveLabels = useCallback((labels: Record<string, string>) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(labels))
-  }, [])
-
-  // Check if social recovery module is installed
-  const checkInstalled = useCallback(async (): Promise<boolean> => {
-    if (!address || !status.isSmartAccount) return false
-    try {
-      return await isModuleInstalled(address, MODULE_TYPE.VALIDATOR, SOCIAL_RECOVERY_VALIDATOR)
-    } catch {
-      return false
-    }
-  }, [address, status.isSmartAccount, isModuleInstalled])
-
-  // Fetch guardians from chain
-  const fetchGuardians = useCallback(async () => {
-    if (!address || !publicClient) return
-
-    try {
-      const result = await publicClient.readContract({
-        address: SOCIAL_RECOVERY_VALIDATOR,
-        abi: WEIGHTED_ECDSA_ABI,
-        functionName: 'getGuardians',
-        args: [address],
-      })
-
-      const [addresses, weights] = result as [Address[], bigint[]]
+  }, [storageKey])
+  const saveLabels = useCallback(
+    (guardians: Guardian[]) => {
       const labels = loadLabels()
-
-      const guardians: Guardian[] = addresses.map((addr, i) => ({
-        address: addr,
-        weight: Number(weights[i]),
-        label: labels[addr.toLowerCase()] || undefined,
-      }))
-
-      const thresholdResult = await publicClient.readContract({
-        address: SOCIAL_RECOVERY_VALIDATOR,
-        abi: WEIGHTED_ECDSA_ABI,
-        functionName: 'getThreshold',
+      for (const g of guardians)
+        if (g.label !== undefined) labels[g.address.toLowerCase()] = g.label
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(labels))
+      } catch {
+        /* Labels are optional. */
+      }
+    },
+    [storageKey, loadLabels]
+  )
+  const checkInstalled = useCallback(async () => {
+    if (!address || !status.isSmartAccount || !moduleAddress) return false
+    return isModuleInstalled(address, MODULE_TYPE.VALIDATOR, moduleAddress)
+  }, [address, status.isSmartAccount, moduleAddress, isModuleInstalled])
+  const refresh = useCallback(async () => {
+    const id = ++generation.current
+    setConfig(emptyConfig)
+    setError(null)
+    setIsLoading(true)
+    try {
+      if (!address || !publicClient || !status.isSmartAccount) return
+      if (!moduleAddress) throw Error(`Recovery validator is not deployed on chain ${chainId}`)
+      if (!(await checkInstalled())) return
+      const [, threshold, delay, first] = await publicClient.readContract({
+        address: moduleAddress,
+        abi: WEIGHTED_VALIDATOR_ABI,
+        functionName: 'weightedStorage',
         args: [address],
       })
-
-      setConfig({
-        guardians,
-        threshold: Number(thresholdResult),
-        isInstalled: true,
-      })
-    } catch {
-      // Contract may not support getGuardians, or module not installed
-      // Keep localStorage-based config as fallback
-    }
-  }, [address, publicClient, loadLabels])
-
-  // Refresh from chain
-  const refresh = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    const id = ++fetchIdRef.current
-    try {
-      const installed = await checkInstalled()
-      if (installed) {
-        await fetchGuardians()
-      } else {
-        if (id !== fetchIdRef.current) return
-        setConfig({ guardians: [], threshold: 0, isInstalled: false })
+      let current = first
+      const guardians: Guardian[] = []
+      const seen = new Set<string>()
+      const labels = loadLabels()
+      while (current.toLowerCase() !== GUARDIAN_SENTINEL) {
+        if (seen.has(current.toLowerCase()) || guardians.length >= 256)
+          throw Error('Invalid guardian list')
+        seen.add(current.toLowerCase())
+        const [weight, next] = await publicClient.readContract({
+          address: moduleAddress,
+          abi: WEIGHTED_VALIDATOR_ABI,
+          functionName: 'guardian',
+          args: [current, address],
+        })
+        if (weight === 0) throw Error('Invalid guardian weight returned by validator')
+        guardians.push({ address: current, weight, label: labels[current.toLowerCase()] })
+        current = next
       }
+      if (id !== generation.current) return
+      delayRef.current = delay
+      setConfig({ guardians, threshold, isInstalled: true })
     } catch (err) {
-      if (id !== fetchIdRef.current) return
-      setError(err instanceof Error ? err.message : 'Failed to refresh')
+      if (id === generation.current)
+        setError(err instanceof Error ? err.message : 'Recovery query failed')
     } finally {
-      if (id === fetchIdRef.current) {
-        setIsLoading(false)
-      }
+      if (id === generation.current) setIsLoading(false)
     }
-  }, [checkInstalled, fetchGuardians])
-
-  // Setup recovery (install module)
-  const setupRecovery = useCallback(
-    async (guardians: Guardian[], threshold: number): Promise<boolean> => {
-      if (!address || !walletClient || !publicClient) {
-        setError('Wallet not connected')
+  }, [
+    address,
+    publicClient,
+    status.isSmartAccount,
+    moduleAddress,
+    chainId,
+    checkInstalled,
+    loadLabels,
+  ])
+  const write = useCallback(
+    async (guardians: Guardian[], threshold: number, install: boolean): Promise<boolean> => {
+      if (!address || !walletClient || !publicClient || !moduleAddress || !status.isSmartAccount) {
+        setError('Connect a smart account on a chain with a deployed recovery validator')
         return false
       }
-      if (!status.isSmartAccount) {
-        setError('Account must be a Smart Account')
-        return false
-      }
-
-      if (guardians.length === 0) {
-        setError('At least one guardian is required')
-        return false
-      }
-      if (threshold <= 0) {
-        setError('Threshold must be greater than zero')
-        return false
-      }
-      const totalWeight = guardians.reduce((sum, g) => sum + g.weight, 0)
-      if (threshold > totalWeight) {
-        setError(`Threshold (${threshold}) exceeds total guardian weight (${totalWeight})`)
-        return false
-      }
-
       setIsInstalling(true)
       setError(null)
-
       try {
-        const initData = encodeWeightedECDSAInit(guardians, threshold)
-
-        const callData = buildInstallModuleCall(address, {
-          moduleType: MODULE_TYPE.VALIDATOR,
-          module: SOCIAL_RECOVERY_VALIDATOR,
-          initData,
-        })
-
-        const txHash = await walletClient.sendTransaction({
-          to: callData.to,
-          data: callData.data,
-          value: callData.value,
-        })
-
-        const receipt = await publicClient.waitForTransactionReceipt({
-          hash: txHash,
-          timeout: 60_000,
-        })
-
-        if (receipt.status !== 'success') {
-          setError('Transaction reverted')
-          return false
-        }
-
-        // Save labels locally
-        const labels = loadLabels()
-        for (const g of guardians) {
-          if (g.label) {
-            labels[g.address.toLowerCase()] = g.label
-          }
-        }
-        saveLabels(labels)
-
-        setConfig({ guardians, threshold, isInstalled: true })
+        const params = recoveryParameters(
+          guardians,
+          threshold,
+          install ? 0 : delayRef.current,
+          address
+        )
+        const call = install
+          ? buildInstallModuleCall(address, {
+              moduleType: MODULE_TYPE.VALIDATOR,
+              module: moduleAddress,
+              initData: encodeRecoveryInit(guardians, threshold, 0, address),
+            })
+          : {
+              to: moduleAddress,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: WEIGHTED_VALIDATOR_ABI,
+                functionName: 'renew',
+                args: params,
+              }),
+            }
+        const hash = await walletClient.sendTransaction({ ...call, account: address })
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 }))
+        saveLabels(guardians)
+        await refresh()
         return true
       } catch (err) {
-        setError(err instanceof Error ? err.message.split('\n')[0] : 'Setup failed')
+        setError(err instanceof Error ? err.message.split('\n')[0] : 'Recovery update failed')
         return false
       } finally {
         setIsInstalling(false)
@@ -301,173 +180,37 @@ export function useRecoveryModule(): UseRecoveryModuleReturn {
       address,
       walletClient,
       publicClient,
+      moduleAddress,
       status.isSmartAccount,
       buildInstallModuleCall,
-      loadLabels,
       saveLabels,
+      refresh,
     ]
   )
-
-  // Add guardian
-  const addGuardian = useCallback(
-    async (guardian: Guardian): Promise<boolean> => {
-      if (!address || !walletClient || !publicClient) {
-        setError('Wallet not connected')
-        return false
-      }
-
-      setIsInstalling(true)
-      setError(null)
-
-      try {
-        const data = encodeFunctionData({
-          abi: WEIGHTED_ECDSA_ABI,
-          functionName: 'addGuardian',
-          args: [guardian.address, BigInt(guardian.weight)],
-        })
-
-        const txHash = await walletClient.sendTransaction({
-          to: SOCIAL_RECOVERY_VALIDATOR,
-          data,
-          value: 0n,
-        })
-
-        const receipt = await publicClient.waitForTransactionReceipt({
-          hash: txHash,
-          timeout: 60_000,
-        })
-
-        if (receipt.status !== 'success') {
-          setError('Transaction reverted')
-          return false
-        }
-
-        // Save label locally
-        if (guardian.label) {
-          const labels = loadLabels()
-          labels[guardian.address.toLowerCase()] = guardian.label
-          saveLabels(labels)
-        }
-
-        setConfig((prev) => ({
-          ...prev,
-          guardians: [...prev.guardians, guardian],
-        }))
-        return true
-      } catch (err) {
-        setError(err instanceof Error ? err.message.split('\n')[0] : 'Add guardian failed')
-        return false
-      } finally {
-        setIsInstalling(false)
-      }
-    },
-    [address, walletClient, publicClient, loadLabels, saveLabels]
-  )
-
-  // Remove guardian
-  const removeGuardian = useCallback(
-    async (guardianAddress: Address): Promise<boolean> => {
-      if (!address || !walletClient || !publicClient) {
-        setError('Wallet not connected')
-        return false
-      }
-
-      setIsInstalling(true)
-      setError(null)
-
-      try {
-        const data = encodeFunctionData({
-          abi: WEIGHTED_ECDSA_ABI,
-          functionName: 'removeGuardian',
-          args: [guardianAddress],
-        })
-
-        const txHash = await walletClient.sendTransaction({
-          to: SOCIAL_RECOVERY_VALIDATOR,
-          data,
-          value: 0n,
-        })
-
-        const receipt = await publicClient.waitForTransactionReceipt({
-          hash: txHash,
-          timeout: 60_000,
-        })
-
-        if (receipt.status !== 'success') {
-          setError('Transaction reverted')
-          return false
-        }
-
-        setConfig((prev) => ({
-          ...prev,
-          guardians: prev.guardians.filter(
-            (g) => g.address.toLowerCase() !== guardianAddress.toLowerCase()
-          ),
-        }))
-        return true
-      } catch (err) {
-        setError(err instanceof Error ? err.message.split('\n')[0] : 'Remove guardian failed')
-        return false
-      } finally {
-        setIsInstalling(false)
-      }
-    },
-    [address, walletClient, publicClient]
-  )
-
-  // Update threshold
-  const updateThreshold = useCallback(
-    async (threshold: number): Promise<boolean> => {
-      if (!address || !walletClient || !publicClient) {
-        setError('Wallet not connected')
-        return false
-      }
-
-      setIsInstalling(true)
-      setError(null)
-
-      try {
-        const data = encodeFunctionData({
-          abi: WEIGHTED_ECDSA_ABI,
-          functionName: 'setThreshold',
-          args: [BigInt(threshold)],
-        })
-
-        const txHash = await walletClient.sendTransaction({
-          to: SOCIAL_RECOVERY_VALIDATOR,
-          data,
-          value: 0n,
-        })
-
-        const receipt = await publicClient.waitForTransactionReceipt({
-          hash: txHash,
-          timeout: 60_000,
-        })
-
-        if (receipt.status !== 'success') {
-          setError('Transaction reverted')
-          return false
-        }
-
-        setConfig((prev) => ({ ...prev, threshold }))
-        return true
-      } catch (err) {
-        setError(err instanceof Error ? err.message.split('\n')[0] : 'Update threshold failed')
-        return false
-      } finally {
-        setIsInstalling(false)
-      }
-    },
-    [address, walletClient, publicClient]
-  )
-
-  // Set guardian label (local only)
-  const setGuardianLabel = useCallback(
-    (guardianAddress: Address, label: string) => {
-      const labels = loadLabels()
-      labels[guardianAddress.toLowerCase()] = label
-      saveLabels(labels)
-
+  useEffect(() => {
+    void refresh()
+    return () => {
+      generation.current++
+    }
+  }, [refresh])
+  return {
+    config,
+    isLoading,
+    isInstalling,
+    error,
+    checkInstalled,
+    refresh,
+    setupRecovery: (guardians, threshold) => write(guardians, threshold, true),
+    addGuardian: (guardian) => write([...config.guardians, guardian], config.threshold, false),
+    removeGuardian: (guardianAddress) =>
+      write(
+        config.guardians.filter((g) => g.address.toLowerCase() !== guardianAddress.toLowerCase()),
+        config.threshold,
+        false
+      ),
+    updateThreshold: (threshold) => write(config.guardians, threshold, false),
+    setGuardianLabel: (guardianAddress, label) => {
+      saveLabels([{ address: guardianAddress, weight: 0, label }])
       setConfig((prev) => ({
         ...prev,
         guardians: prev.guardians.map((g) =>
@@ -475,27 +218,5 @@ export function useRecoveryModule(): UseRecoveryModuleReturn {
         ),
       }))
     },
-    [loadLabels, saveLabels]
-  )
-
-  // Auto-check on mount
-  useEffect(() => {
-    if (address && status.isSmartAccount) {
-      refresh()
-    }
-  }, [address, status.isSmartAccount, refresh]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  return {
-    config,
-    isLoading,
-    isInstalling,
-    error,
-    setupRecovery,
-    addGuardian,
-    removeGuardian,
-    updateThreshold,
-    checkInstalled,
-    refresh,
-    setGuardianLabel,
   }
 }

@@ -71,7 +71,7 @@ export function YourPositionsCard({
         <div className="divide-y" style={{ borderColor: 'rgb(var(--border))' }}>
           {positions.map((position) => (
             <PositionItem
-              key={position.poolAddress}
+              key={`${position.poolAddress}:${position.tokenId ?? 'v2'}`}
               position={position}
               onRemove={onRemoveLiquidity}
             />

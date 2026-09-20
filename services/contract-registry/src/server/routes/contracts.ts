@@ -15,7 +15,7 @@ export function registerContractRoutes(
   app: FastifyInstance,
   store: InMemoryStore,
   apiKey: string | undefined,
-  onMutation: () => void
+  onMutation: () => void | Promise<void>
 ) {
   const authHook = createAuthHook(apiKey)
 
@@ -65,7 +65,7 @@ export function registerContractRoutes(
         txHash: body.txHash as `0x${string}` | undefined,
         metadata: body.metadata,
       })
-      onMutation()
+      await onMutation()
       return reply.status(201).send(entry)
     }
   )
@@ -83,7 +83,7 @@ export function registerContractRoutes(
           message: `Contract ${params.name} not found on chain ${params.chainId}`,
         })
       }
-      onMutation()
+      await onMutation()
       return { success: true }
     }
   )

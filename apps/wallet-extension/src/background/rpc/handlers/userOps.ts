@@ -1,6 +1,6 @@
+import { getChainAddresses } from '@stablenet/contracts'
 import type { Address, Hex } from 'viem'
 import { isAddress } from 'viem'
-import { getChainAddresses } from '@stablenet/contracts'
 import {
   approvalController,
   createBundlerClient,
@@ -273,12 +273,14 @@ export const userOpsHandlers: Record<string, RpcHandler> = {
       }
 
       const publicClient = getPublicClient(network.rpcUrl)
-      const allowance = await publicClient.readContract({
-        address: gasPayment.tokenAddress as Address,
-        abi: ERC20_ALLOWANCE_ABI,
-        functionName: 'allowance',
-        args: [userOp.sender, erc20PaymasterAddr],
-      }).catch(() => 0n)
+      const allowance = await publicClient
+        .readContract({
+          address: gasPayment.tokenAddress as Address,
+          abi: ERC20_ALLOWANCE_ABI,
+          functionName: 'allowance',
+          args: [userOp.sender, erc20PaymasterAddr],
+        })
+        .catch(() => 0n)
 
       if ((allowance as bigint) < MIN_ALLOWANCE_THRESHOLD) {
         logger.warn(
@@ -297,12 +299,14 @@ export const userOpsHandlers: Record<string, RpcHandler> = {
       }
 
       // Also verify token balance — ERC20Paymaster checks balanceOf during validation
-      const balance = await publicClient.readContract({
-        address: gasPayment.tokenAddress as Address,
-        abi: ERC20_BALANCE_OF_ABI,
-        functionName: 'balanceOf',
-        args: [userOp.sender],
-      }).catch(() => 0n)
+      const balance = await publicClient
+        .readContract({
+          address: gasPayment.tokenAddress as Address,
+          abi: ERC20_BALANCE_OF_ABI,
+          functionName: 'balanceOf',
+          args: [userOp.sender],
+        })
+        .catch(() => 0n)
 
       if ((balance as bigint) < MIN_TOKEN_BALANCE) {
         logger.warn(
@@ -336,23 +340,40 @@ export const userOpsHandlers: Record<string, RpcHandler> = {
       const paymasterContext: Record<string, unknown> =
         gasPayment?.type === 'erc20' && gasPayment.tokenAddress
           ? { paymasterType: 'erc20', tokenAddress: gasPayment.tokenAddress }
-          : {}
+          : gasPayment?.type === 'sponsor'
+            ? { paymasterType: 'sponsor' }
+            : {}
 
       logger.info(
         `[eth_sendUserOperation] Sponsored path: paymasterUrl=${network.paymasterUrl}, context=${JSON.stringify(paymasterContext)}`
       )
 
-      const signedUserOp = await sponsorAndSign({
-        userOp,
-        paymasterUrl: network.paymasterUrl,
-        entryPoint,
-        chainId: network.chainId,
-        context: paymasterContext,
-        bundlerUrl,
-        signer: async (finalOp) => {
-          return signUserOp(finalOp, entryPoint, network.chainId, origin)
-        },
-      })
+      let signedUserOp: UserOperation | null = null
+      try {
+        signedUserOp = await sponsorAndSign({
+          userOp,
+          paymasterUrl: network.paymasterUrl,
+          entryPoint,
+          chainId: network.chainId,
+          context: paymasterContext,
+          bundlerUrl,
+          signer: async (finalOp) => {
+            return signUserOp(finalOp, entryPoint, network.chainId, origin)
+          },
+        })
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        logger.error(`[eth_sendUserOperation] sponsorAndSign FAILED: ${errMsg}`)
+
+        // Explicit paymaster types must not fall through to self-pay
+        if (gasPayment?.type === 'erc20' || gasPayment?.type === 'sponsor') {
+          throw createRpcError({
+            code: RPC_ERRORS.INTERNAL_ERROR.code,
+            message: errMsg,
+          })
+        }
+        // Implicit sponsorship failed → fall through to self-pay below
+      }
 
       if (signedUserOp) {
         logger.info(`[eth_sendUserOperation] sponsorAndSign OK, submitting to bundler...`)
@@ -361,7 +382,6 @@ export const userOpsHandlers: Record<string, RpcHandler> = {
         try {
           const clientHash = getUserOperationHash(signedUserOp, entryPoint, BigInt(network.chainId))
           const packed = packUserOperation(signedUserOp)
-          // Cast packed to satisfy EntryPoint ABI tuple type (nonce is Hex in packed but bigint in ABI)
           const packedForAbi = {
             ...packed,
             nonce: BigInt(packed.nonce),
@@ -402,24 +422,6 @@ export const userOpsHandlers: Record<string, RpcHandler> = {
           })
         }
       }
-
-      // ERC-20 gas payment must NOT fall through to self-pay — the user explicitly
-      // chose token payment, so failing silently to self-pay is misleading.
-      if (gasPayment?.type === 'erc20') {
-        logger.error(
-          '[eth_sendUserOperation] ERC-20 paymaster sponsorAndSign failed — cannot fall through to self-pay'
-        )
-        throw createRpcError({
-          code: RPC_ERRORS.INTERNAL_ERROR.code,
-          message:
-            'ERC-20 gas payment failed. Possible causes: insufficient token balance, approve not yet confirmed on-chain, or paymaster validation error.',
-        })
-      }
-
-      logger.warn(
-        '[eth_sendUserOperation] sponsorAndSign returned null, falling through to self-pay'
-      )
-      // sponsorAndSign returned null → fall through to self-pay
     }
 
     // Self-pay path: estimate gas without paymaster, then sign with EIP-712

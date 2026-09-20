@@ -54,11 +54,13 @@ export function AvailablePoolsCard({ pools, onAddLiquidity }: AvailablePoolsCard
                     </div>
                   </td>
                   <td className="py-4" style={{ color: 'rgb(var(--foreground))' }}>
-                    ${pool.tvl.toLocaleString()}
+                    {pool.metricsAvailable === false
+                      ? 'Unavailable'
+                      : `$${pool.tvl.toLocaleString()}`}
                   </td>
                   <td className="py-4">
                     <span className="font-medium" style={{ color: 'rgb(var(--success))' }}>
-                      {pool.apr.toFixed(2)}%
+                      {pool.metricsAvailable === false ? 'Unavailable' : `${pool.apr.toFixed(2)}%`}
                     </span>
                   </td>
                   <td className="py-4" style={{ color: 'rgb(var(--muted-foreground))' }}>

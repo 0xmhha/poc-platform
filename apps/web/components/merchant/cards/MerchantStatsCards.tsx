@@ -54,28 +54,24 @@ interface MerchantStatsCardsProps {
     activeSubscriptions: number
     subscriptionChange: number
     successfulPayments: number
-    paymentSuccessRate: number
     avgTransactionValue: number
     avgValueChange: number
+    revenueUnit: string | null
   }
 }
 
 export function MerchantStatsCards({ stats }: MerchantStatsCardsProps) {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
+  const formatRevenue = (amount: number) =>
+    stats.revenueUnit
+      ? `${amount.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${stats.revenueUnit}`
+      : 'Unavailable'
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
         title="Total Revenue"
-        value={formatCurrency(stats.totalRevenue)}
-        change={stats.revenueChange}
+        value={formatRevenue(stats.totalRevenue)}
+        change={stats.revenueUnit ? stats.revenueChange : undefined}
         icon={
           <svg
             aria-hidden="true"
@@ -115,10 +111,8 @@ export function MerchantStatsCards({ stats }: MerchantStatsCardsProps) {
         }
       />
       <StatCard
-        title="Successful Payments"
+        title="Processed Payments"
         value={stats.successfulPayments.toLocaleString()}
-        change={stats.paymentSuccessRate}
-        changeLabel="success rate"
         icon={
           <svg
             aria-hidden="true"
@@ -138,8 +132,8 @@ export function MerchantStatsCards({ stats }: MerchantStatsCardsProps) {
       />
       <StatCard
         title="Avg Transaction"
-        value={formatCurrency(stats.avgTransactionValue)}
-        change={stats.avgValueChange}
+        value={formatRevenue(stats.avgTransactionValue)}
+        change={stats.revenueUnit ? stats.avgValueChange : undefined}
         icon={
           <svg
             aria-hidden="true"

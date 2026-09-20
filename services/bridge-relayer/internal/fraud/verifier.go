@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	ErrInvalidProof       = errors.New("invalid fraud proof")
-	ErrProofAlreadyExists = errors.New("fraud proof already exists")
-	ErrProofExpired       = errors.New("fraud proof expired")
-	ErrInvalidSignatures  = errors.New("invalid signatures")
-	ErrInsufficientBond   = errors.New("insufficient bond")
+	ErrVerificationUnavailable = errors.New("authoritative fraud verification is unavailable")
+	ErrInvalidProof            = errors.New("invalid fraud proof")
+	ErrProofAlreadyExists      = errors.New("fraud proof already exists")
+	ErrProofExpired            = errors.New("fraud proof expired")
+	ErrInvalidSignatures       = errors.New("invalid signatures")
+	ErrInsufficientBond        = errors.New("insufficient bond")
 )
 
 // VerificationResult contains the result of a fraud proof verification
@@ -32,7 +33,8 @@ type VerificationResult struct {
 
 // FraudProofVerifier handles fraud proof verification logic
 type FraudProofVerifier struct {
-	cfg config.ContractConfig
+	backend VerificationBackend
+	cfg     config.ContractConfig
 
 	mu             sync.RWMutex
 	pendingProofs  map[[32]byte]*domain.FraudProof
@@ -44,13 +46,23 @@ type FraudProofVerifier struct {
 	minBondAmount *big.Int
 }
 
+// VerificationBackend must verify the evidence against authoritative chain state.
+// Network failure is distinct from a valid verdict of false.
+type VerificationBackend func(context.Context, *domain.FraudProof) (bool, error)
+
+func (v *FraudProofVerifier) SetVerificationBackend(backend VerificationBackend) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.backend = backend
+}
+
 // NewFraudProofVerifier creates a new fraud proof verifier
 func NewFraudProofVerifier(cfg config.ContractConfig) *FraudProofVerifier {
 	return &FraudProofVerifier{
 		cfg:             cfg,
 		pendingProofs:   make(map[[32]byte]*domain.FraudProof),
 		verifiedProofs:  make(map[[32]byte]*VerificationResult),
-		challengePeriod: 86400,           // 24 hours default
+		challengePeriod: 86400,            // 24 hours default
 		minBondAmount:   big.NewInt(1e18), // 1 ETH default
 	}
 }
@@ -108,7 +120,7 @@ func (v *FraudProofVerifier) SubmitFraudProof(ctx context.Context, proof *domain
 	}
 
 	// Add to pending proofs
-	v.pendingProofs[proof.RequestID] = proof
+	v.pendingProofs[proof.RequestID] = cloneProof(proof)
 
 	return nil
 }
@@ -129,22 +141,14 @@ func (v *FraudProofVerifier) VerifyFraudProof(ctx context.Context, requestID [32
 		VerifiedAt: time.Now(),
 	}
 
-	// Verify based on proof type
-	switch proof.ProofType {
-	case domain.FraudProofInvalidSignature:
-		result.IsValid = v.verifyInvalidSignature(proof)
-	case domain.FraudProofDoubleSpending:
-		result.IsValid = v.verifyDoubleSpend(proof)
-	case domain.FraudProofInvalidAmount:
-		result.IsValid = v.verifyInvalidAmount(proof)
-	case domain.FraudProofInvalidToken:
-		result.IsValid = v.verifyInvalidToken(proof)
-	case domain.FraudProofReplayAttack:
-		result.IsValid = v.verifyReplayAttack(proof)
-	default:
-		result.IsValid = false
-		result.ErrorReason = "unknown proof type"
+	if v.backend == nil {
+		return nil, ErrVerificationUnavailable
 	}
+	valid, err := v.backend(ctx, cloneProof(proof))
+	if err != nil {
+		return nil, err
+	} // Retain pending evidence for retry.
+	result.IsValid = valid
 
 	if !result.IsValid && result.ErrorReason == "" {
 		result.ErrorReason = "verification failed"
@@ -157,47 +161,12 @@ func (v *FraudProofVerifier) VerifyFraudProof(ctx context.Context, requestID [32
 	return result, nil
 }
 
-// verifyInvalidSignature verifies an invalid signature proof
-func (v *FraudProofVerifier) verifyInvalidSignature(proof *domain.FraudProof) bool {
-	// In production, this would:
-	// 1. Extract the claimed signature from evidence
-	// 2. Recover the signer address
-	// 3. Verify it doesn't match authorized signers
-	return len(proof.Evidence) >= 65 // Minimum signature length
-}
-
-// verifyDoubleSpend verifies a double spend proof
-func (v *FraudProofVerifier) verifyDoubleSpend(proof *domain.FraudProof) bool {
-	// In production, this would:
-	// 1. Extract both transaction hashes from evidence
-	// 2. Verify both use the same nonce
-	// 3. Verify the requests are different
-	return len(proof.Evidence) >= 64 // Two 32-byte tx hashes
-}
-
-// verifyInvalidAmount verifies an invalid amount proof
-func (v *FraudProofVerifier) verifyInvalidAmount(proof *domain.FraudProof) bool {
-	// In production, this would:
-	// 1. Extract the claimed amount from state proof
-	// 2. Compare with on-chain data
-	// 3. Verify the mismatch
-	return len(proof.StateProof) >= 32 || len(proof.Evidence) >= 32
-}
-
-// verifyInvalidToken verifies an invalid token proof
-func (v *FraudProofVerifier) verifyInvalidToken(proof *domain.FraudProof) bool {
-	// In production, this would:
-	// 1. Extract the token address from evidence
-	// 2. Verify it's not in the allowed token list
-	return len(proof.Evidence) >= 20 // Address length
-}
-
-// verifyReplayAttack verifies a replay attack proof
-func (v *FraudProofVerifier) verifyReplayAttack(proof *domain.FraudProof) bool {
-	// In production, this would:
-	// 1. Verify the same request was processed twice
-	// 2. Check nonce reuse across chains
-	return len(proof.Evidence) >= 64 && len(proof.MerkleProof) >= 1
+func cloneProof(proof *domain.FraudProof) *domain.FraudProof {
+	copy := *proof
+	copy.Evidence = append([]byte(nil), proof.Evidence...)
+	copy.StateProof = append([]byte(nil), proof.StateProof...)
+	copy.MerkleProof = append([][32]byte(nil), proof.MerkleProof...)
+	return &copy
 }
 
 // GetPendingProof returns a pending fraud proof
@@ -205,7 +174,10 @@ func (v *FraudProofVerifier) GetPendingProof(requestID [32]byte) (*domain.FraudP
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 	proof, exists := v.pendingProofs[requestID]
-	return proof, exists
+	if !exists {
+		return nil, false
+	}
+	return cloneProof(proof), true
 }
 
 // GetVerifiedProof returns a verified proof result
@@ -213,7 +185,11 @@ func (v *FraudProofVerifier) GetVerifiedProof(requestID [32]byte) (*Verification
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 	result, exists := v.verifiedProofs[requestID]
-	return result, exists
+	if !exists {
+		return nil, false
+	}
+	copy := *result
+	return &copy, true
 }
 
 // GetPendingProofsCount returns the number of pending proofs

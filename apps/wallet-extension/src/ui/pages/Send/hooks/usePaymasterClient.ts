@@ -1,4 +1,9 @@
-import { ENTRY_POINT_ADDRESS, getChainAddresses, getEntryPoint, isChainSupported } from '@stablenet/contracts'
+import {
+  ENTRY_POINT_ADDRESS,
+  getChainAddresses,
+  getEntryPoint,
+  isChainSupported,
+} from '@stablenet/contracts'
 import type { SponsorPolicy, SupportedToken } from '@stablenet/core'
 import { useCallback, useEffect, useState } from 'react'
 import type { Address } from 'viem'
@@ -302,23 +307,26 @@ export function usePaymasterClient(accountAddress?: Address) {
         )
 
         if (response?.payload?.error) {
-          setApproveError(response.payload.error.message ?? 'Approve failed')
+          const errMsg = response.payload.error.message ?? 'Approve failed'
+          setApproveError(errMsg)
           return false
         }
 
         // Approval UserOp submitted — poll for on-chain confirmation before returning.
-        // The UserOp hash is returned; we poll the receipt until mined or timeout.
         const userOpHash = response?.payload?.result as string | undefined
 
-        if (userOpHash) {
-          const confirmed = await waitForUserOpConfirmation(userOpHash, 30_000)
-          if (!confirmed) {
-            setApproveError('Approve submitted but not yet confirmed. Please wait and try again.')
-            return false
-          }
-        } else {
-          // No hash returned — wait a reasonable time for mining
-          await new Promise((r) => setTimeout(r, 8000))
+        if (!userOpHash) {
+          setApproveError('Approve failed: no UserOp hash returned from bundler')
+          return false
+        }
+
+        const confirmed = await waitForUserOpConfirmation(userOpHash, 60_000)
+        if (!confirmed) {
+          setApproveError(
+            `Approve submitted (${userOpHash.slice(0, 10)}...) but not confirmed within 60s. ` +
+              'The bundler may not have executed the bundle yet. Check bundler logs.'
+          )
+          return false
         }
 
         // Re-check allowance now that tx should be mined

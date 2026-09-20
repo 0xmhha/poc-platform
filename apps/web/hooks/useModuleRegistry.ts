@@ -4,138 +4,8 @@ import { createModuleRegistry, MODULE_TYPE, type ModuleRegistryEntry } from '@st
 import { useCallback, useEffect, useState } from 'react'
 import { useChainId } from 'wagmi'
 import type { ModuleCardData } from '@/components/marketplace/ModuleCard'
+import { getModuleEntry } from '@/lib/moduleAddresses'
 
-// Fallback hardcoded catalog (used when SDK registry is unavailable)
-const FALLBACK_CATALOG: ModuleCardData[] = [
-  {
-    id: 'ecdsa-validator',
-    name: 'ECDSA Validator',
-    description:
-      'Standard ECDSA signature validation for smart accounts. Essential security module for transaction signing.',
-    version: '1.0.0',
-    moduleType: 'validator',
-    category: 'security',
-    author: 'StableNet',
-    installCount: 1250,
-    rating: 4.8,
-    ratingCount: 89,
-    auditStatus: 'verified',
-    featured: true,
-    tags: ['ecdsa', 'signature', 'security', 'core'],
-  },
-  {
-    id: 'session-key-validator',
-    name: 'Session Key Validator',
-    description:
-      'Temporary session keys with permission scoping. Enables gasless dApp interactions without repeated signing.',
-    version: '1.0.0',
-    moduleType: 'validator',
-    category: 'security',
-    author: 'StableNet',
-    installCount: 830,
-    rating: 4.6,
-    ratingCount: 52,
-    auditStatus: 'audited',
-    featured: true,
-    tags: ['session', 'temporary', 'gasless', 'permissions'],
-  },
-  {
-    id: 'subscription-executor',
-    name: 'Subscription Executor',
-    description:
-      'Automated recurring payments executor. Schedule DCA, subscriptions, and periodic transfers.',
-    version: '1.0.0',
-    moduleType: 'executor',
-    category: 'automation',
-    author: 'StableNet',
-    installCount: 620,
-    rating: 4.5,
-    ratingCount: 41,
-    auditStatus: 'audited',
-    featured: true,
-    tags: ['subscription', 'recurring', 'dca', 'automation'],
-  },
-  {
-    id: 'spending-limit-hook',
-    name: 'Spending Limit Hook',
-    description:
-      'Enforce per-transaction and daily spending limits. Protect against unauthorized large transfers.',
-    version: '1.0.0',
-    moduleType: 'hook',
-    category: 'security',
-    author: 'StableNet',
-    installCount: 510,
-    rating: 4.7,
-    ratingCount: 38,
-    auditStatus: 'audited',
-    featured: false,
-    tags: ['spending', 'limit', 'security', 'protection'],
-  },
-  {
-    id: 'social-recovery',
-    name: 'Social Recovery',
-    description:
-      'Recover account access using trusted guardians. Set threshold-based recovery with timelock protection.',
-    version: '1.0.0',
-    moduleType: 'validator',
-    category: 'social-recovery',
-    author: 'StableNet',
-    installCount: 470,
-    rating: 4.4,
-    ratingCount: 35,
-    auditStatus: 'community-reviewed',
-    featured: true,
-    tags: ['recovery', 'guardian', 'social', 'backup'],
-  },
-  {
-    id: 'dex-swap-executor',
-    name: 'DEX Swap Executor',
-    description:
-      'Execute token swaps through Uniswap V3 directly from your smart account with built-in slippage protection.',
-    version: '1.0.0',
-    moduleType: 'executor',
-    category: 'defi',
-    author: 'StableNet',
-    installCount: 390,
-    rating: 4.3,
-    ratingCount: 28,
-    auditStatus: 'community-reviewed',
-    featured: false,
-    tags: ['dex', 'swap', 'uniswap', 'defi'],
-  },
-  {
-    id: 'stealth-address-fallback',
-    name: 'Stealth Address Fallback',
-    description: 'Privacy-preserving receive addresses using stealth address protocol (ERC-5564).',
-    version: '1.0.0',
-    moduleType: 'fallback',
-    category: 'privacy',
-    author: 'StableNet',
-    installCount: 280,
-    rating: 4.2,
-    ratingCount: 19,
-    auditStatus: 'community-reviewed',
-    featured: false,
-    tags: ['stealth', 'privacy', 'erc5564', 'anonymous'],
-  },
-  {
-    id: 'multisig-validator',
-    name: 'Multisig Validator',
-    description: 'Multi-signature validation requiring M-of-N signatures for transaction approval.',
-    version: '1.0.0',
-    moduleType: 'validator',
-    category: 'governance',
-    author: 'StableNet',
-    installCount: 340,
-    rating: 4.5,
-    ratingCount: 24,
-    auditStatus: 'audited',
-    featured: false,
-    tags: ['multisig', 'governance', 'threshold', 'team'],
-  },
-]
-
-// Map SDK ModuleType (bigint) to display string
 function mapModuleType(type: bigint): ModuleCardData['moduleType'] {
   switch (type) {
     case MODULE_TYPE.VALIDATOR:
@@ -147,13 +17,12 @@ function mapModuleType(type: bigint): ModuleCardData['moduleType'] {
     case MODULE_TYPE.FALLBACK:
       return 'fallback'
     default:
-      return 'validator'
+      return 'unknown'
   }
 }
 
-// Map SDK module tags to a category
 function inferCategory(tags: string[]): string {
-  const tagSet = new Set(tags.map((t) => t.toLowerCase()))
+  const tagSet = new Set(tags.map((tag) => tag.toLowerCase()))
   if (tagSet.has('security') || tagSet.has('ecdsa') || tagSet.has('signature')) return 'security'
   if (tagSet.has('defi') || tagSet.has('swap') || tagSet.has('lending')) return 'defi'
   if (tagSet.has('recovery') || tagSet.has('guardian') || tagSet.has('social'))
@@ -166,28 +35,66 @@ function inferCategory(tags: string[]): string {
   return 'utility'
 }
 
-// Map SDK module ID from name (kebab-case)
 function nameToId(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '-')
+  const stableIds: Record<string, string> = {
+    'ECDSA Validator': 'ecdsa-validator',
+    'WebAuthn Validator': 'webauthn-validator',
+    'MultiSig Validator': 'multisig-validator',
+    'Session Key': 'session-key-executor',
+    'Recurring Payment': 'subscription-executor',
+    'Spending Limit': 'spending-limit-hook',
+    'Token Receiver (ERC-777)': 'token-receiver-fallback',
+  }
+  if (stableIds[name]) return stableIds[name]
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
 }
 
-// Map a registry entry to the display format
-function registryEntryToCardData(entry: ModuleRegistryEntry): ModuleCardData {
-  const meta = entry.metadata
+const INSTALL_SUPPORT: Record<string, { installable: boolean; reason?: string }> = {
+  'ecdsa-validator': { installable: true },
+  'spending-limit-hook': { installable: true },
+  'webauthn-validator': {
+    installable: false,
+    reason: 'Passkey enrollment and wallet signature routing are not connected yet.',
+  },
+  'multisig-validator': {
+    installable: false,
+    reason: 'Multi-signature collection is not connected to the wallet yet.',
+  },
+  'session-key-executor': {
+    installable: false,
+    reason: 'Use the Session Keys flow until marketplace permission setup is connected.',
+  },
+  'subscription-executor': {
+    installable: false,
+    reason: 'Use the Subscription flow until marketplace schedule setup is connected.',
+  },
+}
+
+export function registryEntryToCardData(entry: ModuleRegistryEntry): ModuleCardData {
+  const metadata = entry.metadata
+  const id = nameToId(metadata.name)
+  const support = INSTALL_SUPPORT[id] ?? {
+    installable: false,
+    reason: 'Marketplace installation is not implemented for this module.',
+  }
   return {
-    id: nameToId(meta.name),
-    name: meta.name,
-    description: meta.description,
-    version: meta.version,
-    moduleType: mapModuleType(meta.type),
-    category: inferCategory(meta.tags),
-    author: meta.author ?? 'StableNet',
-    installCount: 0, // Not tracked on-chain
-    rating: meta.isVerified ? 4.5 : 4.0,
-    ratingCount: 0,
-    auditStatus: meta.isVerified ? 'verified' : meta.auditUrl ? 'audited' : 'community-reviewed',
-    featured: meta.isVerified,
-    tags: meta.tags,
+    id,
+    name: metadata.name,
+    description: metadata.description,
+    version: metadata.version,
+    moduleType: mapModuleType(metadata.type),
+    category: inferCategory(metadata.tags),
+    author: metadata.author ?? 'Unknown',
+    auditStatus: metadata.auditUrl ? 'audited' : metadata.isVerified ? 'official' : 'unverified',
+    auditUrl: metadata.auditUrl,
+    featured: metadata.isVerified,
+    tags: metadata.tags,
+    installable: support.installable,
+    unavailableReason: support.reason,
   }
 }
 
@@ -200,66 +107,29 @@ export interface UseModuleRegistryReturn {
 
 export function useModuleRegistry(): UseModuleRegistryReturn {
   const chainId = useChainId()
-  const [registryModules, setRegistryModules] = useState<ModuleCardData[]>([])
+  const [modules, setModules] = useState<ModuleCardData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const loadModules = useCallback(() => {
     setIsLoading(true)
     setError(null)
-
     try {
-      const registry = createModuleRegistry({ chainId })
-      const entries = registry.getAll()
-
-      if (entries.length > 0) {
-        const mapped = entries.map(registryEntryToCardData)
-
-        // Merge with fallback data for install counts, ratings, etc.
-        const enriched = mapped.map((mod) => {
-          const fallback = FALLBACK_CATALOG.find((f) => f.id === mod.id)
-          if (fallback) {
-            return {
-              ...mod,
-              installCount: fallback.installCount,
-              rating: fallback.rating,
-              ratingCount: fallback.ratingCount,
-              auditStatus: fallback.auditStatus,
-              featured: fallback.featured,
-              category: fallback.category,
-            }
-          }
-          return mod
-        })
-
-        setRegistryModules(enriched)
-      } else {
-        // No registry modules available, use fallback
-        setRegistryModules(FALLBACK_CATALOG)
-      }
-    } catch {
-      // Registry unavailable, use fallback catalog
-      setRegistryModules(FALLBACK_CATALOG)
-      setError('Failed to load module registry, using cached modules')
+      const entries = createModuleRegistry({ chainId }).getAll()
+      setModules(
+        entries
+          .map(registryEntryToCardData)
+          .filter((module) => getModuleEntry(module.id, chainId) !== undefined)
+      )
+    } catch (cause) {
+      setModules([])
+      setError(cause instanceof Error ? cause.message : 'Unable to load the module registry')
     } finally {
       setIsLoading(false)
     }
   }, [chainId])
 
-  useEffect(() => {
-    loadModules()
-  }, [loadModules])
+  useEffect(() => loadModules(), [loadModules])
 
-  // Return registry modules, or fallback if empty
-  const modules = registryModules.length > 0 ? registryModules : FALLBACK_CATALOG
-
-  return {
-    modules,
-    isLoading,
-    error,
-    refetch: loadModules,
-  }
+  return { modules, isLoading, error, refetch: loadModules }
 }
-
-// Re-export the fallback catalog for use elsewhere if needed
-export { FALLBACK_CATALOG }

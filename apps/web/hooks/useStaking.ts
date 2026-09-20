@@ -1,10 +1,12 @@
 'use client'
 
-import { STAKING_EXECUTOR_ABI } from '@stablenet/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Address, Hex } from 'viem'
-import { encodeFunctionData } from 'viem'
+import { encodeFunctionData, erc20Abi } from 'viem'
 import { useAccount } from 'wagmi'
+import { readStakingPool } from '@/lib/contracts/defiReads'
+import { optionalDeployment } from '@/lib/contracts/deployment'
+import { STAKING_MODULE_ABI as STAKING_EXECUTOR_ABI } from '@/lib/contracts/runtimeAbis'
 import { useStableNetContext } from '@/providers'
 import type { StakingAccountConfig, StakingPool, StakingPosition } from '@/types/defi'
 import { useUserOp } from './useUserOp'
@@ -30,67 +32,13 @@ export interface UseStakingReturn {
   clearError: () => void
 }
 
-// ============================================================================
-// Constants
-// ============================================================================
-
-// Staking executor module address (deployed on local devnet)
-const STAKING_EXECUTOR_ADDRESS = '0x610178dA211FEF7D417bC0e6FeD39F05609AD788' as const
-
-// Default staking pools for demo (would come from on-chain registry in production)
-const DEFAULT_POOLS: StakingPool[] = [
-  {
-    address: '0x0000000000000000000000000000000000000001' as Address,
-    stakingToken: {
-      address: '0x0000000000000000000000000000000000000000' as Address,
-      name: 'KRC',
-      symbol: 'KRC',
-      decimals: 18,
-    },
-    rewardToken: {
-      address: '0x0000000000000000000000000000000000000000' as Address,
-      name: 'KRC',
-      symbol: 'KRC',
-      decimals: 18,
-    },
-    minStake: 100000000000000000n, // 0.1 KRC
-    maxStake: 100000000000000000000n, // 100 KRC
-    apr: 5.2,
-    tvl: 1250000000000000000000n, // 1250 KRC
-    isRegistered: true,
-  },
-  {
-    address: '0x0000000000000000000000000000000000000002' as Address,
-    stakingToken: {
-      address: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as Address,
-      name: 'StableNet USD',
-      symbol: 'snUSD',
-      decimals: 18,
-    },
-    rewardToken: {
-      address: '0x0000000000000000000000000000000000000000' as Address,
-      name: 'KRC',
-      symbol: 'KRC',
-      decimals: 18,
-    },
-    minStake: 10000000000000000000n, // 10 snUSD
-    maxStake: 1000000000000000000000n, // 1000 snUSD
-    apr: 3.8,
-    tvl: 52000000000000000000000n, // 52,000 snUSD
-    isRegistered: true,
-  },
-]
-
-// ============================================================================
-// Hook
-// ============================================================================
-
 export function useStaking(): UseStakingReturn {
   const { address } = useAccount()
-  const { publicClient } = useStableNetContext()
+  const { publicClient, chainId } = useStableNetContext()
   const { sendUserOp } = useUserOp()
+  const executorAddress = optionalDeployment(chainId, 'stakingExecutor')
 
-  const [pools, _setPools] = useState<StakingPool[]>(DEFAULT_POOLS)
+  const [pools, setPools] = useState<StakingPool[]>([])
   const [positions, setPositions] = useState<StakingPosition[]>([])
   const [accountConfig, setAccountConfig] = useState<StakingAccountConfig | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -98,105 +46,65 @@ export function useStaking(): UseStakingReturn {
   const [error, setError] = useState<string | null>(null)
   const [executorInstalled, setExecutorInstalled] = useState(false)
   const fetchIdRef = useRef(0)
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-
-  // Fetch account config and positions
   const fetchAccountData = useCallback(async () => {
-    if (!address || !publicClient) return
     const id = ++fetchIdRef.current
-
-    setIsLoading(true)
+    setPools([])
+    setPositions([])
+    setAccountConfig(null)
+    setExecutorInstalled(false)
     setError(null)
+    setIsLoading(true)
     try {
-      // Check if staking executor is installed by reading account config
-      const config = (await publicClient.readContract({
-        address: STAKING_EXECUTOR_ADDRESS,
+      if (!address) return
+      if (!executorAddress) throw Error(`Staking executor is not deployed on chain ${chainId}`)
+      const [maxStakePerPool, dailyStakeLimit, dailyUsed, isActive, isPaused] =
+        await publicClient.readContract({
+          address: executorAddress,
+          abi: STAKING_EXECUTOR_ABI,
+          functionName: 'getAccountConfig',
+          args: [address],
+        })
+      const allowed = await publicClient.readContract({
+        address: executorAddress,
         abi: STAKING_EXECUTOR_ABI,
-        functionName: 'getAccountConfig',
+        functionName: 'getAllowedPools',
         args: [address],
-      })) as [bigint, bigint, bigint, boolean, boolean]
-
+      })
+      const entries = await Promise.all(
+        allowed.map((pool) => readStakingPool(publicClient, pool, address))
+      )
       if (id !== fetchIdRef.current) return
-
-      const [maxStakePerPool, dailyStakeLimit, dailyUsed, isActive, isPaused] = config
-      setExecutorInstalled(isActive)
       setAccountConfig({
         maxStakePerPool,
         dailyStakeLimit,
         dailyUsed,
-        lastResetTime: 0n,
         isActive,
         isPaused,
+        lastResetTime: 0n,
       })
-
-      if (!isActive) {
-        setPositions([])
-        return
-      }
-
-      // Fetch positions for each pool
-      const positionPromises = pools.map(async (pool) => {
-        try {
-          const stakedAmount = (await publicClient.readContract({
-            address: STAKING_EXECUTOR_ADDRESS,
-            abi: STAKING_EXECUTOR_ABI,
-            functionName: 'getStakedAmount',
-            args: [address, pool.address],
-          })) as bigint
-
-          if (stakedAmount === 0n) return null
-
-          const pendingRewards = (await publicClient.readContract({
-            address: STAKING_EXECUTOR_ADDRESS,
-            abi: STAKING_EXECUTOR_ABI,
-            functionName: 'getPendingRewards',
-            args: [address, pool.address],
-          })) as bigint
-
-          return {
-            pool: pool.address,
-            stakedAmount,
-            rewardsEarned: pendingRewards,
-            stakingToken: pool.stakingToken,
-            rewardToken: pool.rewardToken,
-            stakedAt: 0,
-          } satisfies StakingPosition
-        } catch {
-          return null
-        }
-      })
-
-      const results = await Promise.all(positionPromises)
-      if (id !== fetchIdRef.current) return
-      setPositions(results.filter((p): p is StakingPosition => p !== null))
-    } catch {
-      if (id !== fetchIdRef.current) return
-      // If the read fails, the executor is likely not installed
-      setExecutorInstalled(false)
-      setAccountConfig(null)
-      setPositions([])
+      setExecutorInstalled(isActive)
+      setPools(entries.map((e) => e.pool))
+      setPositions(
+        entries.map((e) => e.position).filter((p) => p.stakedAmount > 0n || p.rewardsEarned > 0n)
+      )
+    } catch (err) {
+      if (id === fetchIdRef.current)
+        setError(err instanceof Error ? err.message : 'Unable to read staking state')
     } finally {
-      if (id === fetchIdRef.current) {
-        setIsLoading(false)
-      }
+      if (id === fetchIdRef.current) setIsLoading(false)
     }
-  }, [address, publicClient, pools])
-
+  }, [address, publicClient, executorAddress, chainId])
   useEffect(() => {
-    fetchAccountData()
-  }, [fetchAccountData])
-
-  // Cleanup refresh timer on unmount
-  useEffect(() => {
+    void fetchAccountData()
     return () => {
-      clearTimeout(refreshTimerRef.current)
+      fetchIdRef.current++
     }
-  }, [])
+  }, [fetchAccountData])
 
   // Send a staking executor operation via useUserOp
   const sendExecutorOp = useCallback(
     async (calldata: Hex): Promise<Hex | null> => {
-      if (!address) {
+      if (!address || !executorAddress) {
         setError('Wallet not connected')
         return null
       }
@@ -209,17 +117,21 @@ export function useStaking(): UseStakingReturn {
       setError(null)
       try {
         const result = await sendUserOp(address, {
-          to: STAKING_EXECUTOR_ADDRESS,
+          to: executorAddress,
           value: 0n,
           data: calldata,
         })
 
-        if (!result) {
-          throw new Error('Failed to send UserOperation')
+        if (!result?.success) {
+          throw new Error(
+            result?.status === 'submitted'
+              ? 'Transaction submitted; confirmation pending'
+              : 'Transaction failed'
+          )
         }
 
-        refreshTimerRef.current = setTimeout(() => fetchAccountData(), 3000)
-        return result.userOpHash
+        await fetchAccountData()
+        return result.transactionHash ?? result.userOpHash
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Operation failed'
         setError(msg)
@@ -228,11 +140,57 @@ export function useStaking(): UseStakingReturn {
         setIsExecuting(false)
       }
     },
-    [address, executorInstalled, sendUserOp, fetchAccountData]
+    [address, executorAddress, executorInstalled, sendUserOp, fetchAccountData]
   )
 
   const stake = useCallback(
     async (pool: Address, amount: bigint) => {
+      if (amount <= 0n) {
+        setError('Amount must be positive')
+        return null
+      }
+      const selected = pools.find((p) => p.address.toLowerCase() === pool.toLowerCase())
+      if (!selected || !address || !executorInstalled || accountConfig?.isPaused) {
+        setError('Staking pool or account is not available')
+        return null
+      }
+      if (amount < selected.minStake || !selected.isRegistered) {
+        setError('Amount is below the pool minimum or pool is inactive')
+        return null
+      }
+      try {
+        const allowance = await publicClient.readContract({
+          address: selected.stakingToken.address,
+          abi: erc20Abi,
+          functionName: 'allowance',
+          args: [address, pool],
+        })
+        if (allowance < amount) {
+          if (allowance > 0n) {
+            const reset = await sendUserOp(address, {
+              to: selected.stakingToken.address,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: 'approve',
+                args: [pool, 0n],
+              }),
+            })
+            if (!reset?.success) throw Error('Approval reset was not confirmed')
+          }
+          const approval = await sendUserOp(address, {
+            to: selected.stakingToken.address,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: 'approve',
+              args: [pool, amount],
+            }),
+          })
+          if (!approval?.success) throw Error('Token approval was not confirmed')
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Approval failed')
+        return null
+      }
       const calldata = encodeFunctionData({
         abi: STAKING_EXECUTOR_ABI,
         functionName: 'stake',
@@ -240,11 +198,15 @@ export function useStaking(): UseStakingReturn {
       })
       return sendExecutorOp(calldata)
     },
-    [sendExecutorOp]
+    [sendExecutorOp, pools, address, executorInstalled, accountConfig, publicClient, sendUserOp]
   )
 
   const unstake = useCallback(
     async (pool: Address, amount: bigint) => {
+      if (amount <= 0n) {
+        setError('Amount must be positive')
+        return null
+      }
       const calldata = encodeFunctionData({
         abi: STAKING_EXECUTOR_ABI,
         functionName: 'unstake',

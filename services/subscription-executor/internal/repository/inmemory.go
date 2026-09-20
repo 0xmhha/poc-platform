@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -148,10 +149,12 @@ func (r *InMemoryRepository) GetExecutionRecords(ctx context.Context, subscripti
 	defer r.mu.RUnlock()
 
 	records := r.executionRecords[subscriptionID]
-	if len(records) > limit {
-		return records[:limit], nil
+	result := make([]*model.ExecutionRecord, 0)
+	for i := len(records) - 1; i >= 0 && len(result) < limit; i-- {
+		copy := *records[i]
+		result = append(result, &copy)
 	}
-	return records, nil
+	return result, nil
 }
 
 func (r *InMemoryRepository) GetIdempotencyRecord(ctx context.Context, key, method, path string) (*model.IdempotencyRecord, error) {
@@ -203,4 +206,53 @@ func (r *InMemoryRepository) Ping(ctx context.Context) error {
 
 func (r *InMemoryRepository) Close() {
 	// No-op for in-memory
+}
+
+func (r *InMemoryRepository) SaveExecutionUserOpHash(ctx context.Context, id int64, hash string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, records := range r.executionRecords {
+		for _, record := range records {
+			if record.ID == fmt.Sprint(id) && record.Status == "pending" && (record.UserOpHash == "" || record.UserOpHash == hash) {
+				record.UserOpHash = hash
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("pending execution not found")
+}
+func (r *InMemoryRepository) FinalizeExecution(ctx context.Context, id int64, txHash string, gasUsed uint64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, records := range r.executionRecords {
+		for _, record := range records {
+			if record.ID != fmt.Sprint(id) {
+				continue
+			}
+			if record.Status == "success" {
+				return nil
+			}
+			if record.Status != "pending" {
+				return fmt.Errorf("execution is not pending")
+			}
+			sub := r.subscriptions[record.SubscriptionID]
+			if sub == nil {
+				return fmt.Errorf("subscription not found")
+			}
+			now := time.Now()
+			sub.LastExecution = &now
+			sub.ExecutionCount++
+			sub.NextExecution = now.Add(time.Duration(sub.Interval) * time.Second)
+			sub.UpdatedAt = now
+			if sub.MaxExecutions > 0 && sub.ExecutionCount >= sub.MaxExecutions {
+				sub.Status = model.StatusExpired
+			}
+			record.Status = "success"
+			record.TxHash = txHash
+			record.GasUsed = new(big.Int).SetUint64(gasUsed)
+			record.Error = ""
+			return nil
+		}
+	}
+	return fmt.Errorf("execution not found")
 }

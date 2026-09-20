@@ -6,7 +6,7 @@ import {
   encodeVerifyingPayload,
   PaymasterType as PaymasterTypeEnum,
 } from '@stablenet/core'
-import type { Address, Hex } from 'viem'
+import type { Address, Hex, PublicClient } from 'viem'
 import type { SponsorPolicyManager } from '../policy/sponsorPolicy'
 import type { ReservationTracker } from '../settlement/reservationTracker'
 import { computeUserOpHash } from '../settlement/userOpHasher'
@@ -57,6 +57,38 @@ function estimateMaxTokenCostFromGas(gasCostWei: bigint): bigint {
 
 export type { GetPaymasterDataParams }
 
+/** ABI for reading senderNonce from Verifying/Sponsor paymaster contracts */
+const SENDER_NONCE_ABI = [
+  {
+    name: 'senderNonce',
+    type: 'function',
+    inputs: [{ name: 'sender', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
+
+/**
+ * Read the on-chain senderNonce for a given sender from the paymaster contract.
+ * Fail closed on RPC errors; never sign with a fabricated zero nonce.
+ */
+async function readSenderNonce(
+  client: PublicClient,
+  paymasterAddress: Address,
+  sender: Address
+): Promise<bigint> {
+  const nonce = await client.readContract({
+    address: paymasterAddress,
+    abi: SENDER_NONCE_ABI,
+    functionName: 'senderNonce',
+    args: [sender],
+  })
+  if (typeof nonce !== 'bigint' || nonce < 0n || nonce > 0xffffffffffffffffn) {
+    throw new Error('Invalid on-chain paymaster nonce')
+  }
+  return nonce
+}
+
 /**
  * Handler configuration
  */
@@ -69,6 +101,8 @@ export interface GetPaymasterDataConfig {
   supportedEntryPoints: Address[]
   /** Reservation tracker for userOpHash ↔ reservation mapping (Phase 1) */
   reservationTracker?: ReservationTracker
+  /** PublicClient for on-chain reads (e.g. senderNonce) */
+  client?: PublicClient
 }
 
 /**
@@ -153,10 +187,29 @@ async function handleVerifyingData(
   paymasterAddress: Address
 ): Promise<GetPaymasterDataResult> {
   const { userOp, entryPoint, chainId, context } = params
-  const { signer, policyManager, reservationTracker } = config
+  const { signer, policyManager, reservationTracker, client } = config
 
   const policyId = context?.policyId ?? 'default'
   const normalizedUserOp = normalizeUserOp(userOp)
+  if (!client) {
+    return {
+      success: false,
+      error: { code: -32603, message: 'Chain client is required for paymaster nonce' },
+    }
+  }
+  let senderNonce: bigint
+  try {
+    senderNonce = await readSenderNonce(
+      client,
+      paymasterAddress,
+      normalizedUserOp.sender as Address
+    )
+  } catch {
+    return {
+      success: false,
+      error: { code: -32603, message: 'Unable to read on-chain paymaster nonce' },
+    }
+  }
   const estimatedGasCost = estimateGasCost(normalizedUserOp)
 
   // Atomically check policy and reserve spending to prevent TOCTOU race
@@ -181,7 +234,7 @@ async function handleVerifyingData(
     PaymasterTypeEnum.VERIFYING,
     payload,
     undefined,
-    undefined,
+    senderNonce,
     paymasterAddress
   )
 
@@ -211,7 +264,7 @@ async function handleSponsorData(
   paymasterAddress: Address
 ): Promise<GetPaymasterDataResult> {
   const { userOp, entryPoint, chainId, context } = params
-  const { signer, policyManager, reservationTracker } = config
+  const { signer, policyManager, reservationTracker, client } = config
 
   const campaignId = context?.campaignId ?? (('0x' + '00'.repeat(32)) as Hex)
   const perUserLimit = BigInt(context?.perUserLimit ?? 0)
@@ -228,6 +281,25 @@ async function handleSponsorData(
 
   const policyId = context?.policyId ?? 'default'
   const normalizedUserOp = normalizeUserOp(userOp)
+  if (!client) {
+    return {
+      success: false,
+      error: { code: -32603, message: 'Chain client is required for paymaster nonce' },
+    }
+  }
+  let senderNonce: bigint
+  try {
+    senderNonce = await readSenderNonce(
+      client,
+      paymasterAddress,
+      normalizedUserOp.sender as Address
+    )
+  } catch {
+    return {
+      success: false,
+      error: { code: -32603, message: 'Unable to read on-chain paymaster nonce' },
+    }
+  }
   const estimatedGasCost = estimateGasCost(normalizedUserOp)
 
   // Atomically check policy and reserve spending to prevent TOCTOU race
@@ -244,7 +316,7 @@ async function handleSponsorData(
     PaymasterTypeEnum.SPONSOR,
     payload,
     undefined,
-    undefined,
+    senderNonce,
     paymasterAddress
   )
 

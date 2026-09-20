@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuditLogs } from '../useAuditLogs'
 import { useExpenses } from '../useExpenses'
 import { usePayroll } from '../usePayroll'
@@ -7,17 +7,22 @@ import { usePools } from '../usePools'
 import { useTokens } from '../useTokens'
 import { useTransactionHistory } from '../useTransactionHistory'
 
-// Mock context — hooks import from @/providers/StableNetProvider directly
+const mocks = vi.hoisted(() => ({
+  read: vi.fn(),
+  client: { readContract: vi.fn(), multicall: vi.fn() },
+}))
 vi.mock('@/providers/StableNetProvider', () => ({
   useStableNetContext: () => ({
     chainId: 31337,
     indexerUrl: 'http://localhost:4000',
-    publicClient: {
-      readContract: vi.fn(),
-      multicall: vi.fn(),
-    },
+    publicClient: mocks.client,
   }),
 }))
+vi.mock('@/lib/contracts/deployment', () => ({
+  optionalDeployment: (_chain: number, key: string) =>
+    key === 'uniswapV2Router' ? '0x1111111111111111111111111111111111111111' : undefined,
+}))
+vi.mock('@stablenet/contracts', () => ({ getChainAddresses: () => ({ raw: {} }) }))
 
 // useTokens imports useWallet from @/hooks/useWallet
 vi.mock('@/hooks/useWallet', () => ({
@@ -39,83 +44,50 @@ vi.mock('@/lib/constants', () => ({
 }))
 
 describe('usePools', () => {
-  const originalFetch = global.fetch
-
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  afterEach(() => {
-    global.fetch = originalFetch
-  })
-
-  it('should fetch pools from Order Router API', async () => {
-    const mockPoolsResponse = {
-      pools: [
-        {
-          address: '0x1234567890123456789012345678901234567890',
-          token0: { address: '0x0', symbol: 'ETH', name: 'Ether', decimals: 18 },
-          token1: { address: '0x1', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
-          reserve0: '1000000000000000000000',
-          reserve1: '2500000000000',
-          fee: 0.3,
-          tvl: 5000000,
-          apr: 12.5,
-        },
-      ],
-    }
-
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockPoolsResponse),
+    mocks.client.readContract.mockImplementation(async ({ functionName }) => {
+      const values: Record<string, unknown> = {
+        factory: '0x1111111111111111111111111111111111111111',
+        allPairsLength: 1n,
+        allPairs: '0x2222222222222222222222222222222222222222',
+        token0: '0x3333333333333333333333333333333333333333',
+        token1: '0x4444444444444444444444444444444444444444',
+        getReserves: [1000n, 2000n, 0],
+        totalSupply: 100n,
+        balanceOf: 10n,
+        name: 'Token',
+        symbol: 'TOK',
+        decimals: 6,
+      }
+      if (!(functionName in values)) throw Error(functionName)
+      return values[functionName]
     })
-
+  })
+  it('reads actual reserves, token metadata and LP ownership', async () => {
     const { result } = renderHook(() => usePools())
-
-    expect(result.current.isLoading).toBe(true)
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false)
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.error).toBeNull()
+    expect(result.current.pools[0].reserve0).toBe(1000n)
+    expect(result.current.positions[0]).toMatchObject({
+      liquidity: 10n,
+      token0Amount: 100n,
+      token1Amount: 200n,
+      shareOfPool: 10,
     })
-
-    expect(result.current.pools).toHaveLength(1)
-    expect(result.current.pools[0].token0.symbol).toBe('ETH')
   })
-
-  it('should handle fetch errors', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-    })
-
+  it('surfaces RPC failure instead of fabricated pools', async () => {
+    mocks.client.readContract.mockRejectedValue(Error('RPC unavailable'))
     const { result } = renderHook(() => usePools())
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false)
-    })
-
-    expect(result.current.error).toBeTruthy()
-    expect(result.current.pools).toHaveLength(0)
+    await waitFor(() => expect(result.current.error?.message).toBe('RPC unavailable'))
+    expect(result.current.pools).toEqual([])
   })
-
-  it('should allow manual refresh', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ pools: [] }),
-    })
-
+  it('refreshes on-chain state', async () => {
     const { result } = renderHook(() => usePools())
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false)
-    })
-
-    await act(async () => {
-      await result.current.refresh()
-    })
-
-    // Called at least twice: initial fetch + refresh (pools + positions each)
-    expect(global.fetch).toHaveBeenCalled()
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    const count = mocks.client.readContract.mock.calls.length
+    await act(() => result.current.refresh())
+    expect(mocks.client.readContract.mock.calls.length).toBeGreaterThan(count)
   })
 })
 
@@ -386,3 +358,8 @@ describe('useTransactionHistory', () => {
     expect(mockFetchTransactions).not.toHaveBeenCalled()
   })
 })
+
+vi.mock('wagmi', () => ({
+  useAccount: () => ({ address: '0x1111111111111111111111111111111111111111' }),
+  useChainId: () => 8283,
+}))

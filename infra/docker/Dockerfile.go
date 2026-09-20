@@ -1,5 +1,5 @@
 # Go Service Dockerfile
-FROM golang:1.23-alpine AS builder
+FROM golang:1.26.8-alpine AS builder
 
 # Install build dependencies and update CA certificates
 RUN apk add --no-cache git ca-certificates tzdata && \
@@ -22,7 +22,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/main.go
 
 # Production stage
-FROM alpine:3.19
+FROM alpine:3.24
 
 # Install ca-certificates for HTTPS
 RUN apk --no-cache add ca-certificates

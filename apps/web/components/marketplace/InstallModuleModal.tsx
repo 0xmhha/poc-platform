@@ -2,7 +2,8 @@
 
 import { useCallback, useState } from 'react'
 import type { Address, Hex } from 'viem'
-import { isAddress } from 'viem'
+import { encodeAbiParameters, isAddress, parseAbiParameters } from 'viem'
+import { useChainId } from 'wagmi'
 import { Button, Input, Modal, ModalActions } from '@/components/common'
 import { getModuleEntry } from '@/lib/moduleAddresses'
 import type { ModuleCardData } from './ModuleCard'
@@ -94,10 +95,22 @@ function MultisigValidatorForm({ onInitDataChange }: ConfigFormProps) {
       return
     }
 
-    const thresholdHex = t.toString(16).padStart(64, '0')
-    const signerCountHex = signerList.length.toString(16).padStart(64, '0')
-    const signersHex = signerList.map((s) => s.slice(2).toLowerCase().padStart(64, '0')).join('')
-    onInitDataChange(`0x${thresholdHex}${signerCountHex}${signersHex}` as Hex)
+    const uniqueSigners = new Set(signerList.map((signer) => signer.toLowerCase()))
+    if (uniqueSigners.size !== signerList.length) {
+      setError('Duplicate signer addresses are not allowed')
+      return
+    }
+    if (signerList.length > 20) {
+      setError('A maximum of 20 signers is supported')
+      return
+    }
+
+    onInitDataChange(
+      encodeAbiParameters(parseAbiParameters('address[] signers, uint8 threshold'), [
+        signerList as Address[],
+        t,
+      ])
+    )
   }
 
   return (
@@ -142,10 +155,20 @@ function SpendingLimitHookForm({ onInitDataChange }: ConfigFormProps) {
       const limitBigint = BigInt(limitStr || '0')
       const periodBigint = BigInt(periodStr || '86400')
 
-      const tokenHex = tokenStr.slice(2).toLowerCase().padStart(64, '0')
-      const limitHex = limitBigint.toString(16).padStart(64, '0')
-      const periodHex = periodBigint.toString(16).padStart(64, '0')
-      onInitDataChange(`0x${tokenHex}${limitHex}${periodHex}` as Hex)
+      if (limitBigint <= 0n) {
+        setError('Spending limit must be greater than zero')
+        return
+      }
+      if (periodBigint < 3600n) {
+        setError('Period must be at least 3600 seconds')
+        return
+      }
+      onInitDataChange(
+        encodeAbiParameters(
+          parseAbiParameters('address[] tokens, uint256[] limits, uint256[] periods'),
+          [[tokenStr as Address], [limitBigint], [periodBigint]]
+        )
+      )
     } catch {
       setError('Invalid number format')
     }
@@ -239,6 +262,7 @@ export function InstallModuleModal({
   isSmartAccount,
   walletAddress,
 }: InstallModuleModalProps) {
+  const chainId = useChainId()
   const [initData, setInitData] = useState<Hex>('0x')
 
   const handleInstall = useCallback(async () => {
@@ -255,7 +279,7 @@ export function InstallModuleModal({
 
   if (!module) return null
 
-  const entry = getModuleEntry(module.id)
+  const entry = getModuleEntry(module.id, chainId)
 
   const renderConfigForm = () => {
     const formProps: ConfigFormProps = {
@@ -271,6 +295,7 @@ export function InstallModuleModal({
       case 'spending-limit-hook':
         return <SpendingLimitHookForm {...formProps} />
       case 'session-key-validator':
+      case 'session-key-executor':
       case 'subscription-executor':
       case 'social-recovery':
       case 'dex-swap-executor':

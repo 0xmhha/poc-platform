@@ -1,18 +1,21 @@
+import {
+  ENTRY_POINT_ADDRESS,
+  getEcdsaValidator,
+  getEntryPoint,
+  getKernel,
+  getKernelFactory,
+  isChainSupported,
+} from '@stablenet/contracts'
 import { describe, expect, it } from 'vitest'
 
 // ============================================================================
 // F-01: Dynamic contract address resolution
-// RED phase — tests for getSmartAccountAddresses (not yet exported)
+// Validates getSmartAccountAddresses resolves from @stablenet/contracts
 // ============================================================================
 
-// We don't mock @stablenet/contracts here — we want to test that the real
-// chain-aware getters are used by the function under test.
-
-// The function getSmartAccountAddresses does not exist yet → import will fail → RED
 describe('F-01: Dynamic contract address resolution', () => {
   describe('getSmartAccountAddresses', () => {
     it('should return StableNet Local addresses for chain 8283', async () => {
-      // Dynamic import to catch missing export
       const mod = await import('../useSmartAccount')
       const fn = (mod as Record<string, unknown>).getSmartAccountAddresses as
         | ((chainId: number) => {
@@ -28,13 +31,14 @@ describe('F-01: Dynamic contract address resolution', () => {
 
       const addresses = fn(8283)
 
-      expect(addresses.entryPoint).toBe('0xEf6817fe73741A8F10088f9511c64b666a338A14')
-      expect(addresses.kernel).toBe('0xA61b944dd427A85495B685D93237CB73087E0035')
-      expect(addresses.kernelFactory).toBe('0xbEbb0338503F9E28FFDC84C3548F8454F12Dd1D3')
-      expect(addresses.ecdsaValidator).toBe('0xb33DC2d82eAee723ca7687D70209ed9A861b3B46')
+      // Must match @stablenet/contracts values (not hardcoded)
+      expect(addresses.entryPoint).toBe(getEntryPoint(8283))
+      expect(addresses.kernel).toBe(getKernel(8283))
+      expect(addresses.kernelFactory).toBe(getKernelFactory(8283))
+      expect(addresses.ecdsaValidator).toBe(getEcdsaValidator(8283))
     })
 
-    it('should NOT return hardcoded Anvil addresses for chain 8283', async () => {
+    it('should return Anvil addresses for chain 31337 from @stablenet/contracts', async () => {
       const mod = await import('../useSmartAccount')
       const fn = (mod as Record<string, unknown>).getSmartAccountAddresses as
         | ((chainId: number) => {
@@ -48,13 +52,14 @@ describe('F-01: Dynamic contract address resolution', () => {
       expect(fn).toBeDefined()
       if (!fn) return
 
-      const addresses = fn(8283)
+      // Chain 31337 should be registered in @stablenet/contracts
+      expect(isChainSupported(31337)).toBe(true)
 
-      // These are the OLD hardcoded Anvil addresses — must NOT be returned for 8283
-      expect(addresses.entryPoint).not.toBe('0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0')
-      expect(addresses.kernel).not.toBe('0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9')
-      expect(addresses.ecdsaValidator).not.toBe('0x5FC8d32690cc91D4c39d9d3abcBD16989F875707')
-      expect(addresses.kernelFactory).not.toBe('0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9')
+      const addresses = fn(31337)
+      expect(addresses.entryPoint).toBe(getEntryPoint(31337))
+      expect(addresses.kernel).toBe(getKernel(31337))
+      expect(addresses.kernelFactory).toBe(getKernelFactory(31337))
+      expect(addresses.ecdsaValidator).toBe(getEcdsaValidator(31337))
     })
 
     it('should return fallback addresses for unsupported chain', async () => {
@@ -71,9 +76,9 @@ describe('F-01: Dynamic contract address resolution', () => {
       expect(fn).toBeDefined()
       if (!fn) return
 
-      // Should not throw for unsupported chain — returns fallbacks
+      // Should not throw for unsupported chain — returns canonical fallback
       const addresses = fn(99999)
-      expect(addresses.entryPoint).toBeDefined()
+      expect(addresses.entryPoint).toBe(ENTRY_POINT_ADDRESS)
       expect(addresses.kernel).toBeDefined()
     })
   })

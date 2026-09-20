@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAccount, useChainId } from 'wagmi'
+import { enterpriseStorageKey } from '@/lib/enterprise/records'
 import type { AuditLog } from '@/types'
-
-const STORAGE_KEY = 'stablenet:audit-logs'
 
 interface AuditLogFilter {
   action?: string
@@ -43,10 +43,10 @@ function deserializeLogs(json: string): AuditLog[] {
   })) as AuditLog[]
 }
 
-function loadFromStorage(): AuditLog[] {
-  if (typeof window === 'undefined') return []
+function loadFromStorage(storageKey: string | null): AuditLog[] {
+  if (typeof window === 'undefined' || !storageKey) return []
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(storageKey)
     if (!stored) return []
     return deserializeLogs(stored)
   } catch {
@@ -54,16 +54,20 @@ function loadFromStorage(): AuditLog[] {
   }
 }
 
-function saveToStorage(logs: AuditLog[]): void {
-  if (typeof window === 'undefined') return
+function saveToStorage(storageKey: string | null, logs: AuditLog[]): void {
+  if (typeof window === 'undefined' || !storageKey)
+    throw Error('Connect a wallet to save enterprise records')
   try {
-    localStorage.setItem(STORAGE_KEY, serializeLogs(logs))
+    localStorage.setItem(storageKey, serializeLogs(logs))
   } catch {
-    // Storage full or unavailable
+    throw Error('Unable to persist enterprise record')
   }
 }
 
 export function useAuditLogs(config: UseAuditLogsConfig = {}): UseAuditLogsReturn {
+  const { address } = useAccount()
+  const chainId = useChainId()
+  const storageKey = enterpriseStorageKey('audit-logs', chainId, address)
   const { fetchLogs, filter, autoFetch = true } = config
   const [allLogs, setAllLogs] = useState<AuditLog[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -95,25 +99,32 @@ export function useAuditLogs(config: UseAuditLogsConfig = {}): UseAuditLogsRetur
     }
 
     // Default: load from localStorage
-    const logs = loadFromStorage()
+    const logs = loadFromStorage(storageKey)
     if (id !== fetchIdRef.current) return
     setAllLogs(logs)
     setIsLoading(false)
-  }, [fetchLogs])
+  }, [fetchLogs, storageKey])
 
   useEffect(() => {
+    setAllLogs([])
     if (autoFetch) {
       refresh()
     }
+    return () => {
+      fetchIdRef.current++
+    }
   }, [autoFetch, refresh])
 
-  const addLog = useCallback((log: AuditLog) => {
-    setAllLogs((prev) => {
-      const next = [...prev, log]
-      saveToStorage(next)
-      return next
-    })
-  }, [])
+  const addLog = useCallback(
+    (log: AuditLog) => {
+      const next = [...loadFromStorage(storageKey).filter((l) => l.id !== log.id), log].slice(
+        -10000
+      )
+      saveToStorage(storageKey, next)
+      setAllLogs(next)
+    },
+    [storageKey]
+  )
 
   const logs = useMemo(() => {
     if (!filter) return allLogs

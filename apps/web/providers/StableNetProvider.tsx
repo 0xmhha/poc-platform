@@ -1,9 +1,9 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useMemo } from 'react'
-import { createPublicClient, http, type PublicClient } from 'viem'
+import { createPublicClient, custom, http, type PublicClient, zeroAddress } from 'viem'
 import { useAccount, useChainId } from 'wagmi'
-import { getConfigByChainId, getStablenetLocal } from '@/lib/chains'
+import { anvilLocal, getConfigByChainId, stablenetLocal, stablenetTestnet } from '@/lib/chains'
 import { getContractAddresses, getServiceUrls } from '@/lib/constants'
 
 interface StableNetContextValue {
@@ -37,10 +37,27 @@ export function StableNetProvider({ children }: StableNetProviderProps) {
   // Memoize publicClient separately so it is not recreated when isConnected toggles
   const publicClient = useMemo(() => {
     const networkConfig = getConfigByChainId(currentChainId)
-    const chain = getStablenetLocal()
+
+    // Use the correct chain definition for the current chainId
+    const chain =
+      currentChainId === 82830
+        ? stablenetTestnet
+        : currentChainId === 31337
+          ? anvilLocal
+          : currentChainId === 8283
+            ? stablenetLocal
+            : undefined
+
     return createPublicClient({
       chain,
-      transport: http(networkConfig?.rpcUrl),
+      transport:
+        networkConfig && chain
+          ? http(networkConfig.rpcUrl)
+          : custom({
+              async request() {
+                throw new Error(`Unsupported chain ${currentChainId}`)
+              },
+            }),
     })
   }, [currentChainId])
 
@@ -48,28 +65,19 @@ export function StableNetProvider({ children }: StableNetProviderProps) {
     const contracts = getContractAddresses(currentChainId)
     const services = getServiceUrls(currentChainId)
 
-    const defaultContracts = getContractAddresses(8283)
-    const defaultServices = getServiceUrls(8283)
-
-    if (!defaultContracts || !defaultServices) {
-      throw new Error(
-        'StableNet default configuration (chainId 8283) is missing. Check your environment setup.'
-      )
-    }
-
     return {
       publicClient,
       chainId: currentChainId,
-      bundlerUrl: services?.bundler ?? defaultServices.bundler,
-      paymasterUrl: services?.paymaster ?? defaultServices.paymaster,
-      stealthServerUrl: services?.stealthServer ?? defaultServices.stealthServer,
-      indexerUrl: services?.indexer ?? defaultServices.indexer,
-      entryPoint: contracts?.entryPoint ?? defaultContracts.entryPoint,
-      accountFactory: contracts?.accountFactory ?? defaultContracts.accountFactory,
-      paymaster: contracts?.paymaster ?? defaultContracts.paymaster,
-      stealthAnnouncer: contracts?.stealthAnnouncer ?? defaultContracts.stealthAnnouncer,
-      stealthRegistry: contracts?.stealthRegistry ?? defaultContracts.stealthRegistry,
-      isReady: isConnected,
+      bundlerUrl: services?.bundler ?? '',
+      paymasterUrl: services?.paymaster ?? '',
+      stealthServerUrl: services?.stealthServer ?? '',
+      indexerUrl: services?.indexer ?? '',
+      entryPoint: contracts?.entryPoint ?? zeroAddress,
+      accountFactory: contracts?.accountFactory ?? zeroAddress,
+      paymaster: contracts?.paymaster ?? zeroAddress,
+      stealthAnnouncer: contracts?.stealthAnnouncer ?? zeroAddress,
+      stealthRegistry: contracts?.stealthRegistry ?? zeroAddress,
+      isReady: isConnected && !!contracts && !!services && !!getConfigByChainId(currentChainId),
     }
   }, [currentChainId, isConnected, publicClient])
 

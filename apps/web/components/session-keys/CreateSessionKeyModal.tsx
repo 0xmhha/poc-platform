@@ -272,14 +272,15 @@ export const CreateSessionKeyModal: FC<CreateSessionKeyModalProps> = ({
               </span>
               <input
                 type="text"
-                placeholder="0 = unlimited"
+                placeholder="0 = no native transfers"
                 value={spendingLimit}
                 onChange={(e) => setSpendingLimit(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:outline-none"
                 style={{ borderColor: 'rgb(var(--border))' }}
               />
               <p className="mt-1 text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
-                Leave empty or set to 0 for unlimited spending
+                This limit covers native value only. Token transfers require carefully scoped
+                contract permissions.
               </p>
             </div>
           </div>
@@ -367,7 +368,7 @@ export const CreateSessionKeyModal: FC<CreateSessionKeyModalProps> = ({
 
             <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
               {permissions.length === 0
-                ? 'No permissions added. The session key will have full access.'
+                ? 'No permissions added. The session key cannot execute calls until a permission is granted.'
                 : `${permissions.length} permission(s) configured.`}
             </p>
           </div>
@@ -393,14 +394,14 @@ export const CreateSessionKeyModal: FC<CreateSessionKeyModalProps> = ({
               <div className="flex justify-between text-sm">
                 <span style={{ color: 'rgb(var(--muted-foreground))' }}>Spending Limit</span>
                 <span style={{ color: 'rgb(var(--foreground))' }}>
-                  {spendingLimit ? `${spendingLimit} ETH` : 'Unlimited'}
+                  {spendingLimit ? `${spendingLimit} ETH` : '0 ETH'}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span style={{ color: 'rgb(var(--muted-foreground))' }}>Permissions</span>
                 <span style={{ color: 'rgb(var(--foreground))' }}>
                   {permissions.length === 0
-                    ? 'Full access'
+                    ? 'No calls allowed'
                     : `${permissions.length} restriction(s)`}
                 </span>
               </div>
@@ -442,7 +443,8 @@ export const CreateSessionKeyModal: FC<CreateSessionKeyModalProps> = ({
               Session Key Created!
             </h3>
             <p className="text-sm mb-4" style={{ color: 'rgb(var(--muted-foreground))' }}>
-              Your new session key is ready to use.
+              Your key is registered. Its signer stays in memory while this page is open, for up to
+              24 hours; reloading or switching accounts removes the local signer.
             </p>
             {createdSessionKey && (
               <div

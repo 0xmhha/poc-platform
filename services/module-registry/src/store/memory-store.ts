@@ -1,3 +1,16 @@
+import { randomUUID } from 'node:crypto'
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { dirname } from 'node:path'
 import type {
   ModuleCategory,
   ModuleInstallation,
@@ -14,10 +27,64 @@ export class ModuleStore {
   private readonly installations = new Map<string, ModuleInstallation>()
   private readonly reviews = new Map<string, ModuleReview>()
 
+  constructor(private readonly dataFile?: string) {
+    if (dataFile && existsSync(dataFile)) this.restore(readFileSync(dataFile, 'utf8'))
+  }
+  private snapshot(): string {
+    return JSON.stringify({
+      version: 1,
+      modules: [...this.modules],
+      installations: [...this.installations],
+      reviews: [...this.reviews],
+    })
+  }
+  private restore(content: string): void {
+    const state = JSON.parse(content)
+    if (
+      state.version !== 1 ||
+      ![state.modules, state.installations, state.reviews].every(Array.isArray)
+    )
+      throw Error('Invalid module registry snapshot')
+    for (const [map, entries] of [
+      [this.modules, state.modules],
+      [this.installations, state.installations],
+      [this.reviews, state.reviews],
+    ] as const) {
+      map.clear()
+      for (const [key, value] of entries) map.set(key, value)
+    }
+  }
+  private mutate<T>(action: () => T): T {
+    const previous = this.snapshot()
+    try {
+      const result = action()
+      if (this.dataFile) {
+        mkdirSync(dirname(this.dataFile), { recursive: true, mode: 0o700 })
+        const temp = `${this.dataFile}.${randomUUID()}.tmp`
+        try {
+          writeFileSync(temp, this.snapshot(), { mode: 0o600 })
+          const fd = openSync(temp, 'r')
+          try {
+            fsyncSync(fd)
+          } finally {
+            closeSync(fd)
+          }
+          renameSync(temp, this.dataFile)
+        } finally {
+          rmSync(temp, { force: true })
+        }
+      }
+      return result
+    } catch (error) {
+      this.restore(previous)
+      throw error
+    }
+  }
+
   // ─── Modules ───
 
   addModule(module: ModuleMetadata): void {
-    this.modules.set(module.id, module)
+    this.mutate(() => this.modules.set(module.id, structuredClone(module)))
   }
 
   getModule(id: string): ModuleMetadata | undefined {
@@ -28,12 +95,12 @@ export class ModuleStore {
     const existing = this.modules.get(id)
     if (!existing) return undefined
     const updated = { ...existing, ...updates, updatedAt: new Date().toISOString() }
-    this.modules.set(id, updated)
+    this.mutate(() => this.modules.set(id, updated))
     return updated
   }
 
   deleteModule(id: string): boolean {
-    return this.modules.delete(id)
+    return this.mutate(() => this.modules.delete(id))
   }
 
   listModules(filters?: {
@@ -97,12 +164,15 @@ export class ModuleStore {
   // ─── Installations ───
 
   addInstallation(installation: ModuleInstallation): void {
-    this.installations.set(installation.id, installation)
-    // Increment module install count
-    const module = this.modules.get(installation.moduleId)
-    if (module) {
-      this.modules.set(module.id, { ...module, installCount: module.installCount + 1 })
-    }
+    if (this.installations.has(installation.id)) return
+    this.mutate(() => {
+      this.installations.set(installation.id, structuredClone(installation))
+      // Increment module install count
+      const module = this.modules.get(installation.moduleId)
+      if (module) {
+        this.modules.set(module.id, { ...module, installCount: module.installCount + 1 })
+      }
+    })
   }
 
   getInstallation(id: string): ModuleInstallation | undefined {
@@ -124,7 +194,16 @@ export class ModuleStore {
   deactivateInstallation(id: string): boolean {
     const installation = this.installations.get(id)
     if (!installation) return false
-    this.installations.set(id, { ...installation, active: false })
+    if (!installation.active) return true
+    this.mutate(() => {
+      this.installations.set(id, { ...installation, active: false })
+      const module = this.modules.get(installation.moduleId)
+      if (module)
+        this.modules.set(module.id, {
+          ...module,
+          installCount: Math.max(0, module.installCount - 1),
+        })
+    })
     return true
   }
 
@@ -135,8 +214,10 @@ export class ModuleStore {
   // ─── Reviews ───
 
   addReview(review: ModuleReview): void {
-    this.reviews.set(review.id, review)
-    this.recalculateRating(review.moduleId)
+    this.mutate(() => {
+      this.reviews.set(review.id, structuredClone(review))
+      this.recalculateRating(review.moduleId)
+    })
   }
 
   getReviewsForModule(moduleId: string): ModuleReview[] {
@@ -338,7 +419,16 @@ export class ModuleStore {
     ]
 
     for (const module of defaultModules) {
-      this.addModule(module)
+      // Demo descriptions are not evidence of audit or deployment.
+      if (!this.modules.has(module.id))
+        this.addModule({
+          ...module,
+          addresses: {},
+          installCount: 0,
+          rating: 0,
+          ratingCount: 0,
+          auditStatus: 'unaudited',
+        })
     }
   }
 }

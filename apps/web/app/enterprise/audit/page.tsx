@@ -95,7 +95,10 @@ export default function AuditPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <PageHeader title="Audit Log" description="Complete history of all enterprise actions" />
+        <PageHeader
+          title="Audit Log"
+          description="Activity recorded in this browser for the connected account and network"
+        />
         <Button variant="secondary" onClick={handleExportLogs} disabled={filteredLogs.length === 0}>
           <svg
             className="w-5 h-5 mr-2"
@@ -119,7 +122,7 @@ export default function AuditPage() {
         totalActions={auditLogs.length}
         uniqueActors={new Set(auditLogs.map((l) => l.actor)).size}
         onChainPercentage="100%"
-        complianceStatus="Compliant"
+        complianceStatus="Not assessed"
       />
 
       <AuditFilterCard

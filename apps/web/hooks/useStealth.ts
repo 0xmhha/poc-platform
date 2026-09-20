@@ -12,6 +12,7 @@ import {
   getStablenetLocal,
   getStablenetTestnet,
 } from '@/lib/chains'
+import { assertConfirmed } from '@/lib/contracts/deployment'
 import { useStableNetContext } from '@/providers'
 import type { Announcement, StealthMetaAddress } from '@/types'
 
@@ -22,8 +23,10 @@ function resolveChain(chainId: number): ReturnType<typeof getStablenetLocal> {
       return getAnvilLocal()
     case 82830:
       return getStablenetTestnet()
-    default:
+    case 8283:
       return getStablenetLocal()
+    default:
+      throw new Error('Unsupported stealth withdrawal chain')
   }
 }
 
@@ -82,7 +85,10 @@ export function useStealth(config: UseStealthConfig = {}) {
       const data = parts[2]
       // Each compressed public key is 33 bytes = 66 hex chars
       // Total: 0x + 66 + 66 = 134 chars (or 0x + 64 + 66 for some schemes)
-      if (data.length < 132) {
+      if (
+        parts[1] !== 'eth' ||
+        !/^0x(?:02|03)[0-9a-fA-F]{64}(?:02|03)[0-9a-fA-F]{64}$/.test(data)
+      ) {
         throw new Error('Invalid stealth meta address length')
       }
 
@@ -461,7 +467,11 @@ export function useStealth(config: UseStealthConfig = {}) {
         // Create wallet client with the derived stealth private key
         const stealthAccount = privateKeyToAccount(result.stealthPrivateKey)
         const networkConfig = getConfigByChainId(chainId)
+        if (!networkConfig?.rpcUrl) throw new Error('Chain RPC is not configured')
         const chain = resolveChain(chainId)
+        if (stealthAccount.address.toLowerCase() !== announcement.stealthAddress.toLowerCase())
+          throw new Error('Derived stealth address does not match announcement')
+        const available = await publicClient.getBalance({ address: stealthAccount.address })
         const walletClient = createWalletClient({
           account: stealthAccount,
           chain,
@@ -472,11 +482,11 @@ export function useStealth(config: UseStealthConfig = {}) {
         const gasEstimate = await publicClient.estimateGas({
           account: stealthAccount,
           to: recipientAddress,
-          value: announcement.value,
+          value: 0n,
         })
         const gasPrice = await publicClient.getGasPrice()
         const gasCost = gasEstimate * gasPrice
-        const sendValue = announcement.value - gasCost
+        const sendValue = available - gasCost
 
         if (sendValue <= 0n) {
           throw new Error('Insufficient balance in stealth address to cover gas costs')
@@ -486,8 +496,11 @@ export function useStealth(config: UseStealthConfig = {}) {
         const hash = await walletClient.sendTransaction({
           to: recipientAddress,
           value: sendValue,
+          gas: gasEstimate,
+          gasPrice,
         })
 
+        assertConfirmed(await publicClient.waitForTransactionReceipt({ hash }))
         return { hash }
       } catch (err) {
         const withdrawError =

@@ -1,3 +1,4 @@
+import { getEntryPoint } from '@stablenet/contracts'
 import type { Address, Hex } from 'viem'
 import { describe, expect, it, vi } from 'vitest'
 import { type ContractSignerConfig, PaymasterSigner } from '../src/signer/paymasterSigner'
@@ -131,7 +132,7 @@ describe('PaymasterSigner', () => {
           maxPriorityFeePerGas: '0x1' as Hex,
           signature: '0x' as Hex,
         },
-        '0xEf6817fe73741A8F10088f9511c64b666a338A14' as Address,
+        getEntryPoint(8283),
         1n,
         'verifying' as never,
         '0x' as Hex

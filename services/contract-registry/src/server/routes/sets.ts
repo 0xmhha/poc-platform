@@ -15,7 +15,7 @@ export function registerSetRoutes(
   app: FastifyInstance,
   store: InMemoryStore,
   apiKey: string | undefined,
-  onMutation: () => void
+  onMutation: () => void | Promise<void>
 ) {
   const authHook = createAuthHook(apiKey)
 
@@ -55,7 +55,7 @@ export function registerSetRoutes(
         contracts: body.contracts,
         description: body.description,
       })
-      onMutation()
+      await onMutation()
       return reply.status(201).send(addressSet)
     }
   )
@@ -72,7 +72,7 @@ export function registerSetRoutes(
           message: `Address set ${params.name} not found on chain ${params.chainId}`,
         })
       }
-      onMutation()
+      await onMutation()
       return { success: true }
     }
   )

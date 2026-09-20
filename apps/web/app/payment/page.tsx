@@ -13,6 +13,15 @@ export default function PaymentPage() {
         <p style={{ color: 'rgb(var(--muted-foreground))' }}>Send and receive payments</p>
       </div>
 
+      <Link
+        href="/payment/simulator"
+        className="block rounded-xl border border-blue-300 p-5 hover:bg-blue-50"
+      >
+        <span className="font-semibold">결제 실험실</span>
+        <p className="text-sm mt-1 text-slate-500">
+          가맹점 결제, 환불, 코인 구매·판매를 가상 자금으로 시험하세요.
+        </p>
+      </Link>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Link href="/payment/send">
           <Card className="hover:shadow-md transition-all cursor-pointer h-full" hover>

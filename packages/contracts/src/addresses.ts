@@ -4,9 +4,9 @@
 
 import type { Address } from 'viem'
 import {
-  DEFAULT_TOKENS,
   CHAIN_ADDRESSES as GENERATED_CHAIN_ADDRESSES,
-  SERVICE_URLS,
+  DEFAULT_TOKENS as GENERATED_DEFAULT_TOKENS,
+  SERVICE_URLS as GENERATED_SERVICE_URLS,
 } from './generated/addresses'
 import {
   ACCOUNT_MANAGER_ADDRESS,
@@ -22,6 +22,7 @@ import {
   SYSTEM_CONTRACTS,
   SYSTEM_PRECOMPILES,
 } from './precompiles'
+import { STATIC_CHAIN_ADDRESSES, STATIC_DEFAULT_TOKENS, STATIC_SERVICE_URLS } from './staticChains'
 import type {
   ChainAddresses,
   ChainConfig,
@@ -31,8 +32,8 @@ import type {
   TokenDefinition,
 } from './types'
 
-// Merge precompiles into chain addresses immutably (no side-effect mutation)
-export const CHAIN_ADDRESSES: Record<number, ChainAddresses> = Object.fromEntries(
+// Merge generated chain addresses with precompiles, then overlay static chains
+const generatedWithPrecompiles: Record<number, ChainAddresses> = Object.fromEntries(
   Object.entries(GENERATED_CHAIN_ADDRESSES).map(([id, chain]) => {
     const chainId = Number(id)
     const precompiles = CHAIN_PRECOMPILES[chainId]
@@ -40,8 +41,20 @@ export const CHAIN_ADDRESSES: Record<number, ChainAddresses> = Object.fromEntrie
   })
 )
 
-// Re-export generated data
-export { DEFAULT_TOKENS, SERVICE_URLS }
+export const CHAIN_ADDRESSES: Record<number, ChainAddresses> = {
+  ...generatedWithPrecompiles,
+  ...STATIC_CHAIN_ADDRESSES,
+}
+
+export const SERVICE_URLS: Record<number, ServiceUrls> = {
+  ...GENERATED_SERVICE_URLS,
+  ...STATIC_SERVICE_URLS,
+}
+
+export const DEFAULT_TOKENS: Record<number, TokenDefinition[]> = {
+  ...GENERATED_DEFAULT_TOKENS,
+  ...STATIC_DEFAULT_TOKENS,
+}
 
 // Re-export precompile constants
 export {
@@ -64,15 +77,13 @@ export {
  */
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
-// ─── Canonical Addresses (same on all production EVM chains via CREATE2) ─────
-// These are used as SDK defaults for chains without local deployment data.
-// Per-chain deployed addresses live in `generated/addresses.ts` (CHAIN_ADDRESSES).
-// Use `getEntryPoint(chainId)` to get the correct address for a given chain —
-// it returns the chain-specific address when available, or falls back to the
-// canonical address below.
+// ─── Default Addresses ────────────────────────────────────────────────────
+// SDK defaults follow the StableNet local deployment registry.
+// Use `getEntryPoint(chainId)` for a specific supported chain; unsupported
+// chains throw instead of silently falling back to a different deployment.
 
-/** Canonical EntryPoint address (ERC-4337 v0.9, StableNet deployment) */
-export const ENTRY_POINT_ADDRESS: Address = '0xEf6817fe73741A8F10088f9511c64b666a338A14'
+/** Default EntryPoint address (ERC-4337 v0.9, StableNet local deployment). */
+export const ENTRY_POINT_ADDRESS: Address = getEntryPoint(8283)
 
 /** Explicit v0.9 alias for multi-version codebases */
 export const ENTRY_POINT_V09_ADDRESS: Address = ENTRY_POINT_ADDRESS

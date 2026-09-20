@@ -13,8 +13,8 @@ import (
 
 // GuardianMonitor monitors the BridgeGuardian contract for emergency events
 type GuardianMonitor struct {
-	ethClient  *ethereum.Client
-	contracts  config.ContractConfig
+	ethClient *ethereum.Client
+	contracts config.ContractConfig
 
 	// State tracking
 	mu              sync.RWMutex
@@ -29,7 +29,8 @@ type GuardianMonitor struct {
 	proposalChan chan domain.GuardianProposal
 
 	// State
-	isRunning bool
+	isRunning    bool
+	lastProposal uint64
 }
 
 // GuardianPauseEvent represents a pause event
@@ -104,12 +105,7 @@ func (m *GuardianMonitor) monitorPauseEvents(ctx context.Context) {
 
 // checkPauseEvents checks for new pause events
 func (m *GuardianMonitor) checkPauseEvents(ctx context.Context) error {
-	// In production, this would:
-	// 1. Query EmergencyPause events from BridgeGuardian contract
-	// 2. Update paused state
-	// 3. Send to pauseChan
-
-	return nil
+	return m.queryBridgePauseStatus(ctx)
 }
 
 // monitorProposals monitors for guardian proposals
@@ -138,12 +134,7 @@ func (m *GuardianMonitor) monitorProposals(ctx context.Context) {
 
 // checkProposalEvents checks for new proposal events
 func (m *GuardianMonitor) checkProposalEvents(ctx context.Context) error {
-	// In production, this would:
-	// 1. Query ProposalCreated, ProposalApproved, ProposalExecuted events
-	// 2. Update activeProposals map
-	// 3. Send relevant proposals to proposalChan
-
-	return nil
+	return m.refreshProposals(ctx)
 }
 
 // checkBridgeStatus periodically checks the bridge's paused status
@@ -172,8 +163,20 @@ func (m *GuardianMonitor) checkBridgeStatus(ctx context.Context) {
 
 // queryBridgePauseStatus queries the current pause status from the contract
 func (m *GuardianMonitor) queryBridgePauseStatus(ctx context.Context) error {
-	// In production, this would call the paused() function on the SecureBridge
-	// For PoC, we use the local state
+	result, err := m.ethClient.ReadContract(ctx, m.contracts.BridgeGuardian, `[{"type":"function","name":"guardianPaused","inputs":[],"outputs":[{"type":"bool"}]}]`, "guardianPaused", false)
+	if err != nil {
+		return err
+	}
+	paused := result[0].(bool)
+	m.mu.RLock()
+	previous := m.isPaused
+	m.mu.RUnlock()
+	if paused && !previous {
+		m.SetPaused(m.contracts.BridgeGuardian, "On-chain guardian pause")
+	}
+	if !paused && previous {
+		m.SetUnpaused()
+	}
 	return nil
 }
 

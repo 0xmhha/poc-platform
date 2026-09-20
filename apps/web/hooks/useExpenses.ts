@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAccount, useChainId } from 'wagmi'
+import { enterpriseStorageKey, validateExpense } from '@/lib/enterprise/records'
 import type { Expense } from '@/types'
-
-const STORAGE_KEY = 'stablenet:expenses'
 
 interface ExpenseFilter {
   status?: 'pending' | 'approved' | 'rejected' | 'paid'
@@ -57,10 +57,10 @@ function deserializeExpenses(json: string): Expense[] {
   })) as Expense[]
 }
 
-function loadFromStorage(): Expense[] {
-  if (typeof window === 'undefined') return []
+function loadFromStorage(storageKey: string | null): Expense[] {
+  if (typeof window === 'undefined' || !storageKey) return []
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(storageKey)
     if (!stored) return []
     return deserializeExpenses(stored)
   } catch {
@@ -68,16 +68,20 @@ function loadFromStorage(): Expense[] {
   }
 }
 
-function saveToStorage(expenses: Expense[]): void {
-  if (typeof window === 'undefined') return
+function saveToStorage(storageKey: string | null, expenses: Expense[]): void {
+  if (typeof window === 'undefined' || !storageKey)
+    throw Error('Connect a wallet to save enterprise records')
   try {
-    localStorage.setItem(STORAGE_KEY, serializeExpenses(expenses))
+    localStorage.setItem(storageKey, serializeExpenses(expenses))
   } catch {
-    // Storage full or unavailable
+    throw Error('Unable to persist enterprise record')
   }
 }
 
 export function useExpenses(config: UseExpensesConfig = {}): UseExpensesReturn {
+  const { address } = useAccount()
+  const chainId = useChainId()
+  const storageKey = enterpriseStorageKey('expenses', chainId, address)
   const { fetchExpenses, filter, autoFetch = true } = config
   const [allExpenses, setAllExpenses] = useState<Expense[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -109,41 +113,51 @@ export function useExpenses(config: UseExpensesConfig = {}): UseExpensesReturn {
     }
 
     // Default: load from localStorage
-    const expenses = loadFromStorage()
+    const expenses = loadFromStorage(storageKey)
     if (id !== fetchIdRef.current) return
     setAllExpenses(expenses)
     setIsLoading(false)
-  }, [fetchExpenses])
+  }, [fetchExpenses, storageKey])
 
   useEffect(() => {
+    setAllExpenses([])
     if (autoFetch) {
       refresh()
     }
+    return () => {
+      fetchIdRef.current++
+    }
   }, [autoFetch, refresh])
 
-  const addExpense = useCallback((expense: Expense) => {
-    setAllExpenses((prev) => {
-      const next = [...prev, expense]
-      saveToStorage(next)
-      return next
-    })
-  }, [])
+  const addExpense = useCallback(
+    (expense: Expense) => {
+      const next = [...loadFromStorage(storageKey).filter((e) => e.id !== expense.id), expense]
+      next.forEach(validateExpense)
+      saveToStorage(storageKey, next)
+      setAllExpenses(next)
+    },
+    [storageKey]
+  )
 
-  const updateExpense = useCallback((id: string, updates: Partial<Expense>) => {
-    setAllExpenses((prev) => {
-      const next = prev.map((e) => (e.id === id ? { ...e, ...updates } : e))
-      saveToStorage(next)
-      return next
-    })
-  }, [])
+  const updateExpense = useCallback(
+    (id: string, updates: Partial<Expense>) => {
+      const next = loadFromStorage(storageKey).map((e) => (e.id === id ? { ...e, ...updates } : e))
+      next.forEach(validateExpense)
+      saveToStorage(storageKey, next)
+      setAllExpenses(next)
+    },
+    [storageKey]
+  )
 
-  const removeExpense = useCallback((id: string) => {
-    setAllExpenses((prev) => {
-      const next = prev.filter((e) => e.id !== id)
-      saveToStorage(next)
-      return next
-    })
-  }, [])
+  const removeExpense = useCallback(
+    (id: string) => {
+      const next = loadFromStorage(storageKey).filter((e) => e.id !== id)
+      next.forEach(validateExpense)
+      saveToStorage(storageKey, next)
+      setAllExpenses(next)
+    },
+    [storageKey]
+  )
 
   const expenses = useMemo(() => {
     if (!filter) return allExpenses

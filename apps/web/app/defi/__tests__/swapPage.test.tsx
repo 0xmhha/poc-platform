@@ -7,6 +7,7 @@ const mockUseSwap = vi.fn(() => ({
   isLoading: false,
   error: null,
   getQuote: vi.fn(),
+  clearQuote: vi.fn(),
   executeSwap: vi.fn(),
 }))
 

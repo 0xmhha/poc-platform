@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/hex"
 	"net/http"
 	"time"
@@ -105,7 +106,10 @@ func (h *Handler) ReadyCheck(c *gin.Context) {
 	hasQuorum := h.mpcClient.HasQuorum()
 	isPaused := h.guardianMonitor.IsPaused()
 
-	ready := hasQuorum && !isPaused
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+	defer cancel()
+	sourceSynced, targetSynced := h.monitor.SyncStatus(ctx)
+	ready := hasQuorum && !isPaused && !h.executor.IsPaused() && sourceSynced && targetSynced
 
 	statusCode := http.StatusOK
 	if !ready {
@@ -131,14 +135,17 @@ func (h *Handler) LiveCheck(c *gin.Context) {
 
 // GetStatus returns detailed status information
 func (h *Handler) GetStatus(c *gin.Context) {
-	onlineSigners, _ := h.mpcClient.HealthCheck(c.Request.Context())
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+	defer cancel()
+	sourceSynced, targetSynced := h.monitor.SyncStatus(ctx)
+	onlineSigners, _ := h.mpcClient.HealthCheck(ctx)
 	isPaused, pauseReason, pausedAt, pausedBy := h.guardianMonitor.GetPauseInfo()
 
 	status := domain.RelayerStatus{
-		IsHealthy:          !isPaused && h.mpcClient.HasQuorum(),
+		IsHealthy:          !isPaused && !h.executor.IsPaused() && sourceSynced && targetSynced && h.mpcClient.HasQuorum(),
 		IsPaused:           isPaused || h.executor.IsPaused(),
-		SourceChainSynced:  true, // Would check actual sync status
-		TargetChainSynced:  true,
+		SourceChainSynced:  sourceSynced,
+		TargetChainSynced:  targetSynced,
 		LastProcessedBlock: h.monitor.GetLastProcessedBlock(),
 		PendingRequests:    h.executor.GetPendingRequestCount(),
 		ProcessedRequests:  h.executor.GetProcessedCount(),
@@ -235,15 +242,15 @@ func (h *Handler) GetRequest(c *gin.Context) {
 // GetStats returns statistics
 func (h *Handler) GetStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"pendingRequests":   h.executor.GetPendingRequestCount(),
-		"processedRequests": h.executor.GetProcessedCount(),
-		"failedRequests":    h.executor.GetFailedCount(),
+		"pendingRequests":    h.executor.GetPendingRequestCount(),
+		"processedRequests":  h.executor.GetProcessedCount(),
+		"failedRequests":     h.executor.GetFailedCount(),
 		"lastProcessedBlock": h.monitor.GetLastProcessedBlock(),
-		"mpcSignersOnline":  h.mpcClient.GetOnlineSignerCount(),
-		"mpcThreshold":      h.mpcClient.GetThreshold(),
-		"mpcTotalSigners":   h.mpcClient.GetTotalSigners(),
-		"hasQuorum":         h.mpcClient.HasQuorum(),
-		"uptime":            time.Since(h.startTime).String(),
+		"mpcSignersOnline":   h.mpcClient.GetOnlineSignerCount(),
+		"mpcThreshold":       h.mpcClient.GetThreshold(),
+		"mpcTotalSigners":    h.mpcClient.GetTotalSigners(),
+		"hasQuorum":          h.mpcClient.HasQuorum(),
+		"uptime":             time.Since(h.startTime).String(),
 	})
 }
 

@@ -115,11 +115,15 @@ impl IndexerClient {
         let (ws_stream, _) = connect_async(&self.config.websocket_url).await?;
         let (mut write, mut read) = ws_stream.split();
 
-        info!("Connected to indexer, subscribing to contract {}", self.contract_address);
+        info!(
+            "Connected to indexer, subscribing to contract {}",
+            self.contract_address
+        );
 
         // Subscribe to log events for the stealth announcer contract
         // Topic[0] = Announcement event signature
-        let announcement_topic = "0x5f0eab0a76a3dafb20eb8e3a71c9f28235b81829d63f9e47b2754f4c605209e6";
+        let announcement_topic =
+            "0x5f0eab0a76a3dafb20eb8e3a71c9f28235b81829d63f9e47b2754f4c605209e6";
 
         let subscribe_request = SubscribeRequest {
             action: "subscribe".to_string(),
@@ -139,19 +143,17 @@ impl IndexerClient {
         // Process incoming messages
         while let Some(msg) = read.next().await {
             match msg {
-                Ok(Message::Text(text)) => {
-                    match serde_json::from_str::<IndexerEvent>(&text) {
-                        Ok(event) => {
-                            if let Err(e) = self.event_tx.send(event).await {
-                                error!("Failed to send event to channel: {:?}", e);
-                                break;
-                            }
-                        }
-                        Err(e) => {
-                            warn!("Failed to parse indexer event: {:?}, raw: {}", e, text);
+                Ok(Message::Text(text)) => match serde_json::from_str::<IndexerEvent>(&text) {
+                    Ok(event) => {
+                        if let Err(e) = self.event_tx.send(event).await {
+                            error!("Failed to send event to channel: {:?}", e);
+                            break;
                         }
                     }
-                }
+                    Err(e) => {
+                        warn!("Failed to parse indexer event: {:?}, raw: {}", e, text);
+                    }
+                },
                 Ok(Message::Ping(data)) => {
                     if let Err(e) = write.send(Message::Pong(data)).await {
                         error!("Failed to send pong: {:?}", e);

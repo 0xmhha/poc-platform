@@ -11,7 +11,9 @@ export interface StakingPool {
   rewardToken: Token
   minStake: bigint
   maxStake: bigint
-  apr: number
+  apr: number | null
+  lockPeriod?: bigint
+  earlyWithdrawPenalty?: bigint
   tvl: bigint
   isRegistered: boolean
 }
@@ -23,6 +25,8 @@ export interface StakingPosition {
   stakingToken: Token
   rewardToken: Token
   stakedAt: number
+  lockUntil?: number
+  penaltyBps?: bigint
 }
 
 export interface StakingAccountConfig {

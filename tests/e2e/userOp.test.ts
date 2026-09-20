@@ -35,20 +35,19 @@ import { isBundlerAvailable, isNetworkAvailable, TEST_CONFIG } from '../setup'
 import {
   encodeKernelExecuteCallData,
   toKernelSmartAccount,
-} from '../../packages/sdk/packages/accounts/src'
+} from '../../packages/sdk-ts/accounts/src'
 import {
   createBundlerClient,
   createSmartAccountClient,
   ENTRY_POINT_V07_ADDRESS,
   getUserOperationHash,
   packUserOperation,
-} from '../../packages/sdk/packages/core/src'
-import type {
-  BundlerClient,
-  SmartAccount,
-  UserOperation,
-} from '../../packages/sdk/packages/types/src'
-import { createEcdsaValidator, ECDSA_VALIDATOR_ADDRESS } from '../../packages/sdk/plugins/ecdsa/src'
+} from '../../packages/sdk-ts/core/src'
+import {
+  createEcdsaValidator,
+  ECDSA_VALIDATOR_ADDRESS,
+} from '../../packages/sdk-ts/plugins/ecdsa/src'
+import type { BundlerClient, SmartAccount, UserOperation } from '../../packages/types/src'
 
 // ============================================================================
 // ABIs (for direct contract interactions in tests)
@@ -163,18 +162,18 @@ describe('UserOperation E2E Flow', () => {
   // ==========================================================================
 
   describe('Prerequisites Check', () => {
-    it('should have network available', async () => {
+    it('should have network available', async (testContext) => {
       if (!ctx.networkAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const chainId = await ctx.publicClient.getChainId()
       expect(chainId).toBe(TEST_CONFIG.chainId)
     })
 
-    it('should have bundler available with supported entry points', async () => {
+    it('should have bundler available with supported entry points', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const entryPoints = await ctx.bundlerClient.getSupportedEntryPoints()
@@ -182,8 +181,9 @@ describe('UserOperation E2E Flow', () => {
       expect(Array.isArray(entryPoints)).toBe(true)
     })
 
-    it('should have EntryPoint contract deployed', async () => {
-      if (!ctx.networkAvailable) return
+    it('should have EntryPoint contract deployed', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const code = await ctx.publicClient.getCode({
         address: TEST_CONFIG.contracts.entryPoint as Address,
@@ -195,8 +195,9 @@ describe('UserOperation E2E Flow', () => {
       }
     })
 
-    it('should have Kernel Factory deployed', async () => {
-      if (!ctx.networkAvailable) return
+    it('should have Kernel Factory deployed', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const code = await ctx.publicClient.getCode({
         address: TEST_CONFIG.contracts.kernelFactory as Address,
@@ -208,8 +209,9 @@ describe('UserOperation E2E Flow', () => {
       }
     })
 
-    it('should have ECDSA Validator deployed', async () => {
-      if (!ctx.networkAvailable) return
+    it('should have ECDSA Validator deployed', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const code = await ctx.publicClient.getCode({
         address: TEST_CONFIG.contracts.ecdsaValidator as Address,
@@ -227,8 +229,9 @@ describe('UserOperation E2E Flow', () => {
   // ==========================================================================
 
   describe('SDK: ECDSA Validator (plugin-ecdsa)', () => {
-    it('should create ECDSA validator from signer', async () => {
-      if (!ctx.networkAvailable) return
+    it('should create ECDSA validator from signer', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const validator = await createEcdsaValidator({
         signer: ctx.account,
@@ -240,8 +243,9 @@ describe('UserOperation E2E Flow', () => {
       expect(validator.getSignerAddress()).toBe(ctx.account.address)
     })
 
-    it('should get init data from validator', async () => {
-      if (!ctx.networkAvailable) return
+    it('should get init data from validator', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const validator = await createEcdsaValidator({
         signer: ctx.account,
@@ -255,8 +259,9 @@ describe('UserOperation E2E Flow', () => {
       expect(initData.toLowerCase()).toBe(ctx.account.address.toLowerCase())
     })
 
-    it('should sign hash with validator', async () => {
-      if (!ctx.networkAvailable) return
+    it('should sign hash with validator', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const validator = await createEcdsaValidator({
         signer: ctx.account,
@@ -275,9 +280,9 @@ describe('UserOperation E2E Flow', () => {
   // ==========================================================================
 
   describe('SDK: Kernel Smart Account (accounts)', () => {
-    it('should create Kernel smart account', async () => {
+    it('should create Kernel smart account', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.contractsDeployed) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const validator = await createEcdsaValidator({
@@ -297,8 +302,9 @@ describe('UserOperation E2E Flow', () => {
       expect(ctx.smartAccount.entryPoint).toBe(TEST_CONFIG.contracts.entryPoint)
     })
 
-    it('should generate different addresses for different indexes', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed) return
+    it('should generate different addresses for different indexes', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const validator = await createEcdsaValidator({
         signer: ctx.account,
@@ -308,6 +314,7 @@ describe('UserOperation E2E Flow', () => {
       const account0 = await toKernelSmartAccount({
         client: ctx.publicClient,
         validator,
+        entryPoint: TEST_CONFIG.contracts.entryPoint as Address,
         factoryAddress: TEST_CONFIG.contracts.kernelFactory as Address,
         index: 0n,
       })
@@ -315,6 +322,7 @@ describe('UserOperation E2E Flow', () => {
       const account1 = await toKernelSmartAccount({
         client: ctx.publicClient,
         validator,
+        entryPoint: TEST_CONFIG.contracts.entryPoint as Address,
         factoryAddress: TEST_CONFIG.contracts.kernelFactory as Address,
         index: 1n,
       })
@@ -322,24 +330,27 @@ describe('UserOperation E2E Flow', () => {
       expect(account0.address).not.toBe(account1.address)
     })
 
-    it('should get nonce from smart account', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.smartAccount) return
+    it('should get nonce from smart account', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.smartAccount)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const nonce = await ctx.smartAccount.getNonce()
 
       expect(nonce).toBeGreaterThanOrEqual(0n)
     })
 
-    it('should check if smart account is deployed', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.smartAccount) return
+    it('should check if smart account is deployed', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.smartAccount)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const deployed = await ctx.smartAccount.isDeployed()
 
       expect(typeof deployed).toBe('boolean')
     })
 
-    it('should get factory and factory data for new account', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.smartAccount) return
+    it('should get factory and factory data for new account', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.smartAccount)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const deployed = await ctx.smartAccount.isDeployed()
 
@@ -355,8 +366,9 @@ describe('UserOperation E2E Flow', () => {
       }
     })
 
-    it('should encode call data using SDK utility', async () => {
-      if (!ctx.networkAvailable) return
+    it('should encode call data using SDK utility', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const call = {
         to: '0x1234567890123456789012345678901234567890' as Address,
@@ -370,8 +382,9 @@ describe('UserOperation E2E Flow', () => {
       expect(callData.length).toBeGreaterThan(10)
     })
 
-    it('should encode batch calls using SDK utility', async () => {
-      if (!ctx.networkAvailable) return
+    it('should encode batch calls using SDK utility', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const calls = [
         {
@@ -398,8 +411,9 @@ describe('UserOperation E2E Flow', () => {
   // ==========================================================================
 
   describe('SDK: UserOperation Utilities (core)', () => {
-    it('should pack UserOperation using SDK', async () => {
-      if (!ctx.networkAvailable) return
+    it('should pack UserOperation using SDK', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp: UserOperation = {
         sender: ctx.account.address,
@@ -421,8 +435,9 @@ describe('UserOperation E2E Flow', () => {
       expect(packed.gasFees).toMatch(/^0x[a-fA-F0-9]{64}$/)
     })
 
-    it('should compute UserOperation hash using SDK', async () => {
-      if (!ctx.networkAvailable) return
+    it('should compute UserOperation hash using SDK', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp: UserOperation = {
         sender: ctx.account.address,
@@ -445,8 +460,9 @@ describe('UserOperation E2E Flow', () => {
       expect(hash).toMatch(/^0x[a-fA-F0-9]{64}$/)
     })
 
-    it('should produce consistent hash for same UserOp', async () => {
-      if (!ctx.networkAvailable) return
+    it('should produce consistent hash for same UserOp', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp: UserOperation = {
         sender: ctx.account.address,
@@ -481,9 +497,9 @@ describe('UserOperation E2E Flow', () => {
   // ==========================================================================
 
   describe('SDK: Bundler Client (core)', () => {
-    it('should get supported entry points', async () => {
+    it('should get supported entry points', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const entryPoints = await ctx.bundlerClient.getSupportedEntryPoints()
@@ -493,22 +509,23 @@ describe('UserOperation E2E Flow', () => {
       expect(entryPoints.length).toBeGreaterThan(0)
     })
 
-    it('should get chain ID from bundler', async () => {
-      if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient) return
+    it('should get chain ID from bundler', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const chainId = await ctx.bundlerClient.getChainId()
 
       expect(chainId).toBe(BigInt(TEST_CONFIG.chainId))
     })
 
-    it('should estimate gas for UserOperation', async () => {
+    it('should estimate gas for UserOperation', async (testContext) => {
       if (
         !ctx.networkAvailable ||
         !ctx.bundlerAvailable ||
         !ctx.bundlerClient ||
         !ctx.smartAccount
       ) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       try {
@@ -526,8 +543,9 @@ describe('UserOperation E2E Flow', () => {
       } catch (_error) {}
     })
 
-    it('should return null for non-existent UserOp receipt', async () => {
-      if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient) return
+    it('should return null for non-existent UserOp receipt', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const fakeHash = ('0x' + '1'.repeat(64)) as Hex
       const receipt = await ctx.bundlerClient.getUserOperationReceipt(fakeHash)
@@ -535,8 +553,9 @@ describe('UserOperation E2E Flow', () => {
       expect(receipt).toBeNull()
     })
 
-    it('should return null for non-existent UserOp by hash', async () => {
-      if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient) return
+    it('should return null for non-existent UserOp by hash', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const fakeHash = ('0x' + '2'.repeat(64)) as Hex
       const result = await ctx.bundlerClient.getUserOperationByHash(fakeHash)
@@ -544,8 +563,9 @@ describe('UserOperation E2E Flow', () => {
       expect(result).toBeNull()
     })
 
-    it('should reject invalid UserOperation submission', async () => {
-      if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient) return
+    it('should reject invalid UserOperation submission', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.bundlerAvailable || !ctx.bundlerClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const invalidUserOp: UserOperation = {
         sender: ctx.account.address,
@@ -568,9 +588,9 @@ describe('UserOperation E2E Flow', () => {
   // ==========================================================================
 
   describe('SDK: Smart Account Client (core)', () => {
-    it('should create smart account client', async () => {
+    it('should create smart account client', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.bundlerAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const validator = await createEcdsaValidator({
@@ -600,8 +620,9 @@ describe('UserOperation E2E Flow', () => {
       expect(client.chain.id).toBe(TEST_CONFIG.chainId)
     })
 
-    it('should get nonce via smart account client', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.bundlerAvailable) return
+    it('should get nonce via smart account client', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.bundlerAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const validator = await createEcdsaValidator({
         signer: ctx.account,
@@ -611,6 +632,7 @@ describe('UserOperation E2E Flow', () => {
       const smartAccount = await toKernelSmartAccount({
         client: ctx.publicClient,
         validator,
+        entryPoint: TEST_CONFIG.contracts.entryPoint as Address,
         factoryAddress: TEST_CONFIG.contracts.kernelFactory as Address,
         index: 100n,
       })
@@ -629,8 +651,9 @@ describe('UserOperation E2E Flow', () => {
       expect(nonce).toBeGreaterThanOrEqual(0n)
     })
 
-    it('should check deployment status via smart account client', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.bundlerAvailable) return
+    it('should check deployment status via smart account client', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.bundlerAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const validator = await createEcdsaValidator({
         signer: ctx.account,
@@ -640,6 +663,7 @@ describe('UserOperation E2E Flow', () => {
       const smartAccount = await toKernelSmartAccount({
         client: ctx.publicClient,
         validator,
+        entryPoint: TEST_CONFIG.contracts.entryPoint as Address,
         factoryAddress: TEST_CONFIG.contracts.kernelFactory as Address,
         index: 101n,
       })
@@ -664,8 +688,9 @@ describe('UserOperation E2E Flow', () => {
   // ==========================================================================
 
   describe('EntryPoint Direct Interactions', () => {
-    it('should deposit ETH to EntryPoint for prefunding', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed) return
+    it('should deposit ETH to EntryPoint for prefunding', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const entryPoint = TEST_CONFIG.contracts.entryPoint as Address
       const depositor = TEST_CONFIG.accounts.deployer.address as Address
@@ -705,8 +730,9 @@ describe('UserOperation E2E Flow', () => {
       expect(balanceAfter).toBeGreaterThan(balanceBefore as bigint)
     })
 
-    it('should get nonce from EntryPoint', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed) return
+    it('should get nonce from EntryPoint', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const entryPoint = TEST_CONFIG.contracts.entryPoint as Address
       const sender = ctx.account.address
@@ -727,8 +753,9 @@ describe('UserOperation E2E Flow', () => {
   // ==========================================================================
 
   describe('Full E2E Flow', () => {
-    it('should sign UserOperation using smart account', async () => {
-      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.smartAccount) return
+    it('should sign UserOperation using smart account', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.contractsDeployed || !ctx.smartAccount)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp: UserOperation = {
         sender: ctx.smartAccount.address,

@@ -41,7 +41,11 @@ export default function MarketplacePage() {
     installingModuleId,
     loadInstalledModules,
   } = useModuleInstall()
-  const { modules: MODULE_CATALOG } = useModuleRegistry()
+  const {
+    modules: MODULE_CATALOG,
+    isLoading: isRegistryLoading,
+    error: registryError,
+  } = useModuleRegistry()
 
   // Load on-chain installed status when smart account is ready
   useEffect(() => {
@@ -61,6 +65,16 @@ export default function MarketplacePage() {
 
   const handleInstallClick = useCallback(
     (moduleId: string) => {
+      const selectedModule = findModule(moduleId)
+      if (!selectedModule?.installable) {
+        addToast({
+          type: 'info',
+          title: 'Installation unavailable',
+          message:
+            selectedModule?.unavailableReason ?? 'This module is not ready for installation.',
+        })
+        return
+      }
       if (!isConnected) {
         addToast({ type: 'info', title: 'Connect your wallet first' })
         return
@@ -73,7 +87,7 @@ export default function MarketplacePage() {
         })
         return
       }
-      setInstallModalModule(findModule(moduleId))
+      setInstallModalModule(selectedModule)
     },
     [isConnected, status.isSmartAccount, addToast, findModule]
   )
@@ -190,9 +204,10 @@ export default function MarketplacePage() {
 
   const stats = {
     totalModules: MODULE_CATALOG.length,
-    totalInstalls: MODULE_CATALOG.reduce((sum, m) => sum + m.installCount, 0),
+    totalInstalls: MODULE_CATALOG.reduce((sum, m) => sum + (m.installCount ?? 0), 0),
+    tracksInstalls: MODULE_CATALOG.some((m) => m.installCount !== undefined),
     verifiedModules: MODULE_CATALOG.filter(
-      (m) => m.auditStatus === 'verified' || m.auditStatus === 'audited'
+      (m) => m.auditStatus === 'official' || m.auditStatus === 'audited'
     ).length,
   }
 
@@ -268,10 +283,10 @@ export default function MarketplacePage() {
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold" style={{ color: 'rgb(var(--foreground))' }}>
-              {stats.totalInstalls.toLocaleString()}
+              {stats.tracksInstalls ? stats.totalInstalls.toLocaleString() : '—'}
             </div>
             <div className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
-              Total Installs
+              {stats.tracksInstalls ? 'Total Installs' : 'Installs Not Tracked'}
             </div>
           </CardContent>
         </Card>
@@ -281,11 +296,19 @@ export default function MarketplacePage() {
               {stats.verifiedModules}
             </div>
             <div className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
-              Audited / Verified
+              Official / Audit Linked
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {registryError && (
+        <InfoBanner
+          variant="error"
+          title="Module registry unavailable"
+          description={registryError}
+        />
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -343,11 +366,19 @@ export default function MarketplacePage() {
           </span>
         </div>
 
-        {filteredModules.length === 0 ? (
+        {isRegistryLoading ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p style={{ color: 'rgb(var(--muted-foreground))' }}>Loading registered modules…</p>
+            </CardContent>
+          </Card>
+        ) : filteredModules.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
               <p style={{ color: 'rgb(var(--muted-foreground))' }}>
-                No modules found matching your criteria.
+                {registryError
+                  ? 'Registered modules could not be loaded.'
+                  : 'No modules found matching your criteria.'}
               </p>
               <button
                 type="button"

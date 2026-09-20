@@ -21,7 +21,7 @@ function formatAddress(address: Address): string {
 
 // Format timestamp
 function formatTimestamp(timestamp: bigint): string {
-  if (timestamp === BigInt(0)) return 'No expiry'
+  if (timestamp === 0n || timestamp === (1n << 48n) - 1n) return 'No expiry'
   const date = new Date(Number(timestamp) * 1000)
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
@@ -34,8 +34,8 @@ function formatTimestamp(timestamp: bigint): string {
 
 // Format spending limit
 function formatLimit(amount: bigint, decimals = 18): string {
-  if (amount === BigInt(0)) return 'Unlimited'
-  return `${formatUnits(amount, decimals)} ETH`
+  if (amount === BigInt(0)) return '0 native tokens'
+  return `${formatUnits(amount, decimals)} native tokens`
 }
 
 // Get status badge styles
@@ -127,7 +127,9 @@ export const SessionKeyCard: FC<SessionKeyCardProps> = ({
                 {formatAddress(sessionKey.sessionKey)}
               </div>
               <div className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
-                Created {formatTimestamp(sessionKey.createdAt)}
+                {sessionKey.createdAt > 0n
+                  ? `Valid from ${formatTimestamp(sessionKey.createdAt)}`
+                  : 'No start restriction'}
               </div>
             </div>
           </div>

@@ -236,6 +236,25 @@ vi.mock('next/navigation', () => ({
   })),
 }))
 
+vi.mock('@/hooks/useAuditLogs', () => ({
+  useAuditLogs: vi.fn(() => ({
+    logs: [
+      {
+        id: '1',
+        action: 'payroll_processed',
+        actor: '0x1234567890123456789012345678901234567890',
+        target: '0x2345678901234567890123456789012345678901',
+        details: 'Processed payroll payment',
+        timestamp: new Date('2024-01-15'),
+        txHash: '0xabcd1234',
+      },
+    ],
+    isLoading: false,
+    error: null,
+    refresh: vi.fn(),
+  })),
+}))
+
 describe('StealthSendPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -310,25 +329,6 @@ describe('StealthSendPage', () => {
 // 5. Audit Page Export Tests
 // ============================================
 describe('AuditPage Export', () => {
-  vi.mock('@/hooks/useAuditLogs', () => ({
-    useAuditLogs: vi.fn(() => ({
-      logs: [
-        {
-          id: '1',
-          action: 'payroll_processed',
-          actor: '0x1234567890123456789012345678901234567890',
-          target: '0x2345678901234567890123456789012345678901',
-          details: 'Processed payroll payment',
-          timestamp: new Date('2024-01-15'),
-          txHash: '0xabcd1234',
-        },
-      ],
-      isLoading: false,
-      error: null,
-      refresh: vi.fn(),
-    })),
-  }))
-
   beforeEach(() => {
     vi.clearAllMocks()
     // Mock URL.createObjectURL and URL.revokeObjectURL

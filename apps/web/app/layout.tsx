@@ -1,16 +1,8 @@
 import type { Metadata, Viewport } from 'next'
-import { Space_Grotesk } from 'next/font/google'
 import { ErrorBoundary } from '@/components/error'
 import { Footer, Header, Sidebar } from '@/components/layout'
 import { Providers } from '@/providers'
 import './globals.css'
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  display: 'swap',
-  variable: '--font-space-grotesk',
-})
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -74,7 +66,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} dark`} suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body className="min-h-screen bg-surface-base antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">

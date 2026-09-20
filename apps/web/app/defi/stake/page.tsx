@@ -359,7 +359,7 @@ export default function StakingPage() {
                   APR
                 </p>
                 <p className="font-semibold" style={{ color: 'rgb(var(--primary))' }}>
-                  {selectedPool.apr}%
+                  {selectedPool.apr === null ? 'Unavailable' : `${selectedPool.apr}% estimated`}
                 </p>
               </div>
               <div>
@@ -544,7 +544,7 @@ function PoolCard({
         </div>
         <div className="text-right">
           <p className="font-semibold" style={{ color: 'rgb(var(--primary))' }}>
-            {pool.apr}% APR
+            {pool.apr === null ? 'APR unavailable' : `${pool.apr}% estimated APR`}
           </p>
           <p className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
             TVL: {formatUnits(pool.tvl, pool.stakingToken.decimals)} {pool.stakingToken.symbol}

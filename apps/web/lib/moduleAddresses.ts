@@ -1,10 +1,4 @@
-import {
-  getContractAddress,
-  getEcdsaValidator,
-  getMultiSigValidator,
-  getRecurringPaymentExecutor,
-  getUniswapRouter,
-} from '@stablenet/contracts'
+import { getChainAddresses } from '@stablenet/contracts'
 import type { ModuleType } from '@stablenet/types'
 import { MODULE_TYPE } from '@stablenet/types'
 import type { Address, Hex } from 'viem'
@@ -26,48 +20,33 @@ const DEFAULT_CHAIN_ID = 8283
  * Addresses sourced from @stablenet/contracts.
  */
 function buildRegistry(chainId: number): Record<string, ModuleRegistryEntry> {
-  return {
-    'ecdsa-validator': {
-      address: getEcdsaValidator(chainId),
-      moduleType: MODULE_TYPE.VALIDATOR,
-      defaultInitData: '0x',
-    },
-    'session-key-validator': {
-      address: getContractAddress(chainId, 'sessionKeyExecutor'),
-      moduleType: MODULE_TYPE.VALIDATOR,
-      defaultInitData: '0x',
-    },
-    'subscription-executor': {
-      address: getRecurringPaymentExecutor(chainId),
-      moduleType: MODULE_TYPE.EXECUTOR,
-      defaultInitData: '0x',
-    },
-    'spending-limit-hook': {
-      address: getContractAddress(chainId, 'spendingLimitHook'),
-      moduleType: MODULE_TYPE.HOOK,
-      defaultInitData: '0x',
-    },
-    'social-recovery': {
-      address: getContractAddress(chainId, 'weightedEcdsaValidator'),
-      moduleType: MODULE_TYPE.VALIDATOR,
-      defaultInitData: '0x',
-    },
-    'dex-swap-executor': {
-      address: getUniswapRouter(chainId),
-      moduleType: MODULE_TYPE.EXECUTOR,
-      defaultInitData: '0x',
-    },
-    'stealth-address-fallback': {
-      address: getContractAddress(chainId, 'privateBank'),
-      moduleType: MODULE_TYPE.FALLBACK,
-      defaultInitData: '0x',
-    },
-    'multisig-validator': {
-      address: getMultiSigValidator(chainId),
-      moduleType: MODULE_TYPE.VALIDATOR,
-      defaultInitData: '0x',
-    },
+  let raw: Record<string, Address>
+  try {
+    raw = getChainAddresses(chainId).raw as Record<string, Address>
+  } catch {
+    return {}
   }
+  // Only actual ERC-7579 modules with a deployed address belong in this registry.
+  // A DEX router or privacy bank is not an installable executor/fallback.
+  const definitions: [string, string, ModuleType][] = [
+    ['ecdsa-validator', 'ecdsaValidator', MODULE_TYPE.VALIDATOR],
+    ['webauthn-validator', 'webAuthnValidator', MODULE_TYPE.VALIDATOR],
+    ['session-key-validator', 'sessionKeyValidator', MODULE_TYPE.VALIDATOR],
+    ['session-key-executor', 'sessionKeyExecutor', MODULE_TYPE.EXECUTOR],
+    ['subscription-executor', 'recurringPaymentExecutor', MODULE_TYPE.EXECUTOR],
+    ['spending-limit-hook', 'spendingLimitHook', MODULE_TYPE.HOOK],
+    ['social-recovery', 'weightedEcdsaValidator', MODULE_TYPE.VALIDATOR],
+    ['multisig-validator', 'multiSigValidator', MODULE_TYPE.VALIDATOR],
+    ['token-receiver-fallback', 'tokenReceiverFallback', MODULE_TYPE.FALLBACK],
+  ]
+  return Object.fromEntries(
+    definitions.flatMap(([id, key, moduleType]) => {
+      const address = raw[key]
+      return address && /^0x[0-9a-fA-F]{40}$/.test(address) && !/^0x0{40}$/i.test(address)
+        ? [[id, { address, moduleType, defaultInitData: '0x' as Hex }]]
+        : []
+    })
+  )
 }
 
 // Cache to avoid rebuilding on every call

@@ -48,6 +48,7 @@ vendor/
 # Rust
 target/
 Cargo.lock
+!services/stealth-server/Cargo.lock
 *.rs.bk
 
 # Misc
@@ -60,3 +61,8 @@ temp/
 .ai-context/
 .serena/
 /CLAUDE.md
+
+# Local payment simulation state and generated full AST graph
+.payment-lab/
+services/payment-hub/data/
+docs/productization/graph/code-graph.json

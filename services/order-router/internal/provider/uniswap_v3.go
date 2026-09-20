@@ -102,7 +102,11 @@ func (p *UniswapV3Provider) GetPools(ctx context.Context, tokenIn, tokenOut stri
 	fees := p.SupportedFees()
 
 	for _, fee := range fees {
-		poolAddr := p.computePoolAddress(tokenIn, tokenOut, fee)
+		poolAddress, err := p.deployedPool(ctx, tokenIn, tokenOut, fee)
+		if err != nil {
+			continue
+		}
+		poolAddr := poolAddress.Hex()
 		pool := model.Pool{
 			Address:  poolAddr,
 			Protocol: p.Name(),
@@ -129,7 +133,11 @@ func (p *UniswapV3Provider) GetQuote(ctx context.Context, tokenIn, tokenOut stri
 
 		if bestAmountOut == nil || amountOut.Cmp(bestAmountOut) > 0 {
 			bestAmountOut = amountOut
-			poolAddr := p.computePoolAddress(tokenIn, tokenOut, fee)
+			poolAddress, err := p.deployedPool(ctx, tokenIn, tokenOut, fee)
+			if err != nil {
+				continue
+			}
+			poolAddr := poolAddress.Hex()
 
 			bestRoute = &model.Route{
 				Hops: []model.RouteHop{
@@ -174,7 +182,11 @@ func (p *UniswapV3Provider) GetQuoteExactOut(ctx context.Context, tokenIn, token
 
 		if bestAmountIn == nil || amountIn.Cmp(bestAmountIn) < 0 {
 			bestAmountIn = amountIn
-			poolAddr := p.computePoolAddress(tokenIn, tokenOut, fee)
+			poolAddress, err := p.deployedPool(ctx, tokenIn, tokenOut, fee)
+			if err != nil {
+				continue
+			}
+			poolAddr := poolAddress.Hex()
 
 			bestRoute = &model.Route{
 				Hops: []model.RouteHop{
@@ -417,17 +429,9 @@ func (p *UniswapV3Provider) encodeExactInput(path []byte, recipient string, dead
 	// Function selector for exactInput
 	selector := "c04b8d59"
 
-	// Simplified encoding
+	// ABI: outer dynamic tuple offset, five tuple heads, then bytes length and padded path.
 	pathHex := hex.EncodeToString(path)
-	params := fmt.Sprintf(
-		"%064x%064s%064x%064x%064x%s",
-		0x20, // offset to path
-		strings.TrimPrefix(recipient, "0x"),
-		deadline,
-		amountIn,
-		amountOutMin,
-		pathHex,
-	)
-
+	padding := (32 - len(path)%32) % 32
+	params := fmt.Sprintf("%064x%064x%064s%064x%064x%064x%064x%s%s", 32, 160, strings.TrimPrefix(recipient, "0x"), deadline, amountIn, amountOutMin, len(path), pathHex, strings.Repeat("00", padding))
 	return "0x" + selector + params
 }

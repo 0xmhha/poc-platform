@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { type Address, formatUnits, parseUnits } from 'viem'
 import { Button, ConnectWalletCard, PageHeader, useToast } from '@/components/common'
 import {
   AddEmployeeModal,
@@ -10,43 +11,124 @@ import {
 } from '@/components/enterprise'
 import type { EmployeeFormData } from '@/components/enterprise/cards/AddEmployeeModal'
 import { useWallet } from '@/hooks'
+import { useAuditLogs } from '@/hooks/useAuditLogs'
+import { useEnterprisePayment } from '@/hooks/useEnterprisePayment'
 import { usePayroll } from '@/hooks/usePayroll'
+import { readToken } from '@/lib/contracts/defiReads'
+import { requireDeployment } from '@/lib/contracts/deployment'
+import { nextPayrollDate, tokenTotals } from '@/lib/enterprise/records'
+import { useStableNetContext } from '@/providers'
+import type { PayrollEntry } from '@/types'
 
 export default function PayrollPage() {
-  const { isConnected } = useWallet()
-  const { payrollEntries, summary, isLoading, error } = usePayroll()
-  const { addToast } = useToast()
+  const { isConnected, address } = useWallet()
+  const { payrollEntries, summary, isLoading, error, addEntry, updateEntry } = usePayroll()
+  const { addToast, updateToast } = useToast()
+  const { publicClient, chainId } = useStableNetContext()
+  const pay = useEnterprisePayment()
+  const { addLog } = useAuditLogs()
+  const processing = useRef(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [editing, setEditing] = useState<PayrollEntry | null>(null)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
   const handleAddEmployee = useCallback(
-    (data: EmployeeFormData) => {
-      addToast({
-        type: 'success',
-        title: 'Employee Added',
-        message: `Added ${data.walletAddress.slice(0, 8)}... with ${data.frequency} payments of $${data.amount}`,
-      })
-      setIsAddModalOpen(false)
+    async (data: EmployeeFormData) => {
+      try {
+        const token = await readToken(publicClient, requireDeployment(chainId, 'usdc'))
+        const entry: PayrollEntry = {
+          id: editing?.id ?? crypto.randomUUID(),
+          recipient: data.walletAddress as Address,
+          amount: parseUnits(data.amount, token.decimals),
+          token,
+          frequency: data.frequency as PayrollEntry['frequency'],
+          nextPaymentDate: editing?.nextPaymentDate ?? new Date(),
+          status: editing?.status ?? 'active',
+          payments: editing?.payments,
+        }
+        if (editing) updateEntry(editing.id, entry)
+        else addEntry(entry)
+        addToast({
+          type: 'success',
+          title: editing ? 'Employee Updated' : 'Employee Added',
+          message: `${data.frequency} payments of ${data.amount} ${token.symbol}`,
+        })
+        setEditing(null)
+        setIsAddModalOpen(false)
+      } catch (err) {
+        addToast({
+          type: 'error',
+          title: 'Unable to save employee',
+          message: err instanceof Error ? err.message : 'Save failed',
+        })
+      }
     },
-    [addToast]
+    [publicClient, chainId, editing, addEntry, updateEntry, addToast]
   )
 
-  const handleProcessPayments = useCallback(() => {
-    if (payrollEntries.length === 0) {
-      addToast({
-        type: 'info',
-        title: 'No Payments',
-        message: 'No active payroll entries to process',
-      })
+  const handleProcessPayments = useCallback(async () => {
+    if (processing.current || !address) return
+    const due = payrollEntries.filter(
+      (e) => e.status === 'active' && e.nextPaymentDate.getTime() <= Date.now()
+    )
+    if (!due.length) {
+      addToast({ type: 'info', title: 'No Payments', message: 'No payroll entries are due' })
       return
     }
-    const activeCount = payrollEntries.filter((e) => e.status === 'active').length
-    addToast({
+    processing.current = true
+    setIsProcessing(true)
+    const toast = addToast({
       type: 'loading',
       title: 'Processing Payments',
-      message: `Processing ${activeCount} payroll payment(s)...`,
+      message: `Processing ${due.length} due payment(s)`,
       persistent: true,
     })
-  }, [payrollEntries, addToast])
+    let count = 0
+    try {
+      for (const entry of due) {
+        const period = entry.nextPaymentDate.toISOString()
+        const txHash = await pay(
+          `payroll:${entry.id}:${period}`,
+          entry.recipient,
+          entry.amount,
+          entry.token
+        )
+        updateEntry(entry.id, {
+          nextPaymentDate: nextPayrollDate(entry.nextPaymentDate, entry.frequency),
+          payments: [
+            ...(entry.payments ?? []),
+            { txHash, amount: entry.amount.toString(), paidAt: new Date().toISOString() },
+          ],
+        })
+        addLog({
+          id: `payroll:${entry.id}:${period}`,
+          action: 'payroll.payment',
+          actor: address,
+          target: entry.recipient,
+          details: `Paid ${formatUnits(entry.amount, entry.token.decimals)} ${entry.token.symbol}`,
+          timestamp: new Date(),
+          txHash,
+        })
+        count++
+      }
+      updateToast(toast, {
+        type: 'success',
+        title: 'Payroll Confirmed',
+        message: `${count} payment(s) confirmed`,
+        persistent: false,
+      })
+    } catch (err) {
+      updateToast(toast, {
+        type: 'error',
+        title: 'Payroll Needs Attention',
+        message: `${count} confirmed. ${err instanceof Error ? err.message : 'Payment failed'}`,
+        persistent: false,
+      })
+    } finally {
+      processing.current = false
+      setIsProcessing(false)
+    }
+  }, [payrollEntries, address, pay, updateEntry, addLog, addToast, updateToast])
 
   const handleExportReport = useCallback(() => {
     if (payrollEntries.length === 0) {
@@ -57,7 +139,7 @@ export default function PayrollPage() {
     const headers = ['Recipient', 'Amount', 'Token', 'Frequency', 'Status', 'Next Payment']
     const rows = payrollEntries.map((entry) => [
       entry.recipient,
-      (Number(entry.amount) / 10 ** entry.token.decimals).toString(),
+      formatUnits(entry.amount, entry.token.decimals),
       entry.token.symbol,
       entry.frequency,
       entry.status,
@@ -100,10 +182,6 @@ export default function PayrollPage() {
     )
   }
 
-  const formatCurrency = (value: number) => {
-    return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  }
-
   const formatNextPayment = (date: Date | null) => {
     if (!date) return 'N/A'
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -131,27 +209,59 @@ export default function PayrollPage() {
       </div>
 
       <PayrollSummaryCards
-        monthlyPayroll={formatCurrency(summary.totalMonthly)}
+        monthlyPayroll={tokenTotals(
+          payrollEntries
+            .filter((e) => e.status === 'active')
+            .map((e) => ({
+              token: e.token,
+              amount:
+                e.frequency === 'weekly'
+                  ? (e.amount * 52n) / 12n
+                  : e.frequency === 'biweekly'
+                    ? (e.amount * 26n) / 12n
+                    : e.amount,
+            }))
+        )}
         activeEmployees={summary.activeEmployees}
         nextPayment={formatNextPayment(summary.nextPaymentDate)}
-        ytdPayments={formatCurrency(summary.ytdTotal)}
+        ytdPayments={tokenTotals(
+          payrollEntries.flatMap((e) =>
+            (e.payments ?? [])
+              .filter((p) => new Date(p.paidAt).getFullYear() === new Date().getFullYear())
+              .map((p) => ({ token: e.token, amount: BigInt(p.amount) }))
+          )
+        )}
       />
 
       <PayrollListCard
         entries={payrollEntries}
         onEdit={(id) => {
-          addToast({ type: 'info', title: 'Edit Employee', message: `Editing payroll entry ${id}` })
+          setEditing(payrollEntries.find((e) => e.id === id) ?? null)
+          setIsAddModalOpen(true)
         }}
       />
 
       <PayrollQuickActionsCard
         onProcessPayments={handleProcessPayments}
+        isProcessing={isProcessing}
         onExportReport={handleExportReport}
       />
 
       <AddEmployeeModal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false)
+          setEditing(null)
+        }}
+        initialValues={
+          editing
+            ? {
+                walletAddress: editing.recipient,
+                amount: formatUnits(editing.amount, editing.token.decimals),
+                frequency: editing.frequency,
+              }
+            : undefined
+        }
         onSubmit={handleAddEmployee}
       />
     </div>

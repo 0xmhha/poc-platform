@@ -38,9 +38,9 @@ describe('Bundler Integration Tests', () => {
   })
 
   describe('Bundler Health', () => {
-    it('should respond to health check', async () => {
+    it('should respond to health check', async (testContext) => {
       if (!bundlerAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const response = await fetch(`${TEST_CONFIG.bundlerUrl}/health`)
@@ -49,9 +49,9 @@ describe('Bundler Integration Tests', () => {
   })
 
   describe('RPC Methods', () => {
-    it('should return supported entry points', async () => {
+    it('should return supported entry points', async (testContext) => {
       if (!bundlerAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const response = await bundlerRpc<string[]>('eth_supportedEntryPoints')
@@ -65,9 +65,9 @@ describe('Bundler Integration Tests', () => {
       }
     })
 
-    it('should estimate user operation gas', async () => {
+    it('should estimate user operation gas', async (testContext) => {
       if (!bundlerAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       // Create a mock UserOperation
@@ -98,9 +98,9 @@ describe('Bundler Integration Tests', () => {
       }
     })
 
-    it('should reject invalid user operation', async () => {
+    it('should reject invalid user operation', async (testContext) => {
       if (!bundlerAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       // Invalid UserOperation (missing required fields)
@@ -116,9 +116,9 @@ describe('Bundler Integration Tests', () => {
       expect(response.error).toBeDefined()
     })
 
-    it('should get user operation by hash (non-existent)', async () => {
+    it('should get user operation by hash (non-existent)', async (testContext) => {
       if (!bundlerAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const fakeHash = '0x' + '0'.repeat(64)
@@ -132,9 +132,9 @@ describe('Bundler Integration Tests', () => {
   })
 
   describe('Mempool Status', () => {
-    it('should dump mempool (debug)', async () => {
+    it('should dump mempool (debug)', async (testContext) => {
       if (!bundlerAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const response = await bundlerRpc('debug_bundler_dumpMempool', [

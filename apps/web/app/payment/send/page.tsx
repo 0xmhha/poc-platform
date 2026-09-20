@@ -13,7 +13,7 @@ import {
   Input,
   useToast,
 } from '@/components/common'
-import { PaymasterSelector, type GasPaymentMode } from '@/components/common/PaymasterSelector'
+import { type GasPaymentMode, PaymasterSelector } from '@/components/common/PaymasterSelector'
 import { BatchRecipientList } from '@/components/payment/BatchRecipientList'
 import type { SupportedToken, WalletToken } from '@/hooks'
 import { useUserOp, useWallet, useWalletAssets } from '@/hooks'
@@ -35,6 +35,9 @@ import { useStableNetContext } from '@/providers'
 type SelectedAsset = 'native' | WalletToken
 type SendStep = 'form' | 'review' | 'pending'
 
+/** Default deposit amount for EntryPoint top-up */
+const DEPOSIT_AMOUNT = '0.01'
+
 const ERC20_TRANSFER_ABI = [
   {
     name: 'transfer',
@@ -55,7 +58,7 @@ export default function SendPage() {
   const router = useRouter()
   const { address, isConnected } = useWallet()
   const { chainId } = useStableNetContext()
-  const { native, tokens, isSupported } = useWalletAssets()
+  const { native, tokens } = useWalletAssets()
   const { sendUserOp, isLoading, error } = useUserOp()
   const { addToast, updateToast } = useToast()
 
@@ -175,8 +178,27 @@ export default function SendPage() {
   } = useBatchTransaction()
 
   // ── Validation ──
+  // ── Gas mode change handler (resets stale ERC-20 state) ──
+  const handleGasModeChange = useCallback(
+    (mode: GasPaymentMode) => {
+      setGasMode(mode)
+      if (mode !== 'erc20') {
+        setSupportedTokens(null)
+        setGasTokenAddress(undefined)
+        resetApproval()
+      }
+    },
+    [resetApproval]
+  )
+
+  // ── Validation ──
   const isValidRecipient = recipient === '' || isAddress(recipient)
-  const isValidAmount = amount === '' || (!Number.isNaN(Number(amount)) && Number(amount) > 0)
+
+  // Validate amount: positive number within token decimal precision
+  const hasExcessDecimals =
+    amount !== '' && amount.includes('.') && amount.split('.')[1].length > decimals
+  const isValidAmount =
+    amount === '' || (!Number.isNaN(Number(amount)) && Number(amount) > 0 && !hasExcessDecimals)
 
   const exceedsBalance = useMemo(() => {
     if (isBatchMode || !amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
@@ -189,19 +211,24 @@ export default function SendPage() {
     }
   }, [isBatchMode, amount, decimals, balance])
 
-  const { batchTotal, batchExceedsBalance } = useMemo(() => {
-    if (!isBatchMode) return { batchTotal: 0n, batchExceedsBalance: false }
+  const { batchTotal, batchExceedsBalance, batchParseErrors } = useMemo(() => {
+    if (!isBatchMode) return { batchTotal: 0n, batchExceedsBalance: false, batchParseErrors: 0 }
     let total = 0n
+    let parseErrors = 0
     for (const r of batchRecipients) {
       if (r.amount && Number(r.amount) > 0) {
         try {
           total += parseUnits(r.amount, decimals)
         } catch {
-          // skip invalid
+          parseErrors++
         }
       }
     }
-    return { batchTotal: total, batchExceedsBalance: total > balance }
+    return {
+      batchTotal: total,
+      batchExceedsBalance: total > balance,
+      batchParseErrors: parseErrors,
+    }
   }, [isBatchMode, batchRecipients, decimals, balance])
 
   const batchValidCount = batchRecipients.filter(
@@ -251,14 +278,14 @@ export default function SendPage() {
       })
       const result = await sendUserOp(address, {
         to: entryPoint,
-        value: parseEther('0.01'),
+        value: parseEther(DEPOSIT_AMOUNT),
         data: depositCalldata as Hex,
       })
       if (result?.success) {
         addToast({
           type: 'success',
           title: 'Deposit Sent',
-          message: '0.01 ETH deposited to EntryPoint',
+          message: `${DEPOSIT_AMOUNT} ${native?.symbol ?? 'WKRC'} deposited to EntryPoint`,
         })
         fetchDeposit()
       }
@@ -271,7 +298,7 @@ export default function SendPage() {
     } finally {
       setIsDepositing(false)
     }
-  }, [address, chainId, sendUserOp, addToast, fetchDeposit])
+  }, [address, chainId, sendUserOp, addToast, fetchDeposit, native?.symbol])
 
   const handleReview = useCallback(() => {
     if (canSend) {
@@ -454,10 +481,7 @@ export default function SendPage() {
                 style={{ borderColor: 'rgb(var(--primary))', borderTopColor: 'transparent' }}
               />
             </div>
-            <h3
-              className="text-lg font-semibold mb-2"
-              style={{ color: 'rgb(var(--foreground))' }}
-            >
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'rgb(var(--foreground))' }}>
               {isBatchMode ? 'Sending Batch Transaction...' : 'Sending Transaction...'}
             </h3>
             <p className="text-sm" style={{ color: 'rgb(var(--muted-foreground))' }}>
@@ -501,7 +525,7 @@ export default function SendPage() {
                     <div className="flex justify-between">
                       <span style={{ color: 'rgb(var(--muted-foreground))' }}>To</span>
                       <span className="font-mono" style={{ color: 'rgb(var(--foreground))' }}>
-                        {recipient.slice(0, 6)}...{recipient.slice(-4)}
+                        {recipient ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}` : '-'}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -547,9 +571,7 @@ export default function SendPage() {
                 {!isNativeAsset && (
                   <div className="flex justify-between">
                     <span style={{ color: 'rgb(var(--muted-foreground))' }}>Asset</span>
-                    <span style={{ color: 'rgb(var(--foreground))' }}>
-                      {symbol} (ERC-20)
-                    </span>
+                    <span style={{ color: 'rgb(var(--foreground))' }}>{symbol} (ERC-20)</span>
                   </div>
                 )}
               </div>
@@ -618,7 +640,7 @@ export default function SendPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Asset Selector */}
-          {isSupported && tokens.length > 0 && (
+          {tokens.length > 0 && (
             <div>
               <span
                 className="block text-sm font-medium mb-2"
@@ -637,9 +659,7 @@ export default function SendPage() {
                     backgroundColor: isNativeAsset
                       ? 'rgb(var(--primary) / 0.1)'
                       : 'rgb(var(--secondary))',
-                    borderColor: isNativeAsset
-                      ? 'rgb(var(--primary))'
-                      : 'rgb(var(--border))',
+                    borderColor: isNativeAsset ? 'rgb(var(--primary))' : 'rgb(var(--border))',
                     ...(isNativeAsset &&
                       ({ '--tw-ring-color': 'rgb(var(--primary) / 0.3)' } as React.CSSProperties)),
                   }}
@@ -666,9 +686,7 @@ export default function SendPage() {
                         backgroundColor: isSelected
                           ? 'rgb(var(--primary) / 0.1)'
                           : 'rgb(var(--secondary))',
-                        borderColor: isSelected
-                          ? 'rgb(var(--primary))'
-                          : 'rgb(var(--border))',
+                        borderColor: isSelected ? 'rgb(var(--primary))' : 'rgb(var(--border))',
                       }}
                     >
                       <p
@@ -716,9 +734,11 @@ export default function SendPage() {
                 error={
                   !isValidAmount
                     ? 'Invalid amount'
-                    : exceedsBalance
-                      ? 'Amount exceeds available balance'
-                      : undefined
+                    : hasExcessDecimals
+                      ? `Maximum ${decimals} decimal places for ${symbol}`
+                      : exceedsBalance
+                        ? 'Amount exceeds available balance'
+                        : undefined
                 }
                 rightElement={
                   <button
@@ -786,7 +806,7 @@ export default function SendPage() {
           <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgb(var(--secondary))' }}>
             <PaymasterSelector
               selectedMode={gasMode}
-              onModeChange={setGasMode}
+              onModeChange={handleGasModeChange}
               depositBalance={formattedDeposit}
               onDepositTopUp={handleDepositTopUp}
               isDepositing={isDepositing}
@@ -821,6 +841,22 @@ export default function SendPage() {
           </div>
 
           {/* Error Display */}
+          {/* Batch parse errors warning */}
+          {isBatchMode && batchParseErrors > 0 && (
+            <div
+              className="p-3 rounded-lg border"
+              style={{
+                backgroundColor: 'rgb(var(--warning) / 0.1)',
+                borderColor: 'rgb(var(--warning) / 0.3)',
+              }}
+            >
+              <p className="text-sm" style={{ color: 'rgb(var(--warning))' }}>
+                {batchParseErrors} recipient(s) have invalid amounts (e.g. too many decimal places).
+                These will be skipped.
+              </p>
+            </div>
+          )}
+
           {(error || sendError || batchError) &&
             (() => {
               const errorMsg = sendError ?? batchError ?? error?.message ?? ''
@@ -873,11 +909,7 @@ export default function SendPage() {
             <Button variant="secondary" onClick={() => router.back()} className="flex-1">
               Cancel
             </Button>
-            <Button
-              onClick={handleReview}
-              disabled={!canSend}
-              className="flex-1"
-            >
+            <Button onClick={handleReview} disabled={!canSend} className="flex-1">
               {isBatchMode ? `Review Batch (${batchValidCount})` : 'Review'}
             </Button>
           </div>

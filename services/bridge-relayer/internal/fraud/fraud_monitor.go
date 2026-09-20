@@ -2,6 +2,7 @@ package fraud
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/common"
 	"log"
 	"sync"
 	"time"
@@ -13,8 +14,8 @@ import (
 
 // FraudMonitor monitors for fraud proofs and suspicious activity
 type FraudMonitor struct {
-	ethClient  *ethereum.Client
-	contracts  config.ContractConfig
+	ethClient *ethereum.Client
+	contracts config.ContractConfig
 
 	// Fraud proof tracking
 	mu           sync.RWMutex
@@ -24,17 +25,19 @@ type FraudMonitor struct {
 	alertChan chan FraudAlert
 
 	// State
-	isRunning bool
+	isRunning        bool
+	lastProofBlock   uint64
+	lastPatternAlert time.Time
 }
 
 // FraudAlert represents a fraud alert
 type FraudAlert struct {
-	RequestID  [32]byte           `json:"requestId"`
-	AlertType  string             `json:"alertType"`
-	Severity   string             `json:"severity"` // "low", "medium", "high", "critical"
-	Details    string             `json:"details"`
-	Timestamp  time.Time          `json:"timestamp"`
-	ProofType  domain.FraudProofType `json:"proofType,omitempty"`
+	RequestID [32]byte              `json:"requestId"`
+	AlertType string                `json:"alertType"`
+	Severity  string                `json:"severity"` // "low", "medium", "high", "critical"
+	Details   string                `json:"details"`
+	Timestamp time.Time             `json:"timestamp"`
+	ProofType domain.FraudProofType `json:"proofType,omitempty"`
 }
 
 // NewFraudMonitor creates a new fraud monitor
@@ -100,12 +103,7 @@ func (m *FraudMonitor) monitorFraudProofs(ctx context.Context) {
 
 // checkFraudProofEvents checks for new fraud proof events
 func (m *FraudMonitor) checkFraudProofEvents(ctx context.Context) error {
-	// In production, this would:
-	// 1. Query FraudProofSubmitted events from FraudProofVerifier contract
-	// 2. Query FraudProofVerified events
-	// 3. Update proofRecords and send alerts
-
-	return nil
+	return m.refreshProofEvents(ctx)
 }
 
 // monitorSuspiciousActivity monitors for suspicious patterns
@@ -132,27 +130,43 @@ func (m *FraudMonitor) monitorSuspiciousActivity(ctx context.Context) {
 
 // checkSuspiciousPatterns checks for suspicious activity patterns
 func (m *FraudMonitor) checkSuspiciousPatterns(ctx context.Context) {
-	// Check for patterns like:
-	// - Unusual volume spikes
-	// - Repeated failed transactions
-	// - Suspicious timing patterns
-	// - Rate limit approaches
+	// A concentration of verified fraud is an alert, never automatic proof.
+	m.mu.Lock()
+	now := time.Now()
+	count := 0
+	for _, proof := range m.proofRecords {
+		if proof.Verified && proof.IsValid && now.Sub(proof.SubmittedAt) <= 15*time.Minute {
+			count++
+		}
+	}
+	alert := count >= 3 && now.Sub(m.lastPatternAlert) >= 15*time.Minute
+	if alert {
+		m.lastPatternAlert = now
+	}
+	m.mu.Unlock()
+	if alert {
+		m.SendAlert(FraudAlert{AlertType: "verified_fraud_cluster", Severity: "critical", Details: "At least three verified fraud records in the last 15 minutes", Timestamp: now})
+	}
+
 }
 
 // ValidateRequest validates a bridge request for potential fraud
 func (m *FraudMonitor) ValidateRequest(ctx context.Context, request *domain.BridgeRequest) (bool, string) {
+	if request == nil {
+		return false, "invalid request"
+	}
 	// Check 1: Deadline not expired
 	if request.Deadline > 0 && time.Now().Unix() > int64(request.Deadline) {
 		return false, "request deadline expired"
 	}
 
 	// Check 2: Amount is reasonable
-	if request.Amount == nil || request.Amount.Sign() <= 0 {
+	if request.Amount == nil || request.Amount.Sign() <= 0 || request.Amount.BitLen() > 256 {
 		return false, "invalid amount"
 	}
 
 	// Check 3: Addresses are valid (basic check)
-	if request.Sender == "" || request.Recipient == "" {
+	if !common.IsHexAddress(request.Sender) || !common.IsHexAddress(request.Recipient) || common.HexToAddress(request.Sender) == (common.Address{}) || common.HexToAddress(request.Recipient) == (common.Address{}) {
 		return false, "invalid addresses"
 	}
 
@@ -178,11 +192,11 @@ func (m *FraudMonitor) RecordFraudProof(proof *domain.ProofRecord) {
 
 	// Send alert
 	alert := FraudAlert{
-		AlertType:  "fraud_proof_submitted",
-		Severity:   "high",
-		Details:    "New fraud proof submitted: " + proof.ProofType.String(),
-		Timestamp:  time.Now(),
-		ProofType:  proof.ProofType,
+		AlertType: "fraud_proof_submitted",
+		Severity:  "high",
+		Details:   "New fraud proof submitted: " + proof.ProofType.String(),
+		Timestamp: time.Now(),
+		ProofType: proof.ProofType,
 	}
 
 	select {

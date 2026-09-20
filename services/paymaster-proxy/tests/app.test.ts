@@ -1,9 +1,10 @@
+import { getEntryPoint } from '@stablenet/contracts'
 import type { Address, Hex } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock the chain client and config modules before importing app
 vi.mock('../src/chain/client', () => ({
-  getPublicClient: vi.fn(() => ({})),
+  getPublicClient: vi.fn(() => ({ readContract: vi.fn().mockResolvedValue(0n) })),
   getWalletClient: vi.fn(() => ({})),
 }))
 
@@ -27,7 +28,7 @@ vi.mock('../src/config/constants', () => ({
     autoDepositCooldownMs: 300000,
   })),
   PAYMASTER_ENV_VARS: { SUPPORTED_ENTRY_POINTS: 'SUPPORTED_ENTRY_POINTS' },
-  parseEntryPoints: vi.fn(() => ['0xEf6817fe73741A8F10088f9511c64b666a338A14']),
+  parseEntryPoints: vi.fn(() => [getEntryPoint(8283)]),
   getSettlementConfig: vi.fn(() => ({
     bundlerRpcUrl: undefined,
     settlementPollMs: 15000,
@@ -54,7 +55,7 @@ const TEST_CONFIG: PaymasterProxyConfig = {
   rpcUrl: 'http://localhost:8545',
   supportedChainIds: [8283],
   debug: false,
-  supportedEntryPoints: ['0xEf6817fe73741A8F10088f9511c64b666a338A14' as Address],
+  supportedEntryPoints: [getEntryPoint(8283) as Address],
 }
 
 describe('App - JSON-RPC', () => {

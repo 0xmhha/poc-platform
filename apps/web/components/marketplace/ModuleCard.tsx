@@ -10,12 +10,15 @@ export interface ModuleCardData {
   moduleType: string
   category: string
   author: string
-  installCount: number
-  rating: number
-  ratingCount: number
-  auditStatus: string
+  installCount?: number
+  rating?: number
+  ratingCount?: number
+  auditStatus: 'official' | 'audited' | 'unverified'
+  auditUrl?: string
   featured: boolean
   tags: string[]
+  installable: boolean
+  unavailableReason?: string
 }
 
 const moduleTypeStyles: Record<string, { bg: string; color: string }> = {
@@ -26,7 +29,7 @@ const moduleTypeStyles: Record<string, { bg: string; color: string }> = {
 }
 
 const auditBadges: Record<string, { label: string; bg: string; color: string }> = {
-  verified: { label: 'Verified', bg: 'rgb(var(--primary) / 0.1)', color: 'rgb(var(--primary))' },
+  official: { label: 'Official', bg: 'rgb(var(--primary) / 0.1)', color: 'rgb(var(--primary))' },
   audited: { label: 'Audited', bg: 'rgb(var(--info) / 0.1)', color: 'rgb(var(--info))' },
   'community-reviewed': {
     label: 'Community',
@@ -136,9 +139,17 @@ export function ModuleCard({
         </div>
 
         <div className="flex items-center justify-between text-sm">
-          <StarRating rating={module.rating} count={module.ratingCount} />
+          {module.rating !== undefined && module.ratingCount !== undefined ? (
+            <StarRating rating={module.rating} count={module.ratingCount} />
+          ) : (
+            <span className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
+              No verified ratings
+            </span>
+          )}
           <span className="text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
-            {module.installCount.toLocaleString()} installs
+            {module.installCount === undefined
+              ? 'Installs not tracked'
+              : `${module.installCount.toLocaleString()} installs`}
           </span>
         </div>
 
@@ -174,12 +185,24 @@ export function ModuleCard({
           size="sm"
           className="flex-1"
           onClick={() => onInstall?.(module.id)}
-          disabled={installed || isInstalling}
+          disabled={installed || isInstalling || !module.installable}
           isLoading={isInstalling}
+          title={module.unavailableReason}
         >
-          {installed ? 'Installed' : isInstalling ? 'Installing...' : 'Install'}
+          {installed
+            ? 'Installed'
+            : isInstalling
+              ? 'Installing...'
+              : module.installable
+                ? 'Install'
+                : 'Unavailable'}
         </Button>
       </CardFooter>
+      {!module.installable && module.unavailableReason && (
+        <p className="px-4 pb-4 text-xs" style={{ color: 'rgb(var(--muted-foreground))' }}>
+          {module.unavailableReason}
+        </p>
+      )}
     </Card>
   )
 }

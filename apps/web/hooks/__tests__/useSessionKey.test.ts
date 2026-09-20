@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionKey } from '../useSessionKey'
 
@@ -12,7 +13,8 @@ const mockAccountReturn = {
 }
 const mockWalletClientData = { writeContract: mockWriteContract }
 const mockWalletClientReturn = { data: mockWalletClientData }
-const mockPublicClient = { readContract: mockReadContract }
+const mockReceipt = vi.fn().mockResolvedValue({ status: 'success' })
+const mockPublicClient = { readContract: mockReadContract, waitForTransactionReceipt: mockReceipt }
 
 vi.mock('wagmi', () => ({
   useAccount: () => mockAccountReturn,
@@ -21,19 +23,16 @@ vi.mock('wagmi', () => ({
   usePublicClient: () => mockPublicClient,
 }))
 
-// Mock config
-vi.mock('../../lib/config', () => ({
-  getContractAddresses: () => ({
-    sessionKeyManager: '0x4a679253410272dd5232B3Ff7cF5dbB88f295319',
-  }),
+vi.mock('@/lib/contracts/deployment', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/contracts/deployment')>()),
+  optionalDeployment: () => '0x5555555555555555555555555555555555555555',
 }))
-
-// Mock secureKeyStore
 const mockStore = vi.fn()
-vi.mock('@/lib/secureKeyStore', () => ({
-  secureKeyStore: {
-    store: (...args: unknown[]) => mockStore(...args),
-  },
+vi.mock('@/lib/sessionKeyVault', () => ({
+  retainSessionKey: (...args: unknown[]) => mockStore(...args),
+  clearSessionScope: vi.fn(),
+  forgetSessionKey: vi.fn(),
+  signSessionHash: vi.fn(),
 }))
 
 // Mock viem/accounts
@@ -54,6 +53,7 @@ describe('useSessionKey - keypair generation', () => {
     mockPrivateKeyToAccount.mockReturnValue({ address: MOCK_SESSION_ADDRESS })
     mockReadContract.mockResolvedValue([])
     mockWriteContract.mockResolvedValue('0xtxhash')
+    mockReceipt.mockResolvedValue({ status: 'success' })
   })
 
   it('should use generatePrivateKey to create session key', async () => {
@@ -85,7 +85,7 @@ describe('useSessionKey - keypair generation', () => {
     expect(mockPrivateKeyToAccount).toHaveBeenCalledWith(MOCK_PRIVATE_KEY)
   })
 
-  it('should store private key in secureKeyStore', async () => {
+  it('should isolate the signer by account and chain', async () => {
     const { result } = renderHook(() => useSessionKey())
 
     await waitFor(() => {
@@ -96,7 +96,12 @@ describe('useSessionKey - keypair generation', () => {
       await result.current.createSessionKey({})
     })
 
-    expect(mockStore).toHaveBeenCalledWith(MOCK_PRIVATE_KEY)
+    expect(mockStore).toHaveBeenCalledWith(
+      `8283:${mockAccountReturn.address}`,
+      MOCK_SESSION_ADDRESS,
+      MOCK_PRIVATE_KEY,
+      (1n << 48n) - 1n
+    )
   })
 
   it('should use derived address for session key registration', async () => {
@@ -114,5 +119,25 @@ describe('useSessionKey - keypair generation', () => {
 
     // The returned sessionKey address should match privateKeyToAccount result
     expect(res?.sessionKey).toBe(MOCK_SESSION_ADDRESS)
+  })
+  it('registers the actual executor ABI with zero native spending by default', async () => {
+    const { result } = renderHook(() => useSessionKey())
+    await act(async () => {
+      await result.current.createSessionKey({})
+    })
+    expect(mockWriteContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        functionName: 'addSessionKey',
+        args: [MOCK_SESSION_ADDRESS, 0, 2 ** 48 - 1, 0n],
+      })
+    )
+  })
+  it('does not retain a signer or report success after a reverted registration', async () => {
+    mockReceipt.mockResolvedValueOnce({ status: 'reverted' })
+    const { result } = renderHook(() => useSessionKey())
+    await act(async () => {
+      expect(await result.current.createSessionKey({})).toBeNull()
+    })
+    expect(mockStore).not.toHaveBeenCalled()
   })
 })

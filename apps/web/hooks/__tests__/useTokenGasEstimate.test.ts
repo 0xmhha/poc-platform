@@ -1,3 +1,4 @@
+import { getEntryPoint } from '@stablenet/contracts'
 import { act, renderHook } from '@testing-library/react'
 import type { Address } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // F-05: ERC-20 token gas estimation display
 // ============================================================================
 
+const TEST_CHAIN_ID = 8283
+
 // Mock fetch for paymaster RPC calls
 const mockFetch = vi.fn()
 global.fetch = mockFetch
@@ -13,8 +16,8 @@ global.fetch = mockFetch
 vi.mock('@/providers', () => ({
   useStableNetContext: () => ({
     paymasterUrl: 'http://localhost:4338',
-    entryPoint: '0x2ef7E4897d71647502e2Fe60F707AcD9a110660C',
-    chainId: 8283,
+    entryPoint: getEntryPoint(TEST_CHAIN_ID),
+    chainId: TEST_CHAIN_ID,
   }),
 }))
 

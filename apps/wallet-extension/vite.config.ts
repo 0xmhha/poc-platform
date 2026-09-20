@@ -3,7 +3,6 @@ import react from '@vitejs/plugin-react'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { build, defineConfig } from 'vite'
-import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 // Plugin to copy manifest and assets
 function copyManifestPlugin() {
@@ -56,12 +55,6 @@ function buildStandaloneScripts() {
       // avoiding the ESM import hoisting issue with shared chunks.
       await build({
         configFile: false,
-        plugins: [
-          nodePolyfills({
-            include: ['buffer'],
-            globals: { Buffer: true },
-          }),
-        ],
         define: {
           'process.env': '{}',
           'process.env.NODE_ENV': JSON.stringify('production'),

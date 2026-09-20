@@ -61,10 +61,10 @@ func main() {
 
 		pgRepo, err := repository.NewPostgresRepository(ctx, pgConfig)
 		if err != nil {
-			log.Warn("Failed to connect to database, falling back to in-memory repository",
+			log.Error("Failed to connect to configured database",
 				slog.String("error", err.Error()),
 			)
-			repo = repository.NewInMemoryRepository()
+			os.Exit(1)
 		} else {
 			repo = pgRepo
 			defer pgRepo.Close()
@@ -73,6 +73,10 @@ func main() {
 
 	// Create executor service with repository
 	executorService := service.NewExecutorService(cfg, repo, log)
+	if err := executorService.Ready(); err != nil {
+		log.Error("Executor is not ready", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	// Start executor service in background
 	go executorService.Start(ctx)
@@ -93,7 +97,7 @@ func main() {
 	r.Use(metrics.HTTPMetricsMiddleware(m))
 
 	// Add security middleware
-	r.Use(middleware.DefaultRateLimiter().Middleware())                  // Rate limiting: 100 req/min per IP
+	r.Use(middleware.DefaultRateLimiter().Middleware())           // Rate limiting: 100 req/min per IP
 	r.Use(middleware.NewIdempotencyMiddleware(repo).Middleware()) // API idempotency
 
 	// Health check endpoints (shared package)

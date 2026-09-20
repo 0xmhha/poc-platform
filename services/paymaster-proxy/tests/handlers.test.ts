@@ -1,4 +1,4 @@
-import type { Address, Hex } from 'viem'
+import type { Address, Hex, PublicClient } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleGetPaymasterData } from '../src/handlers/getPaymasterData'
 import { handleGetPaymasterStubData } from '../src/handlers/getPaymasterStubData'
@@ -374,6 +374,44 @@ describe('handleGetPaymasterData', () => {
     supportedChainIds: [8283],
     supportedEntryPoints: [ENTRY_POINT],
     reservationTracker,
+    client: { readContract: vi.fn().mockResolvedValue(0n) } as unknown as PublicClient,
+  })
+
+  it('signs with the current on-chain nonce for verifying and sponsor', async () => {
+    for (const paymasterType of ['verifying', 'sponsor'] as const) {
+      const config = baseConfig()
+      vi.mocked(config.client.readContract).mockResolvedValue(7n)
+      const result = await handleGetPaymasterData(
+        {
+          userOp: createTestUserOp(),
+          entryPoint: ENTRY_POINT,
+          chainId: CHAIN_ID,
+          context: { paymasterType },
+        },
+        config
+      )
+      expect(result.success).toBe(true)
+      const calls = vi.mocked(signer.generateSignedData).mock.calls
+      expect(calls.at(-1)?.[6]).toBe(7n)
+      expect(calls.at(-1)?.[7]).toBe(PAYMASTER_ADDRESSES[paymasterType])
+    }
+  })
+
+  it('does not sign or reserve budget when the nonce RPC fails', async () => {
+    const config = baseConfig()
+    vi.mocked(config.client.readContract).mockRejectedValue(new Error('RPC down'))
+    const reserve = vi.spyOn(policyManager, 'checkAndReserve')
+    const result = await handleGetPaymasterData(
+      {
+        userOp: createTestUserOp(),
+        entryPoint: ENTRY_POINT,
+        chainId: CHAIN_ID,
+      },
+      config
+    )
+    expect(result.success).toBe(false)
+    expect(signer.generateSignedData).not.toHaveBeenCalled()
+    expect(reserve).not.toHaveBeenCalled()
   })
 
   describe('verifying (type 0)', () => {

@@ -32,6 +32,7 @@ import { foundry } from 'viem/chains'
  *   - RecurringPaymentExecutor
  */
 import { beforeAll, describe, expect, it } from 'vitest'
+import { createSubscriptionPermissionClient } from '../../packages/sdk-ts/plugins/subscription/src'
 import { isBundlerAvailable, isNetworkAvailable, TEST_CONFIG } from '../setup'
 
 // ============================================================================
@@ -320,9 +321,9 @@ describe('Subscription E2E Flow', () => {
   // ==========================================================================
 
   describe('Service Health', () => {
-    it('should verify executor service is healthy', async () => {
+    it('should verify executor service is healthy', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const response = await fetch(`${SUBSCRIPTION_EXECUTOR_URL}/health`)
@@ -333,9 +334,9 @@ describe('Subscription E2E Flow', () => {
       expect(health.service).toBe('subscription-executor')
     })
 
-    it('should verify executor service is ready', async () => {
+    it('should verify executor service is ready', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const response = await fetch(`${SUBSCRIPTION_EXECUTOR_URL}/ready`)
@@ -345,9 +346,9 @@ describe('Subscription E2E Flow', () => {
       expect(readiness.ready).toBe(true)
     })
 
-    it('should verify executor service is alive', async () => {
+    it('should verify executor service is alive', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const response = await fetch(`${SUBSCRIPTION_EXECUTOR_URL}/live`)
@@ -357,9 +358,9 @@ describe('Subscription E2E Flow', () => {
       expect(liveness.alive).toBe(true)
     })
 
-    it('should provide Prometheus metrics', async () => {
+    it('should provide Prometheus metrics', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const metrics = await ctx.executorClient.getMetrics()
@@ -375,9 +376,9 @@ describe('Subscription E2E Flow', () => {
   describe('Subscription Creation', () => {
     let subscriptionId: string
 
-    it('should create a new subscription', async () => {
+    it('should create a new subscription', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const request: CreateSubscriptionRequest = {
@@ -400,9 +401,9 @@ describe('Subscription E2E Flow', () => {
       subscriptionId = subscription.id
     })
 
-    it('should retrieve the created subscription', async () => {
+    it('should retrieve the created subscription', async (testContext) => {
       if (!ctx.executorAvailable || !subscriptionId) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const subscription = await ctx.executorClient.getSubscription(subscriptionId)
@@ -411,9 +412,9 @@ describe('Subscription E2E Flow', () => {
       expect(subscription.status).toBe('active')
     })
 
-    it('should list subscriptions by account', async () => {
+    it('should list subscriptions by account', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const subscriptions = await ctx.executorClient.getSubscriptionsByAccount(ctx.account.address)
@@ -426,9 +427,9 @@ describe('Subscription E2E Flow', () => {
       }
     })
 
-    it('should reject invalid Ethereum addresses', async () => {
+    it('should reject invalid Ethereum addresses', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const request: CreateSubscriptionRequest = {
@@ -442,9 +443,9 @@ describe('Subscription E2E Flow', () => {
       await expect(ctx.executorClient.createSubscription(request)).rejects.toThrow()
     })
 
-    it('should reject invalid amounts', async () => {
+    it('should reject invalid amounts', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const request: CreateSubscriptionRequest = {
@@ -483,9 +484,9 @@ describe('Subscription E2E Flow', () => {
       subscriptionId = subscription.id
     })
 
-    it('should pause a subscription', async () => {
+    it('should pause a subscription', async (testContext) => {
       if (!ctx.executorAvailable || !subscriptionId) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const result = await ctx.executorClient.pauseSubscription(subscriptionId)
@@ -495,9 +496,9 @@ describe('Subscription E2E Flow', () => {
       expect(subscription.status).toBe('paused')
     })
 
-    it('should resume a paused subscription', async () => {
+    it('should resume a paused subscription', async (testContext) => {
       if (!ctx.executorAvailable || !subscriptionId) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const result = await ctx.executorClient.resumeSubscription(subscriptionId)
@@ -507,9 +508,9 @@ describe('Subscription E2E Flow', () => {
       expect(subscription.status).toBe('active')
     })
 
-    it('should cancel a subscription', async () => {
+    it('should cancel a subscription', async (testContext) => {
       if (!ctx.executorAvailable || !subscriptionId) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const result = await ctx.executorClient.cancelSubscription(subscriptionId)
@@ -519,9 +520,9 @@ describe('Subscription E2E Flow', () => {
       expect(subscription.status).toBe('cancelled')
     })
 
-    it('should fail to resume a cancelled subscription', async () => {
+    it('should fail to resume a cancelled subscription', async (testContext) => {
       if (!ctx.executorAvailable || !subscriptionId) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       await expect(ctx.executorClient.resumeSubscription(subscriptionId)).rejects.toThrow()
@@ -533,27 +534,30 @@ describe('Subscription E2E Flow', () => {
   // ==========================================================================
 
   describe('ERC-7715 Permission Integration', () => {
-    it('should grant permission for subscription', async () => {
+    it('should grant permission for subscription', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.contractsDeployed) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const permissionManagerAddress = TEST_CONFIG.contracts.permissionManager as Address
       const recurringPaymentExecutor = TEST_CONFIG.contracts.recurringPaymentExecutor as Address
-      const token = '0x0000000000000000000000000000000000000000' as Address
-
       const allowance = parseEther('1') // 1 ETH per period
-      const period = BigInt(86400) // 1 day
       const validUntil = BigInt(Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60) // 1 year
 
       // Grant permission via direct contract call
       // Note: Using any type due to viem 2.x strict typing requirements
-      const txHash = (await (ctx.walletClient.writeContract as unknown)({
-        address: permissionManagerAddress,
-        abi: PERMISSION_MANAGER_ABI,
-        functionName: 'grantPermission',
-        args: [recurringPaymentExecutor, token, allowance, period, validUntil],
-      })) as Hex
+      const permissions = createSubscriptionPermissionClient({
+        managerAddress: permissionManagerAddress,
+      })
+      const txHash = await ctx.walletClient.sendTransaction({
+        to: permissionManagerAddress,
+        data: permissions.encodeGrantSubscriptionPermission({
+          grantee: recurringPaymentExecutor,
+          target: TEST_CONFIG.contracts.subscriptionManager as Address,
+          spendingLimit: allowance,
+          expiry: validUntil,
+        }),
+      })
 
       expect(txHash).toBeDefined()
       expect(txHash).toMatch(/^0x[a-fA-F0-9]{64}$/)
@@ -563,9 +567,9 @@ describe('Subscription E2E Flow', () => {
       expect(receipt.status).toBe('success')
     })
 
-    it('should verify permission is valid', async () => {
+    it('should verify permission is valid', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.contractsDeployed) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       // Note: In a real scenario, we'd get the permissionId from the grant transaction logs
@@ -592,9 +596,9 @@ describe('Subscription E2E Flow', () => {
   // ==========================================================================
 
   describe('Rate Limiting', () => {
-    it('should enforce rate limits on API requests', async () => {
+    it('should enforce rate limits on API requests', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       // Make multiple rapid requests to test rate limiting
@@ -615,9 +619,9 @@ describe('Subscription E2E Flow', () => {
   // ==========================================================================
 
   describe('Idempotency', () => {
-    it('should handle duplicate requests with idempotency key', async () => {
+    it('should handle duplicate requests with idempotency key', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const idempotencyKey = `test-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -665,9 +669,9 @@ describe('Subscription E2E Flow', () => {
   // ==========================================================================
 
   describe('Metrics', () => {
-    it('should track HTTP request metrics', async () => {
+    it('should track HTTP request metrics', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       // Make some requests to generate metrics
@@ -683,9 +687,9 @@ describe('Subscription E2E Flow', () => {
       expect(metrics).toContain('subscription_executor_up')
     })
 
-    it('should report service uptime', async () => {
+    it('should report service uptime', async (testContext) => {
       if (!ctx.executorAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const response = await fetch(`${SUBSCRIPTION_EXECUTOR_URL}/health`)

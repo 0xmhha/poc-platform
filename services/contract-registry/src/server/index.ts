@@ -79,7 +79,7 @@ export class RegistryServer {
 
     await this.app.register(websocket)
 
-    const onMutation = () => this.persistence.scheduleSave(this.store)
+    const onMutation = () => this.persistence.save(this.store)
 
     registerHealthRoutes(this.app, this.store)
     registerContractRoutes(this.app, this.store, this.config.apiKey, onMutation)

@@ -11,7 +11,7 @@
 
 const DEFAULT_AUTO_CLEAR_MS = 60_000
 
-class SecureKeyStore {
+export class SecureKeyStore {
   private _encrypted: Uint8Array | null = null
   private _pad: Uint8Array | null = null
   private _clearTimer: ReturnType<typeof setTimeout> | null = null

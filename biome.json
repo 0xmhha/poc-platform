@@ -92,6 +92,7 @@
       "!**/dist",
       "!**/build",
       "!**/.next",
+      "!**/next-env.d.ts",
       "!**/coverage",
       "!**/.turbo",
       "!**/*.min.js",

@@ -152,7 +152,9 @@ impl AnnouncementParser {
         let epk_end = epk_start + epk_len;
 
         if epk_end > bytes.len() {
-            return Err(ParseError::InvalidData("ephemeralPubKey out of bounds".to_string()));
+            return Err(ParseError::InvalidData(
+                "ephemeralPubKey out of bounds".to_string(),
+            ));
         }
         let ephemeral_pub_key = format!("0x{}", hex::encode(&bytes[epk_start..epk_end]));
 
@@ -161,7 +163,9 @@ impl AnnouncementParser {
         let meta_end = meta_start + meta_len;
 
         if meta_end > bytes.len() {
-            return Err(ParseError::InvalidData("metadata out of bounds".to_string()));
+            return Err(ParseError::InvalidData(
+                "metadata out of bounds".to_string(),
+            ));
         }
         let metadata = format!("0x{}", hex::encode(&bytes[meta_start..meta_end]));
 
@@ -188,7 +192,10 @@ mod tests {
     fn test_parse_address() {
         let topic = "0x000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045";
         let address = AnnouncementParser::parse_address(topic).unwrap();
-        assert_eq!(address.to_lowercase(), "0xd8da6bf26964af9d7eed9e03e53415d37aa96045");
+        assert_eq!(
+            address.to_lowercase(),
+            "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+        );
     }
 
     #[test]

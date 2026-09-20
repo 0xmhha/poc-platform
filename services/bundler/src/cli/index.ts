@@ -50,6 +50,7 @@ async function main() {
           .option('entry-point', {
             alias: 'e',
             type: 'array',
+            string: true,
             description: 'EntryPoint address(es)',
           })
           .option('beneficiary', {

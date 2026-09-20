@@ -78,6 +78,11 @@ export interface SwapQuote {
  * Pool types
  */
 export interface Pool {
+  metricsAvailable?: boolean
+  protocol?: 'uniswap_v2' | 'uniswap_v3'
+  feeTier?: number
+  tickSpacing?: number
+  sqrtPriceX96?: bigint
   address: Address
   token0: Token
   token1: Token
@@ -92,6 +97,9 @@ export interface Pool {
  * Liquidity Position types
  */
 export interface LiquidityPosition {
+  tokenId?: bigint
+  tickLower?: number
+  tickUpper?: number
   poolAddress: Address
   token0: Token
   token1: Token
@@ -125,6 +133,7 @@ export interface Announcement {
  * Enterprise types
  */
 export interface PayrollEntry {
+  payments?: Array<{ txHash: Hex; paidAt: string; amount: string }>
   id: string
   recipient: Address
   amount: bigint
@@ -135,6 +144,9 @@ export interface PayrollEntry {
 }
 
 export interface Expense {
+  documentationUrl?: string
+  paidAt?: string
+  paymentTxHash?: Hex
   id: string
   description: string
   amount: bigint

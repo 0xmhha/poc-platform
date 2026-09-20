@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatEther } from 'viem'
+import {
+  type Address,
+  createPublicClient,
+  formatEther,
+  formatUnits,
+  http,
+  parseAbi,
+  parseUnits,
+} from 'viem'
 import { useAssets, useSelectedNetwork } from '../hooks'
 import { useNetworkCurrency } from '../hooks/useNetworkCurrency'
 import { useTokenPrices } from '../hooks/useTokenPrices'
@@ -22,6 +30,8 @@ interface SwapEstimate {
   estimatedOutput: string
   priceImpact: number | null
   minOutput: string
+  expiresAt: number
+  fingerprint: string
 }
 
 /**
@@ -58,15 +68,16 @@ export function SwapPage() {
     }
   }, [nativeSymbol, form.fromToken])
 
-  // Collect symbols for price lookup
-  const allSymbols = [nativeSymbol, ...assetTokens.map((t) => t.symbol).filter(Boolean)]
-  const uniqueSymbols = [...new Set(allSymbols)]
-  const { prices: tokenPrices } = useTokenPrices(uniqueSymbols)
-
+  // Fiat valuations are display-only; executable quotes always come from Quoter.
+  const { prices: tokenPrices } = useTokenPrices([
+    ...new Set([nativeSymbol, ...assetTokens.map((t) => t.symbol)]),
+  ])
   const slippageOptions = [0.5, 1, 2]
 
   // Find swap executor module from installed modules
   useEffect(() => {
+    let cancelled = false
+    setSwapExecutorAddress(null)
     async function findSwapExecutor() {
       if (!selectedAccount || !currentNetwork) return
 
@@ -88,7 +99,7 @@ export function SwapPage() {
           (m: { type: number | bigint; metadata?: { name?: string } }) =>
             Number(m.type) === 2 && m.metadata?.name?.toLowerCase().includes('swap')
         )
-        if (swapModule) {
+        if (swapModule && !cancelled) {
           setSwapExecutorAddress(swapModule.address)
         }
       } catch {
@@ -97,45 +108,78 @@ export function SwapPage() {
     }
 
     findSwapExecutor()
+    return () => {
+      cancelled = true
+    }
   }, [selectedAccount, currentNetwork])
 
-  // Estimate swap output based on token prices
-  const updateEstimate = useCallback(() => {
-    if (!form.fromAmount || !form.toToken || !form.fromToken) {
-      setEstimate(null)
-      return
-    }
-
-    const fromPrice = tokenPrices[form.fromToken] ?? 0
-    const toPrice = tokenPrices[form.toToken] ?? 0
-
-    if (fromPrice === 0 || toPrice === 0) {
-      setEstimate(null)
-      return
-    }
-
-    const fromValue = Number(form.fromAmount) * fromPrice
-    const estimatedOutputNum = fromValue / toPrice
-    const slippageBps = form.slippage * 100 // convert % to bps
-    const minOutputNum = estimatedOutputNum * (1 - slippageBps / 10000)
-
-    // Estimate price impact: swap fee (0.3%) + size-based impact approximation
-    // For small trades impact ≈ fee; larger trades have proportionally higher impact
-    const swapFeePercent = DEFAULT_SWAP_FEE / 10000 // 0.3%
-    const toValue = estimatedOutputNum * toPrice
-    const executionSlip = fromValue > 0 ? Math.abs(fromValue - toValue) / fromValue : 0
-    const priceImpact = Math.max(swapFeePercent, executionSlip) * 100 // as percentage
-
-    setEstimate({
-      estimatedOutput: estimatedOutputNum.toFixed(6),
-      priceImpact: Math.round(priceImpact * 100) / 100,
-      minOutput: minOutputNum.toFixed(6),
-    })
-  }, [form.fromAmount, form.fromToken, form.toToken, form.slippage, tokenPrices])
-
+  // Quotes come from the installed module's on-chain Quoter, in token base units.
+  const quoteFingerprint = `${selectedAccount}:${currentNetwork?.chainId}:${swapExecutorAddress}:${form.fromToken}:${form.toToken}:${form.fromAmount}:${form.slippage}`
   useEffect(() => {
-    updateEstimate()
-  }, [updateEstimate])
+    let cancelled = false
+    setEstimate(null)
+    if (!form.fromAmount || !form.toToken || !currentNetwork?.rpcUrl || !swapExecutorAddress) return
+    async function quote() {
+      try {
+        const input = assetTokens.find((token) => token.symbol === form.fromToken)
+        const output = assetTokens.find((token) => token.symbol === form.toToken)
+        if (!input || !output || input.address === output.address)
+          throw Error('Select two ERC-20 tokens. Wrap native currency before using this module.')
+        const amountIn = parseUnits(form.fromAmount, input.decimals)
+        if (amountIn <= 0n) throw Error('Amount must be positive')
+        const client = createPublicClient({ transport: http(currentNetwork!.rpcUrl) })
+        if ((await client.getChainId()) !== currentNetwork!.chainId)
+          throw Error('RPC chain does not match selected network')
+        const quoter = await client.readContract({
+          address: swapExecutorAddress as Address,
+          abi: parseAbi(['function QUOTER() view returns (address)']),
+          functionName: 'QUOTER',
+        })
+        const { result: amountOut } = await client.simulateContract({
+          address: quoter,
+          abi: parseAbi([
+            'function quoteExactInputSingle(address tokenIn,address tokenOut,uint24 fee,uint256 amountIn,uint160 sqrtPriceLimitX96) returns (uint256 amountOut)',
+          ]),
+          functionName: 'quoteExactInputSingle',
+          args: [
+            input.address as Address,
+            output.address as Address,
+            DEFAULT_SWAP_FEE,
+            amountIn,
+            0n,
+          ],
+        })
+        const minimum = (amountOut * BigInt(10000 - Math.round(form.slippage * 100))) / 10000n
+        if (minimum <= 0n) throw Error('No executable quote available')
+        if (!cancelled) {
+          setSwapError(null)
+          setEstimate({
+            estimatedOutput: formatUnits(amountOut, output.decimals),
+            minOutput: formatUnits(minimum, output.decimals),
+            priceImpact: null,
+            expiresAt: Date.now() + 60000,
+            fingerprint: quoteFingerprint,
+          })
+        }
+      } catch (error) {
+        if (!cancelled) setSwapError(error instanceof Error ? error.message : 'Quote unavailable')
+      }
+    }
+    void quote()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    quoteFingerprint,
+    assetTokens,
+    currentNetwork?.rpcUrl,
+    currentNetwork?.chainId,
+    swapExecutorAddress,
+    form.fromToken,
+    form.toToken,
+    form.fromAmount,
+    form.slippage,
+  ])
 
   // Check if a symbol is the native token
   function isNativeToken(symbol: string): boolean {
@@ -203,6 +247,12 @@ export function SwapPage() {
     setSwapResult(null)
 
     try {
+      if (
+        !estimate ||
+        estimate.fingerprint !== quoteFingerprint ||
+        estimate.expiresAt <= Date.now()
+      )
+        throw Error('Obtain a fresh quote before swapping')
       const fromDecimals = getTokenDecimals(form.fromToken)
       const toDecimals = getTokenDecimals(form.toToken)
       const tokenInAddress = getTokenAddress(form.fromToken)
@@ -243,6 +293,7 @@ export function SwapPage() {
       }
 
       const hash = response?.payload?.result?.hash
+      if (!hash) throw Error('Wallet did not return a submitted operation hash')
       setSwapResult(hash ?? t('swapSubmitted'))
       // Reset form after success
       setForm((prev) => ({ ...prev, fromAmount: '' }))
@@ -259,7 +310,14 @@ export function SwapPage() {
   const fromBalance = getFromBalance()
   const isSmartAccount = currentAccount?.type !== 'eoa'
   const canSwap =
-    isSmartAccount && !!swapExecutorAddress && !!form.fromAmount && !!form.toToken && !isSwapping
+    isSmartAccount &&
+    !!swapExecutorAddress &&
+    !!form.fromAmount &&
+    !!form.toToken &&
+    !!estimate &&
+    estimate.fingerprint === quoteFingerprint &&
+    estimate.expiresAt > Date.now() &&
+    !isSwapping
 
   return (
     <div className="p-4 space-y-4">

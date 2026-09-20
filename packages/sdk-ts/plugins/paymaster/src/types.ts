@@ -15,6 +15,8 @@ export type PaymasterType = 'verifying' | 'erc20' | 'sponsor' | 'permit2'
  * Verifying Paymaster configuration
  */
 export interface VerifyingPaymasterConfig {
+  /** Read the current sender nonce from this paymaster before signing. */
+  getSenderNonce?: (sender: Address) => Promise<bigint>
   /** The paymaster contract address */
   paymasterAddress: Address
   /** The signer account for signing paymaster data */

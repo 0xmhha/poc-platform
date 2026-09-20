@@ -29,15 +29,19 @@ import {
 import { generatePrivateKey, type LocalAccount, privateKeyToAccount } from 'viem/accounts'
 import { foundry } from 'viem/chains'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { getUserOperationHash, packUserOperation } from '../../packages/sdk/packages/core/src'
-import type { PaymasterClient, UserOperation } from '../../packages/sdk/packages/types/src'
+import {
+  decodePaymasterData,
+  getUserOperationHash,
+  packUserOperation,
+} from '../../packages/sdk-ts/core/src'
 // SDK Imports
 import {
   createSponsorPaymaster,
   createVerifyingPaymaster,
   createVerifyingPaymasterFromPrivateKey,
   DEFAULT_VALIDITY_SECONDS,
-} from '../../packages/sdk/plugins/paymaster/src'
+} from '../../packages/sdk-ts/plugins/paymaster/src'
+import type { PaymasterClient, UserOperation } from '../../packages/types/src'
 import { isBundlerAvailable, isNetworkAvailable, TEST_CONFIG } from '../setup'
 
 // ============================================================================
@@ -164,10 +168,26 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('1. Verifying Paymaster Plugin Creation', () => {
-    it('should create verifying paymaster with signer', () => {
-      if (!ctx.networkAvailable) return
+    it('should create verifying paymaster with signer', (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async (sender) =>
+          ctx.publicClient.readContract({
+            address: TEST_CONFIG.contracts.verifyingPaymaster as Address,
+            abi: [
+              {
+                type: 'function',
+                name: 'senderNonce',
+                inputs: [{ type: 'address' }],
+                outputs: [{ type: 'uint256' }],
+                stateMutability: 'view',
+              },
+            ],
+            functionName: 'senderNonce',
+            args: [sender],
+          }),
         paymasterAddress: TEST_CONFIG.contracts.verifyingPaymaster as Address,
         signer: ctx.paymasterSigner,
         chainId: BigInt(TEST_CONFIG.chainId),
@@ -181,11 +201,27 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       ctx.paymasterClient = paymaster
     })
 
-    it('should create verifying paymaster from private key', async () => {
-      if (!ctx.networkAvailable) return
+    it('should create verifying paymaster from private key', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const privateKey = generatePrivateKey()
       const paymaster = await createVerifyingPaymasterFromPrivateKey({
+        getSenderNonce: async (sender) =>
+          ctx.publicClient.readContract({
+            address: TEST_CONFIG.contracts.verifyingPaymaster as Address,
+            abi: [
+              {
+                type: 'function',
+                name: 'senderNonce',
+                inputs: [{ type: 'address' }],
+                outputs: [{ type: 'uint256' }],
+                stateMutability: 'view',
+              },
+            ],
+            functionName: 'senderNonce',
+            args: [sender],
+          }),
         paymasterAddress: TEST_CONFIG.contracts.verifyingPaymaster as Address,
         privateKey,
         chainId: BigInt(TEST_CONFIG.chainId),
@@ -195,11 +231,27 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(paymaster.getPaymasterData).toBeDefined()
     })
 
-    it('should create paymaster with custom validity period', () => {
-      if (!ctx.networkAvailable) return
+    it('should create paymaster with custom validity period', (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const customValidity = 7200 // 2 hours
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async (sender) =>
+          ctx.publicClient.readContract({
+            address: TEST_CONFIG.contracts.verifyingPaymaster as Address,
+            abi: [
+              {
+                type: 'function',
+                name: 'senderNonce',
+                inputs: [{ type: 'address' }],
+                outputs: [{ type: 'uint256' }],
+                stateMutability: 'view',
+              },
+            ],
+            functionName: 'senderNonce',
+            args: [sender],
+          }),
         paymasterAddress: TEST_CONFIG.contracts.verifyingPaymaster as Address,
         signer: ctx.paymasterSigner,
         chainId: BigInt(TEST_CONFIG.chainId),
@@ -221,8 +273,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('2. Stub Data Generation (Gas Estimation)', () => {
-    it('should generate stub data with correct paymaster address', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should generate stub data with correct paymaster address', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const stubData = await ctx.paymasterClient.getPaymasterStubData(
@@ -234,8 +287,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(stubData.paymaster).toBe(TEST_CONFIG.contracts.verifyingPaymaster)
     })
 
-    it('should return gas limits in stub data', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should return gas limits in stub data', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const stubData = await ctx.paymasterClient.getPaymasterStubData(
@@ -250,8 +304,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(stubData.paymasterPostOpGasLimit).toBeGreaterThan(0n)
     })
 
-    it('should return paymaster data with placeholder signature', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should return paymaster data with placeholder signature', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const stubData = await ctx.paymasterClient.getPaymasterStubData(
@@ -263,13 +318,14 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(stubData.paymasterData).toBeDefined()
       expect(stubData.paymasterData).toMatch(/^0x/)
 
-      // Format: [validUntil (6 bytes)][validAfter (6 bytes)][signature (65 bytes)]
-      // Total: 77 bytes = 154 hex chars + 0x prefix
-      expect(stubData.paymasterData.length).toBe(156)
+      // Decode the versioned envelope separately from the trailing signature.
+      // Envelope length varies with payload; the EOA signature is 65 bytes.
+      expect(decodePaymasterData(stubData.paymasterData.slice(0, -130) as Hex).version).toBe(1)
     })
 
-    it('should use placeholder signature (65 bytes of zeros) in stub', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should use placeholder signature (65 bytes of zeros) in stub', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const stubData = await ctx.paymasterClient.getPaymasterStubData(
@@ -278,16 +334,16 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
         BigInt(TEST_CONFIG.chainId)
       )
 
-      // Signature starts at byte 12 (after timestamps)
-      // Hex position: 2 (0x) + 24 (12 bytes * 2) = 26
-      const signatureHex = stubData.paymasterData.slice(26)
+      // Signature follows the complete variable-length envelope.
+      const signatureHex = stubData.paymasterData.slice(-130)
 
       // Stub signature should be all zeros (65 bytes = 130 hex chars)
       expect(signatureHex).toBe('00'.repeat(65))
     })
 
-    it('should include validity timestamps in stub data', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should include validity timestamps in stub data', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const stubData = await ctx.paymasterClient.getPaymasterStubData(
@@ -297,9 +353,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       )
 
       // Extract timestamps from paymasterData
-      // validUntil: bytes 0-6, validAfter: bytes 6-12
-      const validUntilHex = stubData.paymasterData.slice(2, 14)
-      const validAfterHex = stubData.paymasterData.slice(14, 26)
+      // validUntil: bytes 3-9, validAfter: bytes 9-15
+      const validUntilHex = stubData.paymasterData.slice(8, 20)
+      const validAfterHex = stubData.paymasterData.slice(20, 32)
 
       const validUntil = Number.parseInt(validUntilHex, 16)
       const validAfter = Number.parseInt(validAfterHex, 16)
@@ -316,8 +372,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('3. Signed Paymaster Data', () => {
-    it('should generate signed paymaster data', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should generate signed paymaster data', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const data = await ctx.paymasterClient.getPaymasterData(
@@ -331,8 +388,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(data.paymasterData).toMatch(/^0x/)
     })
 
-    it('should have actual signature (not zeros)', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should have actual signature (not zeros)', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const data = await ctx.paymasterClient.getPaymasterData(
@@ -341,16 +399,17 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
         BigInt(TEST_CONFIG.chainId)
       )
 
-      // Signature starts at byte 12
-      const signatureHex = data.paymasterData.slice(26)
+      // Signature occupies the final 65 bytes.
+      const signatureHex = data.paymasterData.slice(-130)
 
       // Actual signature should NOT be all zeros
       expect(signatureHex).not.toBe('00'.repeat(65))
       expect(signatureHex.length).toBe(130) // 65 bytes
     })
 
-    it('should produce different signatures for different UserOps', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should produce different signatures for different UserOps', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp1 = createMockUserOp(ctx.account.address, 1n)
       const userOp2 = createMockUserOp(ctx.account.address, 2n)
@@ -370,11 +429,27 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(data1.paymasterData.slice(26)).not.toBe(data2.paymasterData.slice(26))
     })
 
-    it('should produce consistent signatures for same UserOp', async () => {
-      if (!ctx.networkAvailable) return
+    it('should produce consistent signatures for same UserOp', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       // Create a new paymaster with fresh signer for deterministic testing
       const paymaster = createVerifyingPaymaster({
+        getSenderNonce: async (sender) =>
+          ctx.publicClient.readContract({
+            address: TEST_CONFIG.contracts.verifyingPaymaster as Address,
+            abi: [
+              {
+                type: 'function',
+                name: 'senderNonce',
+                inputs: [{ type: 'address' }],
+                outputs: [{ type: 'uint256' }],
+                stateMutability: 'view',
+              },
+            ],
+            functionName: 'senderNonce',
+            args: [sender],
+          }),
         paymasterAddress: TEST_CONFIG.contracts.verifyingPaymaster as Address,
         signer: ctx.paymasterSigner,
         chainId: BigInt(TEST_CONFIG.chainId),
@@ -404,15 +479,46 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('4. Chain ID Isolation', () => {
-    it('should produce different signatures for different chain IDs', async () => {
-      if (!ctx.networkAvailable) return
+    it('should produce different signatures for different chain IDs', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const paymaster1 = createVerifyingPaymaster({
+        getSenderNonce: async (sender) =>
+          ctx.publicClient.readContract({
+            address: TEST_CONFIG.contracts.verifyingPaymaster as Address,
+            abi: [
+              {
+                type: 'function',
+                name: 'senderNonce',
+                inputs: [{ type: 'address' }],
+                outputs: [{ type: 'uint256' }],
+                stateMutability: 'view',
+              },
+            ],
+            functionName: 'senderNonce',
+            args: [sender],
+          }),
         paymasterAddress: TEST_CONFIG.contracts.verifyingPaymaster as Address,
         signer: ctx.paymasterSigner,
         chainId: 1n, // Mainnet
       })
       const paymaster2 = createVerifyingPaymaster({
+        getSenderNonce: async (sender) =>
+          ctx.publicClient.readContract({
+            address: TEST_CONFIG.contracts.verifyingPaymaster as Address,
+            abi: [
+              {
+                type: 'function',
+                name: 'senderNonce',
+                inputs: [{ type: 'address' }],
+                outputs: [{ type: 'uint256' }],
+                stateMutability: 'view',
+              },
+            ],
+            functionName: 'senderNonce',
+            args: [sender],
+          }),
         paymasterAddress: TEST_CONFIG.contracts.verifyingPaymaster as Address,
         signer: ctx.paymasterSigner,
         chainId: 137n, // Polygon
@@ -441,8 +547,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('5. UserOperation with Paymaster Integration', () => {
-    it('should fill UserOp with paymaster stub data', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should fill UserOp with paymaster stub data', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const stubData = await ctx.paymasterClient.getPaymasterStubData(
@@ -465,8 +572,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(sponsoredUserOp.paymasterPostOpGasLimit).toBeGreaterThan(0n)
     })
 
-    it('should pack UserOperation with paymaster data', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should pack UserOperation with paymaster data', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const stubData = await ctx.paymasterClient.getPaymasterStubData(
@@ -493,8 +601,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       )
     })
 
-    it('should compute UserOp hash with paymaster data', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should compute UserOp hash with paymaster data', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOp = createMockUserOp(ctx.account.address)
       const data = await ctx.paymasterClient.getPaymasterData(
@@ -526,8 +635,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('6. Paymaster Contract (On-Chain)', () => {
-    it('should check if VerifyingPaymaster is deployed', async () => {
-      if (!ctx.networkAvailable) return
+    it('should check if VerifyingPaymaster is deployed', async (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const code = await ctx.publicClient.getCode({
         address: TEST_CONFIG.contracts.verifyingPaymaster as Address,
@@ -539,9 +649,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       }
     })
 
-    it('should check paymaster deposit in EntryPoint', async () => {
+    it('should check paymaster deposit in EntryPoint', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.paymasterDeployed) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       try {
@@ -560,9 +670,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('7. Paymaster Service API', () => {
-    it('should call pm_getPaymasterStubData via service', async () => {
+    it('should call pm_getPaymasterStubData via service', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.paymasterServiceAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const userOp = createMockUserOp(ctx.account.address)
@@ -602,9 +712,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       } catch (_error) {}
     })
 
-    it('should call pm_getPaymasterData via service', async () => {
+    it('should call pm_getPaymasterData via service', async (testContext) => {
       if (!ctx.networkAvailable || !ctx.paymasterServiceAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const userOp = createMockUserOp(ctx.account.address)
@@ -650,8 +760,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('8. Sponsor Paymaster (API-based)', () => {
-    it('should create sponsor paymaster client', () => {
-      if (!ctx.networkAvailable) return
+    it('should create sponsor paymaster client', (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const sponsorPaymaster = createSponsorPaymaster({
         paymasterUrl: TEST_CONFIG.paymasterUrl,
@@ -662,8 +773,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(sponsorPaymaster.getPaymasterData).toBeDefined()
     })
 
-    it('should create sponsor paymaster with API key', () => {
-      if (!ctx.networkAvailable) return
+    it('should create sponsor paymaster with API key', (testContext) => {
+      if (!ctx.networkAvailable)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const sponsorPaymaster = createSponsorPaymaster({
         paymasterUrl: TEST_CONFIG.paymasterUrl,
@@ -680,8 +792,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('9. Full Sponsored UserOp Flow', () => {
-    it('should complete full gas sponsorship flow', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should complete full gas sponsorship flow', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       // Step 1: Create base UserOp
       const userOp = createMockUserOp(ctx.account.address)
@@ -733,8 +846,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
   // ==========================================================================
 
   describe('10. Edge Cases', () => {
-    it('should handle UserOp with factory data', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should handle UserOp with factory data', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOpWithFactory: UserOperation = {
         ...createMockUserOp(ctx.account.address),
@@ -752,8 +866,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(data.paymasterData).toBeDefined()
     })
 
-    it('should handle large gas values', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should handle large gas values', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const largeGasUserOp: UserOperation = {
         ...createMockUserOp(ctx.account.address),
@@ -770,8 +885,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(data.paymasterData).toBeDefined()
     })
 
-    it('should handle zero nonce', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should handle zero nonce', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const zeroNonceUserOp = createMockUserOp(ctx.account.address, 0n)
 
@@ -784,8 +900,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(data.paymasterData).toBeDefined()
     })
 
-    it('should handle different sender addresses', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should handle different sender addresses', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const randomSender = ('0x' + 'a'.repeat(40)) as Address
       const userOp = createMockUserOp(randomSender)
@@ -800,8 +917,9 @@ describe('Paymaster Gas Sponsorship E2E Tests', () => {
       expect(data.paymasterData).toBeDefined()
     })
 
-    it('should handle non-empty callData', async () => {
-      if (!ctx.networkAvailable || !ctx.paymasterClient) return
+    it('should handle non-empty callData', async (testContext) => {
+      if (!ctx.networkAvailable || !ctx.paymasterClient)
+        return testContext.skip('Required local service or deployment is unavailable')
 
       const userOpWithCallData: UserOperation = {
         ...createMockUserOp(ctx.account.address),

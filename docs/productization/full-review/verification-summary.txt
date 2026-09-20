@@ -1,0 +1,117 @@
+
+Latest platform CI (2026-09-20, no cache)
+pnpm exec turbo run test:ci --force --concurrency=6
+Tasks: 55 successful, 55 total; Cached: 0
+Web: 31 files, 184 tests passed; production build passed (33 routes)
+Wallet extension: 51 suites, 1257 tests passed; process exited cleanly
+Payment Hub: 31 tests passed including local HTTP integration
+Paymaster Proxy: 11 files, 196 tests passed
+AST graph: 1501 files, 24117 nodes, 87693 edges, 0 issues
+Source fingerprint: 85037e9b1f138e19b802754161b2bbc64d6e4fcce11204d372bce5a51d59ee73
+
+Platform (no cache)
+/tmp/allfeature-turbo.log
+@stablenet/module-registry:test:  Test Files  1 passed (1)
+@stablenet/module-registry:test:       Tests  4 passed (4)
+@stablenet/registry-client:test:  Test Files  3 passed (3)
+@stablenet/registry-client:test:       Tests  80 passed (80)
+@stablenet/contracts:test:  Test Files  2 passed (2)
+@stablenet/contracts:test:       Tests  52 passed (52)
+@stablenet/contract-registry:test:  Test Files  5 passed (5)
+@stablenet/contract-registry:test:       Tests  42 passed (42)
+@stablenet/types:test:  Test Files  1 passed (1)
+@stablenet/types:test:       Tests  105 passed (105)
+@stablenet/payment-hub:test:  Test Files  4 passed (4)
+@stablenet/payment-hub:test:       Tests  31 passed (31)
+@stablenet/config:test:  Test Files  1 passed (1)
+@stablenet/config:test:       Tests  87 passed (87)
+@stablenet/core:test:  Test Files  25 passed (25)
+@stablenet/core:test:       Tests  605 passed (605)
+@stablenet/plugin-paymaster:test:  Test Files  1 passed (1)
+@stablenet/plugin-paymaster:test:       Tests  17 passed (17)
+@stablenet/plugin-stealth:test:  Test Files  1 passed (1)
+@stablenet/plugin-stealth:test:       Tests  57 passed (57)
+@stablenet/plugin-webauthn:test:  Test Files  1 passed (1)
+@stablenet/plugin-webauthn:test:       Tests  11 passed (11)
+@stablenet/plugin-session-keys:test:  Test Files  1 passed (1)
+@stablenet/plugin-session-keys:test:       Tests  22 passed (22)
+@stablenet/accounts:test:  Test Files  2 passed (2)
+@stablenet/accounts:test:       Tests  36 passed (36)
+@stablenet/plugin-subscription:test:  Test Files  1 passed (1)
+@stablenet/plugin-subscription:test:       Tests  46 passed (46)
+@stablenet/bundler:test:  Test Files  18 passed (18)
+@stablenet/bundler:test:       Tests  461 passed (461)
+@stablenet/plugin-defi:test:  Test Files  1 passed (1)
+@stablenet/plugin-defi:test:       Tests  30 passed (30)
+@stablenet/plugin-ecdsa:test:  Test Files  1 passed (1)
+@stablenet/plugin-ecdsa:test:       Tests  15 passed (15)
+@stablenet/plugin-multisig:test:  Test Files  1 passed (1)
+@stablenet/plugin-multisig:test:       Tests  13 passed (13)
+@stablenet/plugin-modules:test:  Test Files  1 passed (1)
+@stablenet/plugin-modules:test:       Tests  31 passed (31)
+@stablenet/paymaster-proxy:test:  Test Files  11 passed (11)
+@stablenet/paymaster-proxy:test:       Tests  195 passed (195)
+@stablenet/wallet-sdk:test:  Test Files  26 passed (26)
+@stablenet/wallet-sdk:test:       Tests  266 passed (266)
+@stablenet/web:test:  Test Files  29 passed (29)
+@stablenet/web:test:       Tests  177 passed (177)
+@stablenet/wallet-extension:test: Test Suites: 51 passed, 51 total
+@stablenet/wallet-extension:test: Tests:       1257 passed, 1257 total
+ Tasks:    84 successful, 84 total
+
+Web final
+/tmp/allfeature-web-final.log
+ Test Files  29 passed (29)
+      Tests  177 passed (177)
+
+Contracts
+/tmp/allfeature-contract-full.log
+Ran 60 test suites in 1.05s (4.43s CPU time): 1675 tests passed, 0 failed, 0 skipped (1675 total tests)
+
+Bridge Go race
+/tmp/allfeature-bridge.log
+ok  	github.com/stablenet/stable-platform/services/bridge-relayer/internal/config	(cached)
+ok  	github.com/stablenet/stable-platform/services/bridge-relayer/internal/domain	(cached)
+ok  	github.com/stablenet/stable-platform/services/bridge-relayer/internal/ethereum	(cached)
+ok  	github.com/stablenet/stable-platform/services/bridge-relayer/internal/executor	(cached)
+ok  	github.com/stablenet/stable-platform/services/bridge-relayer/internal/fraud	1.984s
+ok  	github.com/stablenet/stable-platform/services/bridge-relayer/internal/guardian	(cached)
+ok  	github.com/stablenet/stable-platform/services/bridge-relayer/internal/middleware	(cached)
+ok  	github.com/stablenet/stable-platform/services/bridge-relayer/internal/mpc	1.573s
+
+Subscription Go race
+/tmp/allfeature-subscription.log
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/client	(cached)
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/lock	(cached)
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/middleware	(cached)
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/model	(cached)
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/repository	1.927s
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/resilience	(cached)
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/service	2.309s
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/validation	(cached)
+ok  	github.com/stablenet/stable-platform/services/subscription-executor/internal/webhook	(cached)
+
+Order-router Go race
+/tmp/allfeature-order-router.log
+ok  	github.com/stablenet/stable-platform/services/order-router/internal/aggregator	1.416s
+ok  	github.com/stablenet/stable-platform/services/order-router/internal/cache	2.226s
+ok  	github.com/stablenet/stable-platform/services/order-router/internal/config	1.769s
+ok  	github.com/stablenet/stable-platform/services/order-router/internal/handler	3.800s
+ok  	github.com/stablenet/stable-platform/services/order-router/internal/provider	4.532s
+ok  	github.com/stablenet/stable-platform/services/order-router/internal/router	3.130s
+ok  	github.com/stablenet/stable-platform/services/order-router/internal/service	4.969s
+ok  	github.com/stablenet/stable-platform/services/order-router/internal/validation	4.139s
+
+Rust privacy
+/tmp/allfeature-stealth-rust.log
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+Targeted lint
+/tmp/allfeature-lint.log
+Checked 15 files in 12ms. No fixes applied.
+
+Deploy dry-run
+/tmp/allfeature-deploy-plan.log
+✅ All steps completed successfully!

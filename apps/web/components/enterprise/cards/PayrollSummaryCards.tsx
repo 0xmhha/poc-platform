@@ -17,7 +17,7 @@ export function PayrollSummaryCards({
 }: PayrollSummaryCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <SummaryStatCard label="Monthly Payroll" value={monthlyPayroll} />
+      <SummaryStatCard label="Estimated Monthly Payroll" value={monthlyPayroll} />
       <SummaryStatCard label="Active Employees" value={activeEmployees} />
       <SummaryStatCard label="Next Payment" value={nextPayment} />
       <SummaryStatCard label="YTD Payments" value={ytdPayments} />

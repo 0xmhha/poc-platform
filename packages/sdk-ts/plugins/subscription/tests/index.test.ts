@@ -525,6 +525,7 @@ describe('createSubscriptionPermissionClient', () => {
           data: '0x',
         },
         rules: [],
+        deadline: 2000000000n,
         signature: mockSignature,
       })
 
@@ -535,6 +536,8 @@ describe('createSubscriptionPermissionClient', () => {
       expect(decoded.functionName).toBe('grantPermissionWithSignature')
       expect(decoded.args[0]).toBe(MOCK_ACCOUNT) // granter
       expect(decoded.args[1]).toBe(MOCK_MANAGER_ADDRESS) // grantee
+      expect(decoded.args[5]).toBe(2000000000n)
+      expect(decoded.args[6]).toBe(mockSignature)
     })
   })
 

@@ -47,9 +47,9 @@ describe('Paymaster Integration Tests', () => {
   })
 
   describe('Paymaster Health', () => {
-    it('should respond to health check', async () => {
+    it('should respond to health check', async (testContext) => {
       if (!paymasterAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const response = await fetch(`${TEST_CONFIG.paymasterUrl}/health`)
@@ -58,9 +58,9 @@ describe('Paymaster Integration Tests', () => {
   })
 
   describe('ERC-7677 Methods', () => {
-    it('should return paymaster stub data', async () => {
+    it('should return paymaster stub data', async (testContext) => {
       if (!paymasterAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       // Create a mock UserOperation
@@ -98,9 +98,9 @@ describe('Paymaster Integration Tests', () => {
       }
     })
 
-    it('should return paymaster data with signature', async () => {
+    it('should return paymaster data with signature', async (testContext) => {
       if (!paymasterAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       const userOp = {
@@ -132,9 +132,9 @@ describe('Paymaster Integration Tests', () => {
   })
 
   describe('Sponsor Policy', () => {
-    it('should check sponsor eligibility', async () => {
+    it('should check sponsor eligibility', async (testContext) => {
       if (!paymasterAvailable) {
-        return
+        return testContext.skip('Required local service or deployment is unavailable')
       }
 
       // Mock check - paymaster should have sponsor policy validation

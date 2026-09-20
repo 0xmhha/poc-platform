@@ -24,15 +24,10 @@ import {
 } from '@/lib/eip7702'
 import { wagmiConfig } from '@/lib/wagmi'
 
-// Anvil fallback addresses — used only when chain is not in @stablenet/contracts
-const ANVIL_KERNEL_IMPLEMENTATION = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const
-const ANVIL_ECDSA_VALIDATOR = '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const
-const ANVIL_KERNEL_FACTORY = '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const
-const ANVIL_ENTRY_POINT = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0' as const
-
 /**
  * Resolve Smart Account contract addresses for a given chain.
- * Uses @stablenet/contracts for supported chains, falls back to Anvil devnet addresses.
+ * All chains (including Anvil 31337) are registered in @stablenet/contracts.
+ * Falls back to canonical EntryPoint for truly unknown chains.
  */
 export function getSmartAccountAddresses(chainId: number): {
   entryPoint: Address
@@ -49,12 +44,12 @@ export function getSmartAccountAddresses(chainId: number): {
     }
   }
 
-  // Fallback for unsupported chains (Anvil local dev, unknown chains)
+  // Unsupported chain — only canonical EntryPoint is known
   return {
-    entryPoint: (chainId === 31337 ? ANVIL_ENTRY_POINT : ENTRY_POINT_ADDRESS) as Address,
-    kernel: ANVIL_KERNEL_IMPLEMENTATION as Address,
-    kernelFactory: ANVIL_KERNEL_FACTORY as Address,
-    ecdsaValidator: ANVIL_ECDSA_VALIDATOR as Address,
+    entryPoint: ENTRY_POINT_ADDRESS,
+    kernel: ZERO_ADDRESS as Address,
+    kernelFactory: ZERO_ADDRESS as Address,
+    ecdsaValidator: ZERO_ADDRESS as Address,
   }
 }
 
@@ -663,6 +658,12 @@ export function useSmartAccount() {
 
   const clearError = useCallback(() => setError(null), [])
 
+  // Clear stale authorization/txHash from previous operations
+  const clearLastTransaction = useCallback(() => {
+    setLastAuthorization(null)
+    setLastTxHash(null)
+  }, [])
+
   return {
     // Status
     status,
@@ -692,6 +693,7 @@ export function useSmartAccount() {
     // Common actions
     refreshStatus: checkSmartAccountStatus,
     clearError,
+    clearLastTransaction,
 
     // Helpers
     getDefaultDelegateAddress,

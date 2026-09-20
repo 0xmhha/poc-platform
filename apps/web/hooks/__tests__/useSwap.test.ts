@@ -1,458 +1,153 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
+import { type Address, encodeFunctionData } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Token } from '@/types'
+import { SWAP_ROUTER_ABI } from '@/lib/contracts/swap'
+import type { SwapQuote, Token } from '@/types'
 import { useSwap } from '../useSwap'
 
-// Mock context
-vi.mock('@/providers', () => ({
-  useStableNetContext: () => ({
-    chainId: 8283,
-  }),
-}))
-
-// Mock tokens for testing
-const mockTokenIn: Token = {
-  address: '0x0000000000000000000000000000000000000000',
-  name: 'Ether',
-  symbol: 'ETH',
+vi.mock('@/providers', () => ({ useStableNetContext: () => ({ chainId: 8283 }) }))
+const tokenIn: Token = {
+  address: '0x1111111111111111111111111111111111111111',
+  name: 'Input',
+  symbol: 'IN',
   decimals: 18,
 }
-
-const mockTokenOut: Token = {
-  address: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
-  name: 'USD Coin',
-  symbol: 'USDC',
+const tokenOut: Token = {
+  address: '0x2222222222222222222222222222222222222222',
+  name: 'Output',
+  symbol: 'OUT',
   decimals: 6,
 }
-
-describe('useSwap', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+const router = '0x3333333333333333333333333333333333333333' as Address
+const recipient = '0x4444444444444444444444444444444444444444' as Address
+const hash = `0x${'aa'.repeat(32)}` as const
+const quoteResponse = () => ({
+  amountOut: '2000000',
+  amountIn: '100',
+  expiresAt: new Date(Date.now() + 60000).toISOString(),
+  priceImpact: 0.1,
+  route: { hops: [{ tokenOut }] },
+  gasEstimate: 150000,
+})
+const swapData = (minimum = 1990000n, to = recipient) =>
+  encodeFunctionData({
+    abi: SWAP_ROUTER_ABI,
+    functionName: 'swapExactTokensForTokens',
+    args: [
+      100n,
+      minimum,
+      [tokenIn.address, tokenOut.address],
+      to,
+      BigInt(Math.floor(Date.now() / 1000) + 600),
+    ],
   })
-
-  describe('getQuote', () => {
-    it('should call order router API to get real quote', async () => {
-      const mockQuoteResponse = {
-        tokenIn: mockTokenIn,
-        tokenOut: mockTokenOut,
-        amountIn: '1000000000000000000', // 1 ETH
-        amountOut: '2500000000', // 2500 USDC
-        priceImpact: 0.05,
-        route: [mockTokenIn.address, mockTokenOut.address],
-        gasEstimate: '150000',
-      }
-
-      // Mock the fetch call to order router
-      vi.mocked(global.fetch).mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockQuoteResponse,
-      } as Response)
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-        })
-      )
-
-      let quote: unknown
-      await act(async () => {
-        quote = await result.current.getQuote({
-          tokenIn: mockTokenIn,
-          tokenOut: mockTokenOut,
-          amountIn: BigInt('1000000000000000000'),
-        })
-      })
-
-      // Should have called the order router API
-      expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:4340/quote',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
-
-      // Should return parsed quote with BigInt values
-      expect(quote).toMatchObject({
-        tokenIn: mockTokenIn,
-        tokenOut: mockTokenOut,
-        amountIn: BigInt('1000000000000000000'),
-        amountOut: BigInt('2500000000'),
-        priceImpact: 0.05,
+const response = (data: unknown) => ({ ok: true, json: async () => data }) as Response
+async function setup(allowance = 100n) {
+  const send = vi.fn().mockResolvedValue({ userOpHash: hash, transactionHash: hash, success: true })
+  const read = vi.fn().mockResolvedValue(allowance)
+  const hook = renderHook(() =>
+    useSwap({
+      orderRouterUrl: 'http://localhost:4340',
+      routerAddress: router,
+      sendUserOp: send,
+      readContract: read,
+    })
+  )
+  vi.mocked(fetch).mockResolvedValueOnce(response(quoteResponse()))
+  let quote!: SwapQuote
+  await act(async () => {
+    quote = (await hook.result.current.getQuote({ tokenIn, tokenOut, amountIn: 100n }))!
+  })
+  return { ...hook, quote, send, read }
+}
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+describe('swap API and transaction integrity', () => {
+  it('uses the deployed GET quote endpoint and parses hop objects', async () => {
+    const { quote } = await setup()
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/quote?tokenIn='),
+      expect.objectContaining({ signal: expect.anything() })
+    )
+    expect(quote.route).toEqual([tokenIn.address, tokenOut.address])
+    expect(quote.amountOut).toBe(2000000n)
+  })
+  it('builds via the server, validates calldata, and waits for confirmed execution', async () => {
+    const { result, quote, send } = await setup()
+    vi.mocked(fetch).mockResolvedValueOnce(response({ to: router, data: swapData(), value: '0' }))
+    let receipt: unknown
+    await act(async () => {
+      receipt = await result.current.executeSwap(quote, recipient, {
+        gasPayment: { type: 'sponsor' },
       })
     })
-
-    it('should handle quote API errors gracefully', async () => {
-      vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Network error'))
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-        })
-      )
-
-      let quote: unknown
-      await act(async () => {
-        quote = await result.current.getQuote({
-          tokenIn: mockTokenIn,
-          tokenOut: mockTokenOut,
-          amountIn: BigInt('1000000000000000000'),
-        })
+    expect(receipt).toEqual({ transactionHash: hash })
+    expect(send).toHaveBeenCalledWith(
+      recipient,
+      expect.objectContaining({
+        to: router,
+        minAmountOut: 1990000n,
+        gasPayment: { type: 'sponsor' },
       })
-
-      expect(quote).toBeNull()
-      expect(result.current.error).toBeTruthy()
-      // Original error message is preserved for better debugging
-      expect(result.current.error?.message).toBe('Network error')
+    )
+  })
+  it('resets insufficient nonzero allowance before an exact approval', async () => {
+    const { result, quote, send } = await setup(1n)
+    vi.mocked(fetch).mockResolvedValueOnce(response({ to: router, data: swapData(), value: '0' }))
+    await act(async () => {
+      await result.current.executeSwap(quote, recipient)
     })
-
-    it('should set loading state during quote fetch', async () => {
-      let resolvePromise: (value: Response) => void
-      const pendingPromise = new Promise<Response>((resolve) => {
-        resolvePromise = resolve
+    expect(send).toHaveBeenCalledTimes(3)
+  })
+  it.each([
+    'recipient',
+    'minimum',
+    'router',
+    'value',
+  ])('rejects a changed %s before requesting any signature', async (change) => {
+    const { result, quote, send } = await setup()
+    vi.mocked(fetch).mockResolvedValueOnce(
+      response({
+        to: change === 'router' ? recipient : router,
+        data: swapData(
+          change === 'minimum' ? 1n : 1990000n,
+          change === 'recipient' ? router : recipient
+        ),
+        value: change === 'value' ? '1' : '0',
       })
-      vi.mocked(global.fetch).mockReturnValueOnce(pendingPromise)
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-        })
-      )
-
-      expect(result.current.isLoading).toBe(false)
-
-      act(() => {
-        result.current.getQuote({
-          tokenIn: mockTokenIn,
-          tokenOut: mockTokenOut,
-          amountIn: BigInt('1000000000000000000'),
-        })
-      })
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(true)
-      })
-
-      await act(async () => {
-        resolvePromise!({
-          ok: true,
-          json: async () => ({
-            amountOut: '2500000000',
-            priceImpact: 0.05,
-            route: [mockTokenIn.address, mockTokenOut.address],
-            gasEstimate: '150000',
-          }),
-        } as Response)
-      })
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false)
-      })
+    )
+    await act(async () => {
+      expect(await result.current.executeSwap(quote, recipient)).toBeNull()
+    })
+    expect(send).not.toHaveBeenCalled()
+    expect(result.current.error).toBeTruthy()
+  })
+  it('rejects unknown or expired quotes and unbounded slippage', async () => {
+    const { result, quote, send } = await setup()
+    await act(async () => {
+      expect(await result.current.executeSwap({ ...quote }, recipient)).toBeNull()
+    })
+    await act(async () => {
+      expect(await result.current.executeSwap(quote, recipient, { slippage: 100 })).toBeNull()
+    })
+    expect(send).not.toHaveBeenCalled()
+  })
+  it('does not report a submitted or reverted transaction as complete', async () => {
+    const { result, quote, send } = await setup()
+    send.mockResolvedValueOnce({ userOpHash: hash, success: false })
+    vi.mocked(fetch).mockResolvedValueOnce(response({ to: router, data: swapData(), value: '0' }))
+    await act(async () => {
+      expect(await result.current.executeSwap(quote, recipient)).toBeNull()
     })
   })
-
-  describe('executeSwap', () => {
-    it('should execute swap via UserOperation', async () => {
-      const mockSwapResult = {
-        userOpHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        transactionHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-      }
-
-      // Mock sendUserOp function
-      const mockSendUserOp = vi.fn().mockResolvedValueOnce({
-        userOpHash: mockSwapResult.userOpHash,
-        transactionHash: mockSwapResult.transactionHash,
-        success: true,
-      })
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-          sendUserOp: mockSendUserOp,
-          routerAddress: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-        })
-      )
-
-      const mockQuote = {
-        tokenIn: mockTokenIn,
-        tokenOut: mockTokenOut,
-        amountIn: BigInt('1000000000000000000'),
-        amountOut: BigInt('2500000000'),
-        priceImpact: 0.05,
-        route: [mockTokenIn.address, mockTokenOut.address],
-        gasEstimate: BigInt(150000),
-      }
-
-      let swapResult: unknown
-      await act(async () => {
-        swapResult = await result.current.executeSwap(
-          mockQuote,
-          '0x1234567890123456789012345678901234567890' as `0x${string}`
-        )
-      })
-
-      // Should have called sendUserOp with swap calldata
-      expect(mockSendUserOp).toHaveBeenCalled()
-
-      // Should return transaction result
-      expect(swapResult).toMatchObject({
-        transactionHash: mockSwapResult.transactionHash,
-      })
+  it('clears an old quote when the next request fails', async () => {
+    const { result } = await setup()
+    vi.mocked(fetch).mockRejectedValueOnce(Error('Network unavailable'))
+    await act(async () => {
+      await result.current.getQuote({ tokenIn, tokenOut, amountIn: 200n })
     })
-
-    it('should build correct swap calldata', async () => {
-      const mockSendUserOp = vi.fn().mockResolvedValueOnce({
-        userOpHash: '0x1234',
-        transactionHash: '0xabcd',
-        success: true,
-      })
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-          sendUserOp: mockSendUserOp,
-          routerAddress: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-        })
-      )
-
-      const mockQuote = {
-        tokenIn: mockTokenIn,
-        tokenOut: mockTokenOut,
-        amountIn: BigInt('1000000000000000000'),
-        amountOut: BigInt('2500000000'),
-        priceImpact: 0.05,
-        route: [mockTokenIn.address, mockTokenOut.address],
-        gasEstimate: BigInt(150000),
-      }
-
-      await act(async () => {
-        await result.current.executeSwap(
-          mockQuote,
-          '0x1234567890123456789012345678901234567890' as `0x${string}`
-        )
-      })
-
-      // Verify sendUserOp was called with proper calldata
-      const callArgs = mockSendUserOp.mock.calls[0][1]
-      expect(callArgs.to).toBe('0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D')
-      expect(callArgs.data).toBeDefined()
-      expect(callArgs.data.startsWith('0x')).toBe(true)
-    })
-
-    it('should handle swap execution errors', async () => {
-      const mockSendUserOp = vi.fn().mockRejectedValueOnce(new Error('UserOp failed'))
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-          sendUserOp: mockSendUserOp,
-          routerAddress: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-        })
-      )
-
-      const mockQuote = {
-        tokenIn: mockTokenIn,
-        tokenOut: mockTokenOut,
-        amountIn: BigInt('1000000000000000000'),
-        amountOut: BigInt('2500000000'),
-        priceImpact: 0.05,
-        route: [mockTokenIn.address, mockTokenOut.address],
-        gasEstimate: BigInt(150000),
-      }
-
-      let swapResult: unknown
-      await act(async () => {
-        swapResult = await result.current.executeSwap(
-          mockQuote,
-          '0x1234567890123456789012345678901234567890' as `0x${string}`
-        )
-      })
-
-      expect(swapResult).toBeNull()
-      expect(result.current.error).toBeTruthy()
-    })
-  })
-
-  describe('ERC-20 allowance and approve', () => {
-    const mockERC20TokenIn: Token = {
-      address: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
-      name: 'USD Coin',
-      symbol: 'USDC',
-      decimals: 6,
-    }
-
-    it('should skip allowance check for ETH swaps', async () => {
-      const mockSendUserOp = vi.fn().mockResolvedValueOnce({
-        userOpHash: '0x1234',
-        transactionHash: '0xabcd',
-        success: true,
-      })
-
-      const mockReadContract = vi.fn()
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-          sendUserOp: mockSendUserOp,
-          readContract: mockReadContract,
-          routerAddress: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-        })
-      )
-
-      const mockQuote = {
-        tokenIn: mockTokenIn, // ETH
-        tokenOut: mockTokenOut,
-        amountIn: BigInt('1000000000000000000'),
-        amountOut: BigInt('2500000000'),
-        priceImpact: 0.05,
-        route: [mockTokenIn.address, mockTokenOut.address],
-        gasEstimate: BigInt(150000),
-      }
-
-      await act(async () => {
-        await result.current.executeSwap(
-          mockQuote,
-          '0x1234567890123456789012345678901234567890' as `0x${string}`
-        )
-      })
-
-      // readContract should NOT have been called for ETH
-      expect(mockReadContract).not.toHaveBeenCalled()
-      // Only one sendUserOp call (swap only, no approve)
-      expect(mockSendUserOp).toHaveBeenCalledTimes(1)
-    })
-
-    it('should call approve when ERC-20 allowance is insufficient', async () => {
-      const mockSendUserOp = vi
-        .fn()
-        .mockResolvedValueOnce({
-          userOpHash: '0xapprove',
-          transactionHash: '0xapproveTx',
-          success: true,
-        })
-        .mockResolvedValueOnce({
-          userOpHash: '0xswap',
-          transactionHash: '0xswapTx',
-          success: true,
-        })
-
-      // Return insufficient allowance
-      const mockReadContract = vi.fn().mockResolvedValueOnce(BigInt(0))
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-          sendUserOp: mockSendUserOp,
-          readContract: mockReadContract,
-          routerAddress: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-        })
-      )
-
-      const mockQuote = {
-        tokenIn: mockERC20TokenIn,
-        tokenOut: mockTokenOut,
-        amountIn: BigInt('1000000'),
-        amountOut: BigInt('2500000000'),
-        priceImpact: 0.05,
-        route: [mockERC20TokenIn.address, mockTokenOut.address],
-        gasEstimate: BigInt(150000),
-      }
-
-      await act(async () => {
-        await result.current.executeSwap(
-          mockQuote,
-          '0x1234567890123456789012345678901234567890' as `0x${string}`
-        )
-      })
-
-      // Should have called readContract to check allowance
-      expect(mockReadContract).toHaveBeenCalled()
-      // Should have called sendUserOp twice: approve + swap
-      expect(mockSendUserOp).toHaveBeenCalledTimes(2)
-    })
-
-    it('should skip approve when ERC-20 allowance is sufficient', async () => {
-      const mockSendUserOp = vi.fn().mockResolvedValueOnce({
-        userOpHash: '0xswap',
-        transactionHash: '0xswapTx',
-        success: true,
-      })
-
-      // Return sufficient allowance
-      const mockReadContract = vi.fn().mockResolvedValueOnce(BigInt('999999999999'))
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-          sendUserOp: mockSendUserOp,
-          readContract: mockReadContract,
-          routerAddress: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-        })
-      )
-
-      const mockQuote = {
-        tokenIn: mockERC20TokenIn,
-        tokenOut: mockTokenOut,
-        amountIn: BigInt('1000000'),
-        amountOut: BigInt('2500000000'),
-        priceImpact: 0.05,
-        route: [mockERC20TokenIn.address, mockTokenOut.address],
-        gasEstimate: BigInt(150000),
-      }
-
-      await act(async () => {
-        await result.current.executeSwap(
-          mockQuote,
-          '0x1234567890123456789012345678901234567890' as `0x${string}`
-        )
-      })
-
-      // Should have checked allowance
-      expect(mockReadContract).toHaveBeenCalled()
-      // Only swap, no approve needed
-      expect(mockSendUserOp).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('slippage handling', () => {
-    it('should apply slippage to minimum amount out', async () => {
-      const mockSendUserOp = vi.fn().mockResolvedValueOnce({
-        userOpHash: '0x1234',
-        transactionHash: '0xabcd',
-        success: true,
-      })
-
-      const { result } = renderHook(() =>
-        useSwap({
-          orderRouterUrl: 'http://localhost:4340',
-          sendUserOp: mockSendUserOp,
-          routerAddress: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-          defaultSlippage: 0.5, // 0.5%
-        })
-      )
-
-      const mockQuote = {
-        tokenIn: mockTokenIn,
-        tokenOut: mockTokenOut,
-        amountIn: BigInt('1000000000000000000'),
-        amountOut: BigInt('2500000000'), // 2500 USDC
-        priceImpact: 0.05,
-        route: [mockTokenIn.address, mockTokenOut.address],
-        gasEstimate: BigInt(150000),
-      }
-
-      await act(async () => {
-        await result.current.executeSwap(
-          mockQuote,
-          '0x1234567890123456789012345678901234567890' as `0x${string}`,
-          { slippage: 1.0 } // 1% slippage
-        )
-      })
-
-      // minAmountOut should be 99% of amountOut (1% slippage)
-      // 2500000000 * 0.99 = 2475000000
-      const callArgs = mockSendUserOp.mock.calls[0][1]
-      expect(callArgs.minAmountOut).toBe(BigInt('2475000000'))
-    })
+    expect(result.current.quote).toBeNull()
+    expect(result.current.error?.message).toBe('Network unavailable')
   })
 })

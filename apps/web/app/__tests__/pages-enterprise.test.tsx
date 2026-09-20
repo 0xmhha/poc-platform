@@ -241,7 +241,7 @@ describe('Page Integration — Enterprise & History', () => {
       const PayrollPage = (await import('@/app/enterprise/payroll/page')).default
       render(<PayrollPage />)
 
-      expect(screen.getByText(/8,500/)).toBeInTheDocument()
+      expect(screen.queryByText(/8,500/)).not.toBeInTheDocument() // Empty records cannot substantiate a mocked total
     })
   })
 
@@ -356,3 +356,6 @@ describe('Page Integration — Enterprise & History', () => {
     })
   })
 })
+
+vi.mock('@/providers', () => ({ useStableNetContext: () => ({ chainId: 8283, publicClient: {} }) }))
+vi.mock('@/hooks/useEnterprisePayment', () => ({ useEnterprisePayment: () => vi.fn() }))

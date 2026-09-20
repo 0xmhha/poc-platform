@@ -1,3 +1,4 @@
+import { getEcdsaValidator, getEntryPoint, getKernel, getKernelFactory } from '@stablenet/contracts'
 import { act, renderHook } from '@testing-library/react'
 import type { Address } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // F-04: EntryPoint deposit balance query
 // RED phase — useEntryPointDeposit does not exist yet
 // ============================================================================
+
+const TEST_CHAIN_ID = 8283
 
 // Mock wagmi's getPublicClient
 const mockReadContract = vi.fn()
@@ -26,16 +29,16 @@ vi.mock('../useSmartAccount', async (importOriginal) => {
   return {
     ...actual,
     getSmartAccountAddresses: vi.fn(() => ({
-      entryPoint: '0x2ef7E4897d71647502e2Fe60F707AcD9a110660C',
-      kernel: '0x92458C9920376Ddd0152dbA56888ac60547408E6',
-      kernelFactory: '0xA18C1d76de513FEa27127E2508de43AdC0820a72',
-      ecdsaValidator: '0xFaf73bf2E642ADD50cf9d9853C44553ECCdFC670',
+      entryPoint: getEntryPoint(TEST_CHAIN_ID),
+      kernel: getKernel(TEST_CHAIN_ID),
+      kernelFactory: getKernelFactory(TEST_CHAIN_ID),
+      ecdsaValidator: getEcdsaValidator(TEST_CHAIN_ID),
     })),
   }
 })
 
 vi.mock('wagmi', () => ({
-  useChainId: () => 8283,
+  useChainId: () => TEST_CHAIN_ID,
 }))
 
 const SENDER = '0x056DB290F8Ba3250ca64a45D16284D04Bc6f5FBf' as Address
@@ -64,7 +67,7 @@ describe('F-04: useEntryPointDeposit', () => {
     // Verify readContract was called with correct params
     expect(mockReadContract).toHaveBeenCalledWith(
       expect.objectContaining({
-        address: '0x2ef7E4897d71647502e2Fe60F707AcD9a110660C',
+        address: getEntryPoint(TEST_CHAIN_ID),
         functionName: 'balanceOf',
         args: [SENDER],
       })
