@@ -71,7 +71,12 @@ export interface SessionKeyExecutorClient {
     nonce: bigint
   ) => Promise<Hex>
   /** Encode execute on behalf calldata */
-  encodeExecuteOnBehalf: (account: Address, request: ExecutionRequest, signature: Hex) => Hex
+  encodeExecuteOnBehalf: (
+    account: Address,
+    request: ExecutionRequest,
+    nonce: bigint,
+    signature: Hex
+  ) => Hex
   /** Encode execute as session key calldata */
   encodeExecuteAsSessionKey: (account: Address, request: ExecutionRequest) => Hex
 }
@@ -278,12 +283,13 @@ export function createSessionKeyExecutor(
   const encodeExecuteOnBehalf = (
     account: Address,
     request: ExecutionRequest,
+    nonce: bigint,
     signature: Hex
   ): Hex => {
     return encodeFunctionData({
       abi: SESSION_KEY_EXECUTOR_ABI,
       functionName: 'executeOnBehalf',
-      args: [account, request.target, request.value, request.data, signature],
+      args: [account, request.target, request.value, request.data, nonce, signature],
     })
   }
 

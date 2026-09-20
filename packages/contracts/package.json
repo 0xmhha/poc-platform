@@ -30,8 +30,9 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "generate": "tsx scripts/generate-addresses.ts && tsup",
-    "generate:env": "tsx scripts/generate-addresses.ts && tsup && echo 'Precompile addresses included in .env.contracts'",
+    "generate": "node --import tsx scripts/generate-addresses.ts && tsup",
+    "generate:env": "node --import tsx scripts/generate-addresses.ts && tsup && echo 'Precompile addresses included in .env.contracts'",
+    "check:sync": "node --import tsx scripts/generate-addresses.ts --check",
     "lint": "biome lint src/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

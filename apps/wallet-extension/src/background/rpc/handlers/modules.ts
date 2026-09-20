@@ -1,5 +1,5 @@
 import type { Address, Hex } from 'viem'
-import { getAddress, isAddress } from 'viem/utils'
+import { concat, getAddress, isAddress, pad, toHex } from 'viem/utils'
 import {
   approvalController,
   buildKernelInstallData,
@@ -19,6 +19,7 @@ import {
   RpcError,
   type RpcHandler,
   resolveFactory,
+  resolveSignerAddress,
   signUserOp,
   sponsorAndSign,
   type UserOperation,
@@ -954,10 +955,16 @@ export const modulesHandlers: Record<string, RpcHandler> = {
       const { KERNEL_ABI } = await import('@stablenet/core')
       const { encodeFunctionData } = await import('viem')
 
+      const rootValidator = concat([pad(toHex(1), { size: 1 }), validator as Address]) as Hex
       const callData = encodeFunctionData({
         abi: KERNEL_ABI,
-        functionName: 'setRootValidator',
-        args: [validator as Address, (validatorData ?? '0x') as `0x${string}`],
+        functionName: 'changeRootValidator',
+        args: [
+          rootValidator,
+          '0x0000000000000000000000000000000000000000',
+          (validatorData ?? resolveSignerAddress(account as Address)) as Hex,
+          '0x',
+        ],
       })
 
       // Send as a transaction to the smart account
@@ -1028,13 +1035,14 @@ export const modulesHandlers: Record<string, RpcHandler> = {
     if (accountType === 'smart' || accountType === 'delegated') {
       try {
         const { KERNEL_ABI } = await import('@stablenet/core')
-        rootValidator = (await client
+        const rawRootValidator = (await client
           .readContract({
             address: accountAddr,
             abi: KERNEL_ABI,
             functionName: 'rootValidator',
           })
-          .catch(() => null)) as string | null
+          .catch(() => null)) as Hex | null
+        rootValidator = rawRootValidator ? getAddress(`0x${rawRootValidator.slice(-40)}`) : null
 
         const rawAccountId = (await client
           .readContract({

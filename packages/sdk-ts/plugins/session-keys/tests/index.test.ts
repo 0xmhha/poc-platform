@@ -283,7 +283,7 @@ describe('session-keys plugin', () => {
         0n
       )
 
-      const callData = executor.encodeExecuteOnBehalf(testAccountAddress, request, signature)
+      const callData = executor.encodeExecuteOnBehalf(testAccountAddress, request, 0n, signature)
 
       expect(callData).toMatch(/^0x/)
       expect(callData.length).toBeGreaterThan(10)

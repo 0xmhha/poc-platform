@@ -6,8 +6,8 @@ describe('deployment module registry', () => {
     expect(getRegisteredModuleIds()).toContain('ecdsa-validator')
     expect(getRegisteredModuleIds()).toContain('webauthn-validator')
     expect(getModuleEntry('session-key-validator')).toBeUndefined()
-    expect(getModuleEntry('spending-limit-hook')).toBeUndefined()
-    expect(getModuleEntry('token-receiver-fallback')).toBeUndefined()
+    expect(getModuleEntry('spending-limit-hook')).toBeDefined()
+    expect(getModuleEntry('token-receiver-fallback')).toBeDefined()
     expect(getModuleEntry('ecdsa-validator', 999999)).toBeUndefined()
   })
   it('never installs a router or bank as an ERC-7579 module', () => {

@@ -4,7 +4,7 @@
  */
 
 import type { Address, Hex, PublicClient } from 'viem'
-import { encodeFunctionData } from 'viem'
+import { encodeFunctionData, getAddress } from 'viem'
 import { IModuleAbi, KernelModuleAbi } from './abis'
 import {
   type BatchModuleInstallation,
@@ -309,12 +309,12 @@ export async function getRootValidator(
   client: PublicClient,
   smartAccount: Address
 ): Promise<Address> {
-  const result = await client.readContract({
+  const result = (await client.readContract({
     address: smartAccount,
     abi: KernelModuleAbi,
     functionName: 'rootValidator',
-  })
-  return result as Address
+  })) as Hex
+  return getAddress(`0x${result.slice(-40)}`)
 }
 
 // ============================================================================

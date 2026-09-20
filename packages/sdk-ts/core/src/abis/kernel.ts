@@ -1,401 +1,1553 @@
-/**
- * Kernel v0.3.3 Smart Account ABI
- * @see https://github.com/zerodevapp/kernel
- */
+// Generated from poc-contract compiler artifacts. Run `pnpm contracts:sync` after `forge build`.
 export const KERNEL_ABI = [
-  // ============================================================================
-  // ERC-7579 Module Management
-  // ============================================================================
-
-  /**
-   * Install a module
-   * @param moduleType - Module type (1=Validator, 2=Executor, etc.)
-   * @param module - Module contract address
-   * @param initData - Module initialization data
-   */
   {
     type: 'function',
-    name: 'installModule',
-    inputs: [
-      { name: 'moduleType', type: 'uint256' },
-      { name: 'module', type: 'address' },
-      { name: 'initData', type: 'bytes' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-
-  /**
-   * Uninstall a module
-   * @param moduleType - Module type
-   * @param module - Module contract address
-   * @param deInitData - Module de-initialization data
-   */
-  {
-    type: 'function',
-    name: 'uninstallModule',
-    inputs: [
-      { name: 'moduleType', type: 'uint256' },
-      { name: 'module', type: 'address' },
-      { name: 'deInitData', type: 'bytes' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-
-  /**
-   * Force uninstall a module (ExcessivelySafeCall - revert ignored)
-   * Used for removing malicious or stuck modules
-   * @param moduleType - Module type
-   * @param module - Module contract address
-   * @param deInitData - Module de-initialization data
-   */
-  {
-    type: 'function',
-    name: 'forceUninstallModule',
-    inputs: [
-      { name: 'moduleType', type: 'uint256' },
-      { name: 'module', type: 'address' },
-      { name: 'deInitData', type: 'bytes' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-
-  /**
-   * Atomically replace a module (uninstall old + install new)
-   * Supported for VALIDATOR, EXECUTOR, FALLBACK types
-   * @param moduleType - Module type
-   * @param oldModule - Old module address to uninstall
-   * @param deInitData - Old module de-initialization data
-   * @param newModule - New module address to install
-   * @param initData - New module initialization data
-   */
-  {
-    type: 'function',
-    name: 'replaceModule',
-    inputs: [
-      { name: 'moduleType', type: 'uint256' },
-      { name: 'oldModule', type: 'address' },
-      { name: 'deInitData', type: 'bytes' },
-      { name: 'newModule', type: 'address' },
-      { name: 'initData', type: 'bytes' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-
-  /**
-   * Check if a module is installed
-   * @param moduleType - Module type
-   * @param module - Module contract address
-   * @param additionalContext - Additional context for the check
-   * @returns true if installed
-   */
-  {
-    type: 'function',
-    name: 'isModuleInstalled',
-    inputs: [
-      { name: 'moduleType', type: 'uint256' },
-      { name: 'module', type: 'address' },
-      { name: 'additionalContext', type: 'bytes' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'view',
-  },
-
-  /**
-   * Set per-hook gas limit (0 = unlimited, backward compatible)
-   * @param hook - Hook contract address
-   * @param gasLimit - Gas limit for the hook
-   */
-  {
-    type: 'function',
-    name: 'setHookGasLimit',
-    inputs: [
-      { name: 'hook', type: 'address' },
-      { name: 'gasLimit', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-
-  /**
-   * Add/remove a delegatecall target to/from whitelist
-   * @param target - Target contract address
-   * @param allowed - Whether to allow delegatecall to this target
-   */
-  {
-    type: 'function',
-    name: 'setDelegatecallWhitelist',
-    inputs: [
-      { name: 'target', type: 'address' },
-      { name: 'allowed', type: 'bool' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-
-  /**
-   * Enable/disable delegatecall whitelist enforcement (default: false)
-   * @param enforce - Whether to enforce the whitelist
-   */
-  {
-    type: 'function',
-    name: 'setEnforceDelegatecallWhitelist',
-    inputs: [{ name: 'enforce', type: 'bool' }],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-
-  /**
-   * Set the root validator
-   * @param validator - Validator address
-   * @param validatorData - Validator initialization data
-   */
-  {
-    type: 'function',
-    name: 'setRootValidator',
-    inputs: [
-      { name: 'validator', type: 'address' },
-      { name: 'validatorData', type: 'bytes' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-
-  /**
-   * Get the root validator address
-   */
-  {
-    type: 'function',
-    name: 'rootValidator',
+    name: 'ENTRYPOINT',
     inputs: [],
-    outputs: [{ name: '', type: 'address' }],
-    stateMutability: 'view',
-  },
-
-  // ============================================================================
-  // Initialization
-  // ============================================================================
-
-  /**
-   * Initialize the account
-   * @param rootValidator - Root validator (bytes21: MODULE_TYPE + address)
-   * @param hook - Hook address (0x0 for no hook)
-   * @param validatorData - Validator initialization data
-   * @param hookData - Hook initialization data
-   * @param initConfig - Additional initialization config
-   */
-  {
-    type: 'function',
-    name: 'initialize',
-    inputs: [
-      { name: 'rootValidator', type: 'bytes21' },
-      { name: 'hook', type: 'address' },
-      { name: 'validatorData', type: 'bytes' },
-      { name: 'hookData', type: 'bytes' },
-      { name: 'initConfig', type: 'bytes[]' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-
-  // ============================================================================
-  // Execution
-  // ============================================================================
-
-  /**
-   * Execute with mode and calldata (ERC-7579)
-   * @param mode - Execution mode (bytes32)
-   * @param executionCalldata - Encoded execution data
-   */
-  {
-    type: 'function',
-    name: 'execute',
-    inputs: [
-      { name: 'mode', type: 'bytes32' },
-      { name: 'executionCalldata', type: 'bytes' },
-    ],
-    outputs: [],
-    stateMutability: 'payable',
-  },
-
-  /**
-   * Execute a batch of calls
-   * @param calls - Array of Call structs
-   */
-  {
-    type: 'function',
-    name: 'executeBatch',
-    inputs: [
+    outputs: [
       {
-        name: 'calls',
-        type: 'tuple[]',
-        components: [
-          { name: 'target', type: 'address' },
-          { name: 'value', type: 'uint256' },
-          { name: 'callData', type: 'bytes' },
-        ],
+        name: '',
+        type: 'address',
+        internalType: 'contract IEntryPoint',
       },
     ],
-    outputs: [{ name: 'results', type: 'bytes[]' }],
-    stateMutability: 'payable',
+    stateMutability: 'view',
   },
-
-  /**
-   * Execute from an executor module
-   * @param execMode - Execution mode
-   * @param executionCalldata - Execution calldata
-   */
   {
     type: 'function',
-    name: 'executeFromExecutor',
-    inputs: [
-      { name: 'execMode', type: 'bytes32' },
-      { name: 'executionCalldata', type: 'bytes' },
+    name: 'accountId',
+    inputs: [],
+    outputs: [
+      {
+        name: 'accountImplementationId',
+        type: 'string',
+        internalType: 'string',
+      },
     ],
-    outputs: [{ name: 'results', type: 'bytes[]' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    name: 'changeRootValidator',
+    inputs: [
+      {
+        name: '_rootValidator',
+        type: 'bytes21',
+        internalType: 'ValidationId',
+      },
+      {
+        name: 'hook',
+        type: 'address',
+        internalType: 'contract IHook',
+      },
+      {
+        name: 'validatorData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+      {
+        name: 'hookData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [],
     stateMutability: 'payable',
   },
-
-  // ============================================================================
-  // Account Info & EIP-712
-  // ============================================================================
-
-  /**
-   * Get EIP-712 domain
-   */
+  {
+    type: 'function',
+    name: 'currentNonce',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'uint32',
+        internalType: 'uint32',
+      },
+    ],
+    stateMutability: 'view',
+  },
   {
     type: 'function',
     name: 'eip712Domain',
     inputs: [],
     outputs: [
-      { name: 'fields', type: 'bytes1' },
-      { name: 'name', type: 'string' },
-      { name: 'version', type: 'string' },
-      { name: 'chainId', type: 'uint256' },
-      { name: 'verifyingContract', type: 'address' },
-      { name: 'salt', type: 'bytes32' },
-      { name: 'extensions', type: 'uint256[]' },
+      {
+        name: 'fields',
+        type: 'bytes1',
+        internalType: 'bytes1',
+      },
+      {
+        name: 'name',
+        type: 'string',
+        internalType: 'string',
+      },
+      {
+        name: 'version',
+        type: 'string',
+        internalType: 'string',
+      },
+      {
+        name: 'chainId',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'verifyingContract',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'salt',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+      {
+        name: 'extensions',
+        type: 'uint256[]',
+        internalType: 'uint256[]',
+      },
     ],
     stateMutability: 'view',
   },
-
-  /**
-   * Validate a signature (EIP-1271)
-   */
+  {
+    type: 'function',
+    name: 'execute',
+    inputs: [
+      {
+        name: 'execMode',
+        type: 'bytes32',
+        internalType: 'ExecMode',
+      },
+      {
+        name: 'executionCalldata',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'executeFromExecutor',
+    inputs: [
+      {
+        name: 'execMode',
+        type: 'bytes32',
+        internalType: 'ExecMode',
+      },
+      {
+        name: 'executionCalldata',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [
+      {
+        name: 'returnData',
+        type: 'bytes[]',
+        internalType: 'bytes[]',
+      },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'executeUserOp',
+    inputs: [
+      {
+        name: 'userOp',
+        type: 'tuple',
+        internalType: 'struct PackedUserOperation',
+        components: [
+          {
+            name: 'sender',
+            type: 'address',
+            internalType: 'address',
+          },
+          {
+            name: 'nonce',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'initCode',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'callData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'accountGasLimits',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'preVerificationGas',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'gasFees',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'paymasterAndData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'signature',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+        ],
+      },
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'executorConfig',
+    inputs: [
+      {
+        name: 'executor',
+        type: 'address',
+        internalType: 'contract IExecutor',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        internalType: 'struct ExecutorManager.ExecutorConfig',
+        components: [
+          {
+            name: 'hook',
+            type: 'address',
+            internalType: 'contract IHook',
+          },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'forceUninstallModule',
+    inputs: [
+      {
+        name: 'moduleType',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'deInitData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'grantAccess',
+    inputs: [
+      {
+        name: 'vId',
+        type: 'bytes21',
+        internalType: 'ValidationId',
+      },
+      {
+        name: 'selector',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+      {
+        name: 'allow',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'initialize',
+    inputs: [
+      {
+        name: '_rootValidator',
+        type: 'bytes21',
+        internalType: 'ValidationId',
+      },
+      {
+        name: 'hook',
+        type: 'address',
+        internalType: 'contract IHook',
+      },
+      {
+        name: 'validatorData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+      {
+        name: 'hookData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+      {
+        name: 'initConfig',
+        type: 'bytes[]',
+        internalType: 'bytes[]',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'installModule',
+    inputs: [
+      {
+        name: 'moduleType',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'initData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'installValidations',
+    inputs: [
+      {
+        name: 'vIds',
+        type: 'bytes21[]',
+        internalType: 'ValidationId[]',
+      },
+      {
+        name: 'configs',
+        type: 'tuple[]',
+        internalType: 'struct ValidationManager.ValidationConfig[]',
+        components: [
+          {
+            name: 'nonce',
+            type: 'uint32',
+            internalType: 'uint32',
+          },
+          {
+            name: 'hook',
+            type: 'address',
+            internalType: 'contract IHook',
+          },
+        ],
+      },
+      {
+        name: 'validationData',
+        type: 'bytes[]',
+        internalType: 'bytes[]',
+      },
+      {
+        name: 'hookData',
+        type: 'bytes[]',
+        internalType: 'bytes[]',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'invalidateNonce',
+    inputs: [
+      {
+        name: 'nonce',
+        type: 'uint32',
+        internalType: 'uint32',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'isAllowedSelector',
+    inputs: [
+      {
+        name: 'vId',
+        type: 'bytes21',
+        internalType: 'ValidationId',
+      },
+      {
+        name: 'selector',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'isModuleInstalled',
+    inputs: [
+      {
+        name: 'moduleType',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'additionalContext',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    stateMutability: 'view',
+  },
   {
     type: 'function',
     name: 'isValidSignature',
-    inputs: [{ name: 'hash', type: 'bytes32' }],
-    outputs: [{ name: '', type: 'bytes4' }],
+    inputs: [
+      {
+        name: 'hash',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+      {
+        name: 'data',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+    ],
     stateMutability: 'view',
   },
-
-  /**
-   * Get account implementation ID
-   * Returns "kernel.advanced.0.3.3" (semver without 'v' prefix)
-   */
   {
     type: 'function',
-    name: 'accountId',
-    inputs: [],
-    outputs: [{ name: '', type: 'string' }],
+    name: 'onERC1155BatchReceived',
+    inputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: '',
+        type: 'uint256[]',
+        internalType: 'uint256[]',
+      },
+      {
+        name: '',
+        type: 'uint256[]',
+        internalType: 'uint256[]',
+      },
+      {
+        name: '',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+    ],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    name: 'onERC1155Received',
+    inputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: '',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: '',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: '',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+    ],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    name: 'onERC721Received',
+    inputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: '',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: '',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+    ],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    name: 'permissionConfig',
+    inputs: [
+      {
+        name: 'pId',
+        type: 'bytes4',
+        internalType: 'PermissionId',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        internalType: 'struct ValidationManager.PermissionConfig',
+        components: [
+          {
+            name: 'permissionFlag',
+            type: 'bytes2',
+            internalType: 'PassFlag',
+          },
+          {
+            name: 'signer',
+            type: 'address',
+            internalType: 'contract ISigner',
+          },
+          {
+            name: 'policyData',
+            type: 'bytes22[]',
+            internalType: 'PolicyData[]',
+          },
+        ],
+      },
+    ],
     stateMutability: 'view',
   },
-
-  /**
-   * Check if account supports a specific execution mode
-   */
+  {
+    type: 'function',
+    name: 'replaceModule',
+    inputs: [
+      {
+        name: 'moduleType',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'oldModule',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'deInitData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+      {
+        name: 'newModule',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'initData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'replayableUserOpHash',
+    inputs: [
+      {
+        name: 'userOp',
+        type: 'tuple',
+        internalType: 'struct PackedUserOperation',
+        components: [
+          {
+            name: 'sender',
+            type: 'address',
+            internalType: 'address',
+          },
+          {
+            name: 'nonce',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'initCode',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'callData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'accountGasLimits',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'preVerificationGas',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'gasFees',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'paymasterAndData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'signature',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+        ],
+      },
+      {
+        name: 'entryPoint',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+    ],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    name: 'revokeSelectors',
+    inputs: [
+      {
+        name: 'vId',
+        type: 'bytes21',
+        internalType: 'ValidationId',
+      },
+      {
+        name: 'selectors',
+        type: 'bytes4[]',
+        internalType: 'bytes4[]',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'rootValidator',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes21',
+        internalType: 'ValidationId',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'selectorConfig',
+    inputs: [
+      {
+        name: 'selector',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        internalType: 'struct SelectorManager.SelectorConfig',
+        components: [
+          {
+            name: 'hook',
+            type: 'address',
+            internalType: 'contract IHook',
+          },
+          {
+            name: 'target',
+            type: 'address',
+            internalType: 'address',
+          },
+          {
+            name: 'callType',
+            type: 'bytes1',
+            internalType: 'CallType',
+          },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'setDelegatecallWhitelist',
+    inputs: [
+      {
+        name: 'target',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'allowed',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'setEnforceDelegatecallWhitelist',
+    inputs: [
+      {
+        name: 'enforce',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'setHookGasLimit',
+    inputs: [
+      {
+        name: 'hook',
+        type: 'address',
+        internalType: 'contract IHook',
+      },
+      {
+        name: 'gasLimit',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
   {
     type: 'function',
     name: 'supportsExecutionMode',
-    inputs: [{ name: 'mode', type: 'bytes32' }],
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'view',
+    inputs: [
+      {
+        name: 'mode',
+        type: 'bytes32',
+        internalType: 'ExecMode',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    stateMutability: 'pure',
   },
-
-  /**
-   * Check if account supports a specific module type
-   */
   {
     type: 'function',
-    name: 'supportsModuleType',
-    inputs: [{ name: 'moduleType', type: 'uint256' }],
-    outputs: [{ name: '', type: 'bool' }],
+    name: 'supportsModule',
+    inputs: [
+      {
+        name: 'moduleTypeId',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    name: 'uninstallModule',
+    inputs: [
+      {
+        name: 'moduleType',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'deInitData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'uninstallValidation',
+    inputs: [
+      {
+        name: 'vId',
+        type: 'bytes21',
+        internalType: 'ValidationId',
+      },
+      {
+        name: 'deinitData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+      {
+        name: 'hookDeinitData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'upgradeTo',
+    inputs: [
+      {
+        name: '_newImplementation',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'validNonceFrom',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'uint32',
+        internalType: 'uint32',
+      },
+    ],
     stateMutability: 'view',
   },
-
-  // ============================================================================
-  // Events
-  // ============================================================================
-
+  {
+    type: 'function',
+    name: 'validateUserOp',
+    inputs: [
+      {
+        name: 'userOp',
+        type: 'tuple',
+        internalType: 'struct PackedUserOperation',
+        components: [
+          {
+            name: 'sender',
+            type: 'address',
+            internalType: 'address',
+          },
+          {
+            name: 'nonce',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'initCode',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'callData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'accountGasLimits',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'preVerificationGas',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'gasFees',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'paymasterAndData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'signature',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+        ],
+      },
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+      {
+        name: 'missingAccountFunds',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    outputs: [
+      {
+        name: 'validationData',
+        type: 'uint256',
+        internalType: 'ValidationData',
+      },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'validationConfig',
+    inputs: [
+      {
+        name: 'vId',
+        type: 'bytes21',
+        internalType: 'ValidationId',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        internalType: 'struct ValidationManager.ValidationConfig',
+        components: [
+          {
+            name: 'nonce',
+            type: 'uint32',
+            internalType: 'uint32',
+          },
+          {
+            name: 'hook',
+            type: 'address',
+            internalType: 'contract IHook',
+          },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
   {
     type: 'event',
-    name: 'ModuleInstalled',
+    name: 'DelegatecallWhitelistEnforced',
     inputs: [
-      { name: 'moduleType', type: 'uint256', indexed: true },
-      { name: 'module', type: 'address', indexed: true },
+      {
+        name: 'enforce',
+        type: 'bool',
+        indexed: false,
+        internalType: 'bool',
+      },
     ],
+    anonymous: false,
   },
-
-  {
-    type: 'event',
-    name: 'ModuleUninstalled',
-    inputs: [
-      { name: 'moduleType', type: 'uint256', indexed: true },
-      { name: 'module', type: 'address', indexed: true },
-    ],
-  },
-
-  {
-    type: 'event',
-    name: 'Executed',
-    inputs: [
-      { name: 'target', type: 'address', indexed: true },
-      { name: 'value', type: 'uint256', indexed: false },
-      { name: 'data', type: 'bytes', indexed: false },
-    ],
-  },
-
-  {
-    type: 'event',
-    name: 'HookGasLimitSet',
-    inputs: [
-      { name: 'hook', type: 'address', indexed: true },
-      { name: 'gasLimit', type: 'uint256', indexed: false },
-    ],
-  },
-
   {
     type: 'event',
     name: 'DelegatecallWhitelistUpdated',
     inputs: [
-      { name: 'target', type: 'address', indexed: true },
-      { name: 'allowed', type: 'bool', indexed: false },
+      {
+        name: 'target',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'allowed',
+        type: 'bool',
+        indexed: false,
+        internalType: 'bool',
+      },
     ],
+    anonymous: false,
   },
-
   {
     type: 'event',
-    name: 'DelegatecallWhitelistEnforced',
-    inputs: [{ name: 'enforce', type: 'bool', indexed: false }],
+    name: 'HookGasLimitSet',
+    inputs: [
+      {
+        name: 'hook',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'gasLimit',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
   },
-
-  // ============================================================================
-  // Errors
-  // ============================================================================
-
+  {
+    type: 'event',
+    name: 'ModuleInstalled',
+    inputs: [
+      {
+        name: 'moduleTypeId',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'ModuleUninstallResult',
+    inputs: [
+      {
+        name: 'module',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
+      {
+        name: 'result',
+        type: 'bool',
+        indexed: false,
+        internalType: 'bool',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'ModuleUninstalled',
+    inputs: [
+      {
+        name: 'moduleTypeId',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'NonceInvalidated',
+    inputs: [
+      {
+        name: 'nonce',
+        type: 'uint32',
+        indexed: false,
+        internalType: 'uint32',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'PermissionInstalled',
+    inputs: [
+      {
+        name: 'permission',
+        type: 'bytes4',
+        indexed: false,
+        internalType: 'PermissionId',
+      },
+      {
+        name: 'nonce',
+        type: 'uint32',
+        indexed: false,
+        internalType: 'uint32',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'PermissionUninstalled',
+    inputs: [
+      {
+        name: 'permission',
+        type: 'bytes4',
+        indexed: false,
+        internalType: 'PermissionId',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'Received',
+    inputs: [
+      {
+        name: 'sender',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
+      {
+        name: 'amount',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'RootValidatorUpdated',
+    inputs: [
+      {
+        name: 'rootValidator',
+        type: 'bytes21',
+        indexed: false,
+        internalType: 'ValidationId',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'SelectorSet',
+    inputs: [
+      {
+        name: 'selector',
+        type: 'bytes4',
+        indexed: false,
+        internalType: 'bytes4',
+      },
+      {
+        name: 'vId',
+        type: 'bytes21',
+        indexed: false,
+        internalType: 'ValidationId',
+      },
+      {
+        name: 'allowed',
+        type: 'bool',
+        indexed: false,
+        internalType: 'bool',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'TryExecuteUnsuccessful',
+    inputs: [
+      {
+        name: 'batchExecutionindex',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'result',
+        type: 'bytes',
+        indexed: false,
+        internalType: 'bytes',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'Upgraded',
+    inputs: [
+      {
+        name: 'implementation',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'ValidatorInstalled',
+    inputs: [
+      {
+        name: 'validator',
+        type: 'address',
+        indexed: false,
+        internalType: 'contract IValidator',
+      },
+      {
+        name: 'nonce',
+        type: 'uint32',
+        indexed: false,
+        internalType: 'uint32',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'ValidatorUninstalled',
+    inputs: [
+      {
+        name: 'validator',
+        type: 'address',
+        indexed: false,
+        internalType: 'contract IValidator',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'error',
+    name: 'AlreadyInitialized',
+    inputs: [],
+  },
   {
     type: 'error',
     name: 'DelegatecallTargetNotWhitelisted',
-    inputs: [{ name: 'target', type: 'address' }],
+    inputs: [
+      {
+        name: 'target',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
   },
-
+  {
+    type: 'error',
+    name: 'EnableNotApproved',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'ExecutionReverted',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'ExecutorCannotCallSelf',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InitConfigError',
+    inputs: [
+      {
+        name: 'idx',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InvalidCallType',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidCaller',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidExecutor',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidFallback',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidMode',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidModuleType',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidNonce',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidSelector',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidSelectorData',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidSignature',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidValidationType',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidValidator',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'ModuleAlreadyInstalled',
+    inputs: [
+      {
+        name: 'moduleType',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'ModuleNotInstalled',
+    inputs: [
+      {
+        name: 'moduleType',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'ModuleOnUninstallFailed',
+    inputs: [
+      {
+        name: 'moduleType',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'module',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'NonceInvalidationError',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'NotSupportedCallType',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'OnlyExecuteUserOp',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'PermissionDataLengthMismatch',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'PermissionNotAlllowedForSignature',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'PermissionNotAlllowedForUserOp',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'PolicyDataTooLarge',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'PolicyFailed',
+    inputs: [
+      {
+        name: 'i',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'PolicySignatureOrderError',
+    inputs: [],
+  },
   {
     type: 'error',
     name: 'Reentrancy',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'RootValidatorCannotBeRemoved',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'SignerPrefixNotPresent',
     inputs: [],
   },
 ] as const

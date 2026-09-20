@@ -55,7 +55,12 @@
  * // Or sign and execute on behalf
  * const state = await executor.getSessionKeyState(publicClient, smartAccountAddress, sessionKey.address)
  * const signature = await executor.signExecution(sessionKey, smartAccountAddress, request, state.config.nonce)
- * const execOnBehalfData = executor.encodeExecuteOnBehalf(smartAccountAddress, request, signature)
+ * const execOnBehalfData = executor.encodeExecuteOnBehalf(
+ *   smartAccountAddress,
+ *   request,
+ *   state.config.nonce,
+ *   signature,
+ * )
  * ```
  */
 

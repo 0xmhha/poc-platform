@@ -59,7 +59,7 @@ describe('CHAIN_IDS', () => {
 describe('EntryPoints', () => {
   describe('Constants', () => {
     it('should have correct EntryPoint v0.9 address', () => {
-      expect(ENTRY_POINT_V09).toBe('0x3ECf1C1faC4Ef1325cdC3d1945a93AD918F2b078')
+      expect(ENTRY_POINT_V09).toBe('0xEf6817fe73741A8F10088f9511c64b666a338A14')
     })
 
     it('should have correct EntryPoint v0.7 address', () => {

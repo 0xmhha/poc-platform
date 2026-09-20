@@ -31,7 +31,15 @@ import {
 } from '@stablenet/core'
 import type { Address, Hash, Hex } from 'viem'
 import { createPublicClient, http } from 'viem'
-import { concat, encodeFunctionData, getAddress, isAddress, pad, toHex } from 'viem/utils'
+import {
+  concat,
+  encodeAbiParameters,
+  encodeFunctionData,
+  getAddress,
+  isAddress,
+  pad,
+  toHex,
+} from 'viem/utils'
 import { DEFAULT_VALUES, RPC_ERRORS } from '../../../shared/constants'
 import { RpcError } from '../../../shared/errors/rpcErrors'
 import { handleApprovalError } from '../../../shared/errors/WalletError'
@@ -426,16 +434,30 @@ export function encodeKernelExecute(to: Address, value: bigint = 0n, data: Hex =
 }
 
 /**
- * Encode a Kernel v0.3.3 executeBatch call for multiple calls in one UserOp.
- * Uses Kernel's native executeBatch(Call[]) where Call = (address target, uint256 value, bytes callData).
+ * Encode an ERC-7579 batch execution through Kernel.execute().
  */
 export function encodeKernelExecuteBatch(
   calls: ReadonlyArray<{ to: Address; value: bigint; data: Hex }>
 ): Hex {
+  const batchMode = '0x0100000000000000000000000000000000000000000000000000000000000000' as Hex
+  const executionCalldata = encodeAbiParameters(
+    [
+      {
+        type: 'tuple[]',
+        components: [
+          { name: 'target', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'callData', type: 'bytes' },
+        ],
+      },
+    ],
+    [calls.map((call) => ({ target: call.to, value: call.value, callData: call.data }))]
+  )
+
   return encodeFunctionData({
     abi: KERNEL_ABI,
-    functionName: 'executeBatch',
-    args: [calls.map((c) => ({ target: c.to, value: c.value, callData: c.data }))],
+    functionName: 'execute',
+    args: [batchMode, executionCalldata],
   })
 }
 

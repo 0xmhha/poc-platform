@@ -23,7 +23,9 @@
     "test:all": "vitest run",
     "clean": "turbo clean && rm -rf node_modules",
     "typecheck": "turbo typecheck",
-    "generate": "pnpm -F @stablenet/contracts generate && pnpm -F @stablenet/contracts build",
+    "generate": "pnpm contracts:sync",
+    "contracts:sync": "node scripts/contracts/sync-runtime-abis.mjs && pnpm -F @stablenet/contracts generate",
+    "contracts:check": "pnpm -F @stablenet/contracts check:sync && node scripts/contracts/sync-runtime-abis.mjs --check",
     "graph:code": "node scripts/code-graph/generate.mjs",
     "dev:payments": "turbo run build --filter=@stablenet/web^... --filter=@stablenet/payment-hub && node scripts/payment-lab/dev.mjs"
   },

@@ -11,7 +11,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -253,6 +253,42 @@ function buildRaw(addresses: DeploymentOutput): Record<string, string> {
     raw[key] = value
   }
   return raw
+}
+
+function buildAddressValues(deployments: ChainDeployment[]): Record<number, unknown> {
+  return Object.fromEntries(
+    deployments.map(({ chainId, addresses }) => [
+      chainId,
+      {
+        chainId,
+        ...Object.fromEntries(
+          GROUP_ORDER.map((group) => [group, buildGroupAddresses(addresses, group)])
+        ),
+        delegatePresets:
+          addresses.kernel && addresses.kernel !== ZERO_ADDRESS
+            ? [
+                {
+                  name: 'Kernel v3.0',
+                  description: 'ZeroDev Kernel - ERC-7579 compatible Smart Account',
+                  address: addresses.kernel,
+                  features: ['ERC-7579', 'Modular', 'Gas Sponsorship', 'Session Keys'],
+                },
+              ]
+            : [],
+        raw: buildRaw(addresses),
+      },
+    ])
+  )
+}
+
+function buildServiceValues(deployments: ChainDeployment[]): Record<number, unknown> {
+  return Object.fromEntries(deployments.map(({ chainId }) => [chainId, getServiceUrls(chainId)]))
+}
+
+function buildTokenValues(deployments: ChainDeployment[]): Record<number, unknown> {
+  return Object.fromEntries(
+    deployments.map(({ chainId, addresses }) => [chainId, getDefaultTokens(chainId, addresses)])
+  )
 }
 
 // ─── TypeScript generation ───────────────────────────────────────────────────
@@ -609,6 +645,7 @@ async function main() {
   loadEnvFile()
 
   const args = process.argv.slice(2)
+  const checkOnly = args.includes('--check')
 
   // Defaults from .env → DEPLOYMENT_DIR (relative to monorepo root)
   const defaultDeploymentDir = process.env.DEPLOYMENT_DIR
@@ -666,11 +703,38 @@ async function main() {
   // Generate TypeScript addresses file
   const tsContent = generateAddressesTs(deployments)
   const tsOutputPath = resolve(__dirname, '../src/generated/addresses.ts')
-  await writeFile(tsOutputPath, tsContent, 'utf-8')
 
   // Generate .env.contracts file
   const envContent = generateEnvContracts(deployments)
   const envOutputPath = resolve(__dirname, '../../../.env.contracts')
+
+  if (checkOnly) {
+    const normalizeTimestamp = (value: string): string =>
+      value.replace(/^([# *]+Generated:).*$/m, '$1 <timestamp>')
+    const drift: string[] = []
+    const generated = await import(`${pathToFileURL(tsOutputPath).href}?check=${Date.now()}`)
+    const addressValuesMatch =
+      JSON.stringify(generated.CHAIN_ADDRESSES) ===
+        JSON.stringify(buildAddressValues(deployments)) &&
+      JSON.stringify(generated.SERVICE_URLS) === JSON.stringify(buildServiceValues(deployments)) &&
+      JSON.stringify(generated.DEFAULT_TOKENS) === JSON.stringify(buildTokenValues(deployments))
+    if (!addressValuesMatch) {
+      drift.push('packages/contracts/src/generated/addresses.ts')
+    }
+    if (
+      normalizeTimestamp(readFileSync(envOutputPath, 'utf-8')) !== normalizeTimestamp(envContent)
+    ) {
+      drift.push('.env.contracts')
+    }
+    if (drift.length > 0) {
+      throw new Error(
+        `Contract address drift detected:\n${drift.map((path) => `- ${path}`).join('\n')}`
+      )
+    }
+    return
+  }
+
+  await writeFile(tsOutputPath, tsContent, 'utf-8')
   await writeFile(envOutputPath, envContent, 'utf-8')
 
   // Merge contract addresses into .env for docker-compose auto-loading

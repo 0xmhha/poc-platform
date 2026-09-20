@@ -1,4 +1,4 @@
-// Generated from poc-contract compiler artifacts. Run scripts/contracts/sync-runtime-abis.mjs after forge build.
+// Generated from poc-contract compiler artifacts. Run `pnpm contracts:sync` after `forge build`.
 export const RECURRING_EXECUTOR_ABI = [
   {
     type: 'function',

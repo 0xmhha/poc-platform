@@ -1,76 +1,233 @@
-/**
- * ERC-4337 Entry Point v0.7 ABI
- * @see https://eips.ethereum.org/EIPS/eip-4337
- */
+// Generated from poc-contract compiler artifacts. Run `pnpm contracts:sync` after `forge build`.
 export const ENTRY_POINT_ABI = [
-  /**
-   * Handle UserOperations
-   */
   {
     type: 'function',
-    name: 'handleOps',
+    name: 'addStake',
     inputs: [
       {
-        name: 'ops',
-        type: 'tuple[]',
-        components: [
-          { name: 'sender', type: 'address' },
-          { name: 'nonce', type: 'uint256' },
-          { name: 'initCode', type: 'bytes' },
-          { name: 'callData', type: 'bytes' },
-          { name: 'accountGasLimits', type: 'bytes32' },
-          { name: 'preVerificationGas', type: 'uint256' },
-          { name: 'gasFees', type: 'bytes32' },
-          { name: 'paymasterAndData', type: 'bytes' },
-          { name: 'signature', type: 'bytes' },
-        ],
+        name: 'unstakeDelaySec',
+        type: 'uint32',
+        internalType: 'uint32',
       },
-      { name: 'beneficiary', type: 'address' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'balanceOf',
+    inputs: [
+      {
+        name: 'account',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'delegateAndRevert',
+    inputs: [
+      {
+        name: 'target',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'data',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
     ],
     outputs: [],
     stateMutability: 'nonpayable',
   },
-
-  /**
-   * Get nonce for account
-   */
   {
     type: 'function',
-    name: 'getNonce',
+    name: 'depositTo',
     inputs: [
-      { name: 'sender', type: 'address' },
-      { name: 'key', type: 'uint192' },
+      {
+        name: 'account',
+        type: 'address',
+        internalType: 'address',
+      },
     ],
-    outputs: [{ name: 'nonce', type: 'uint256' }],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'eip712Domain',
+    inputs: [],
+    outputs: [
+      {
+        name: 'fields',
+        type: 'bytes1',
+        internalType: 'bytes1',
+      },
+      {
+        name: 'name',
+        type: 'string',
+        internalType: 'string',
+      },
+      {
+        name: 'version',
+        type: 'string',
+        internalType: 'string',
+      },
+      {
+        name: 'chainId',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'verifyingContract',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'salt',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+      {
+        name: 'extensions',
+        type: 'uint256[]',
+        internalType: 'uint256[]',
+      },
+    ],
     stateMutability: 'view',
   },
-
-  /**
-   * Get deposit info for account
-   */
+  {
+    type: 'function',
+    name: 'getCurrentUserOpHash',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+    ],
+    stateMutability: 'view',
+  },
   {
     type: 'function',
     name: 'getDepositInfo',
-    inputs: [{ name: 'account', type: 'address' }],
+    inputs: [
+      {
+        name: 'account',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
     outputs: [
       {
         name: 'info',
         type: 'tuple',
+        internalType: 'struct IStakeManager.DepositInfo',
         components: [
-          { name: 'deposit', type: 'uint256' },
-          { name: 'staked', type: 'bool' },
-          { name: 'stake', type: 'uint112' },
-          { name: 'unstakeDelaySec', type: 'uint32' },
-          { name: 'withdrawTime', type: 'uint48' },
+          {
+            name: 'deposit',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'staked',
+            type: 'bool',
+            internalType: 'bool',
+          },
+          {
+            name: 'stake',
+            type: 'uint112',
+            internalType: 'uint112',
+          },
+          {
+            name: 'unstakeDelaySec',
+            type: 'uint32',
+            internalType: 'uint32',
+          },
+          {
+            name: 'withdrawTime',
+            type: 'uint48',
+            internalType: 'uint48',
+          },
         ],
       },
     ],
     stateMutability: 'view',
   },
-
-  /**
-   * Calculate UserOperation hash
-   */
+  {
+    type: 'function',
+    name: 'getDomainSeparatorV4',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'getNonce',
+    inputs: [
+      {
+        name: 'sender',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'key',
+        type: 'uint192',
+        internalType: 'uint192',
+      },
+    ],
+    outputs: [
+      {
+        name: 'nonce',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'getPackedUserOpTypeHash',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+    ],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    name: 'getSenderAddress',
+    inputs: [
+      {
+        name: 'initCode',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
   {
     type: 'function',
     name: 'getUserOpHash',
@@ -78,95 +235,1137 @@ export const ENTRY_POINT_ABI = [
       {
         name: 'userOp',
         type: 'tuple',
+        internalType: 'struct PackedUserOperation',
         components: [
-          { name: 'sender', type: 'address' },
-          { name: 'nonce', type: 'uint256' },
-          { name: 'initCode', type: 'bytes' },
-          { name: 'callData', type: 'bytes' },
-          { name: 'accountGasLimits', type: 'bytes32' },
-          { name: 'preVerificationGas', type: 'uint256' },
-          { name: 'gasFees', type: 'bytes32' },
-          { name: 'paymasterAndData', type: 'bytes' },
-          { name: 'signature', type: 'bytes' },
+          {
+            name: 'sender',
+            type: 'address',
+            internalType: 'address',
+          },
+          {
+            name: 'nonce',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'initCode',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'callData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'accountGasLimits',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'preVerificationGas',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'gasFees',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'paymasterAndData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'signature',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
         ],
       },
     ],
-    outputs: [{ name: '', type: 'bytes32' }],
+    outputs: [
+      {
+        name: '',
+        type: 'bytes32',
+        internalType: 'bytes32',
+      },
+    ],
     stateMutability: 'view',
   },
-
-  /**
-   * Deposit to account's balance in EntryPoint
-   */
   {
     type: 'function',
-    name: 'depositTo',
-    inputs: [{ name: 'account', type: 'address' }],
+    name: 'handleAggregatedOps',
+    inputs: [
+      {
+        name: 'opsPerAggregator',
+        type: 'tuple[]',
+        internalType: 'struct IEntryPoint.UserOpsPerAggregator[]',
+        components: [
+          {
+            name: 'userOps',
+            type: 'tuple[]',
+            internalType: 'struct PackedUserOperation[]',
+            components: [
+              {
+                name: 'sender',
+                type: 'address',
+                internalType: 'address',
+              },
+              {
+                name: 'nonce',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'initCode',
+                type: 'bytes',
+                internalType: 'bytes',
+              },
+              {
+                name: 'callData',
+                type: 'bytes',
+                internalType: 'bytes',
+              },
+              {
+                name: 'accountGasLimits',
+                type: 'bytes32',
+                internalType: 'bytes32',
+              },
+              {
+                name: 'preVerificationGas',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'gasFees',
+                type: 'bytes32',
+                internalType: 'bytes32',
+              },
+              {
+                name: 'paymasterAndData',
+                type: 'bytes',
+                internalType: 'bytes',
+              },
+              {
+                name: 'signature',
+                type: 'bytes',
+                internalType: 'bytes',
+              },
+            ],
+          },
+          {
+            name: 'aggregator',
+            type: 'address',
+            internalType: 'contract IAggregator',
+          },
+          {
+            name: 'signature',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+        ],
+      },
+      {
+        name: 'beneficiary',
+        type: 'address',
+        internalType: 'address payable',
+      },
+    ],
     outputs: [],
-    stateMutability: 'payable',
+    stateMutability: 'nonpayable',
   },
-
-  /**
-   * Get account balance in EntryPoint
-   */
   {
     type: 'function',
-    name: 'balanceOf',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
+    name: 'handleOps',
+    inputs: [
+      {
+        name: 'ops',
+        type: 'tuple[]',
+        internalType: 'struct PackedUserOperation[]',
+        components: [
+          {
+            name: 'sender',
+            type: 'address',
+            internalType: 'address',
+          },
+          {
+            name: 'nonce',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'initCode',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'callData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'accountGasLimits',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'preVerificationGas',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'gasFees',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'paymasterAndData',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+          {
+            name: 'signature',
+            type: 'bytes',
+            internalType: 'bytes',
+          },
+        ],
+      },
+      {
+        name: 'beneficiary',
+        type: 'address',
+        internalType: 'address payable',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'incrementNonce',
+    inputs: [
+      {
+        name: 'key',
+        type: 'uint192',
+        internalType: 'uint192',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'innerHandleOp',
+    inputs: [
+      {
+        name: 'callData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+      {
+        name: 'opInfo',
+        type: 'tuple',
+        internalType: 'struct EntryPoint.UserOpInfo',
+        components: [
+          {
+            name: 'mUserOp',
+            type: 'tuple',
+            internalType: 'struct EntryPoint.MemoryUserOp',
+            components: [
+              {
+                name: 'sender',
+                type: 'address',
+                internalType: 'address',
+              },
+              {
+                name: 'nonce',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'verificationGasLimit',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'callGasLimit',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'paymasterVerificationGasLimit',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'paymasterPostOpGasLimit',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'preVerificationGas',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'paymaster',
+                type: 'address',
+                internalType: 'address',
+              },
+              {
+                name: 'maxFeePerGas',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+              {
+                name: 'maxPriorityFeePerGas',
+                type: 'uint256',
+                internalType: 'uint256',
+              },
+            ],
+          },
+          {
+            name: 'userOpHash',
+            type: 'bytes32',
+            internalType: 'bytes32',
+          },
+          {
+            name: 'prefund',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'contextOffset',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+          {
+            name: 'preOpGas',
+            type: 'uint256',
+            internalType: 'uint256',
+          },
+        ],
+      },
+      {
+        name: 'context',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+    outputs: [
+      {
+        name: 'actualGasCost',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'nonceSequenceNumber',
+    inputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: '',
+        type: 'uint192',
+        internalType: 'uint192',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
     stateMutability: 'view',
   },
-
-  // Events
+  {
+    type: 'function',
+    name: 'senderCreator',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'contract ISenderCreator',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'supportsInterface',
+    inputs: [
+      {
+        name: 'interfaceId',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'unlockStake',
+    inputs: [],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'withdrawStake',
+    inputs: [
+      {
+        name: 'withdrawAddress',
+        type: 'address',
+        internalType: 'address payable',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'withdrawTo',
+    inputs: [
+      {
+        name: 'withdrawAddress',
+        type: 'address',
+        internalType: 'address payable',
+      },
+      {
+        name: 'withdrawAmount',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
   {
     type: 'event',
-    name: 'UserOperationEvent',
+    name: 'AccountDeployed',
     inputs: [
-      { name: 'userOpHash', type: 'bytes32', indexed: true },
-      { name: 'sender', type: 'address', indexed: true },
-      { name: 'paymaster', type: 'address', indexed: true },
-      { name: 'nonce', type: 'uint256', indexed: false },
-      { name: 'success', type: 'bool', indexed: false },
-      { name: 'actualGasCost', type: 'uint256', indexed: false },
-      { name: 'actualGasUsed', type: 'uint256', indexed: false },
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        indexed: true,
+        internalType: 'bytes32',
+      },
+      {
+        name: 'sender',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'factory',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
+      {
+        name: 'paymaster',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
     ],
+    anonymous: false,
   },
-
   {
     type: 'event',
-    name: 'UserOperationRevertReason',
-    inputs: [
-      { name: 'userOpHash', type: 'bytes32', indexed: true },
-      { name: 'sender', type: 'address', indexed: true },
-      { name: 'nonce', type: 'uint256', indexed: false },
-      { name: 'revertReason', type: 'bytes', indexed: false },
-    ],
+    name: 'BeforeExecution',
+    inputs: [],
+    anonymous: false,
   },
-
-  // ===== EIP-4337 v0.9 Events =====
-
-  /**
-   * Emitted when initCode is provided for an already-deployed account.
-   * The initCode is ignored and execution proceeds normally.
-   */
   {
     type: 'event',
-    name: 'IgnoredInitCode',
+    name: 'Deposited',
     inputs: [
-      { name: 'userOpHash', type: 'bytes32', indexed: true },
-      { name: 'sender', type: 'address', indexed: true },
+      {
+        name: 'account',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'totalDeposit',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
     ],
+    anonymous: false,
   },
-
-  /**
-   * Emitted when EIP-7702 account initialization is completed.
-   */
+  {
+    type: 'event',
+    name: 'EIP712DomainChanged',
+    inputs: [],
+    anonymous: false,
+  },
   {
     type: 'event',
     name: 'EIP7702AccountInitialized',
     inputs: [
-      { name: 'userOpHash', type: 'bytes32', indexed: true },
-      { name: 'sender', type: 'address', indexed: true },
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        indexed: true,
+        internalType: 'bytes32',
+      },
+      {
+        name: 'sender',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'delegate',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'IgnoredInitCode',
+    inputs: [
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        indexed: true,
+        internalType: 'bytes32',
+      },
+      {
+        name: 'sender',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'unusedFactory',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'PostOpRevertReason',
+    inputs: [
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        indexed: true,
+        internalType: 'bytes32',
+      },
+      {
+        name: 'sender',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'nonce',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'revertReason',
+        type: 'bytes',
+        indexed: false,
+        internalType: 'bytes',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'SignatureAggregatorChanged',
+    inputs: [
+      {
+        name: 'aggregator',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'StakeLocked',
+    inputs: [
+      {
+        name: 'account',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'totalStaked',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'unstakeDelaySec',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'StakeUnlocked',
+    inputs: [
+      {
+        name: 'account',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'withdrawTime',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'StakeWithdrawn',
+    inputs: [
+      {
+        name: 'account',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'withdrawAddress',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
+      {
+        name: 'amount',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'UserOperationEvent',
+    inputs: [
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        indexed: true,
+        internalType: 'bytes32',
+      },
+      {
+        name: 'sender',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'paymaster',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'nonce',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'success',
+        type: 'bool',
+        indexed: false,
+        internalType: 'bool',
+      },
+      {
+        name: 'actualGasCost',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'actualGasUsed',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'UserOperationPrefundTooLow',
+    inputs: [
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        indexed: true,
+        internalType: 'bytes32',
+      },
+      {
+        name: 'sender',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'nonce',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'UserOperationRevertReason',
+    inputs: [
+      {
+        name: 'userOpHash',
+        type: 'bytes32',
+        indexed: true,
+        internalType: 'bytes32',
+      },
+      {
+        name: 'sender',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'nonce',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+      {
+        name: 'revertReason',
+        type: 'bytes',
+        indexed: false,
+        internalType: 'bytes',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'Withdrawn',
+    inputs: [
+      {
+        name: 'account',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+      {
+        name: 'withdrawAddress',
+        type: 'address',
+        indexed: false,
+        internalType: 'address',
+      },
+      {
+        name: 'amount',
+        type: 'uint256',
+        indexed: false,
+        internalType: 'uint256',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'error',
+    name: 'DelegateAndRevert',
+    inputs: [
+      {
+        name: 'success',
+        type: 'bool',
+        internalType: 'bool',
+      },
+      {
+        name: 'ret',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'DepositWithdrawalFailed',
+    inputs: [
+      {
+        name: 'account',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'withdrawAddress',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'amount',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'revertReason',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'Eip7702SenderNotDelegate',
+    inputs: [
+      {
+        name: 'sender',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'Eip7702SenderWithoutCode',
+    inputs: [
+      {
+        name: 'sender',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'FailedOp',
+    inputs: [
+      {
+        name: 'opIndex',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'reason',
+        type: 'string',
+        internalType: 'string',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'FailedOpWithRevert',
+    inputs: [
+      {
+        name: 'opIndex',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'reason',
+        type: 'string',
+        internalType: 'string',
+      },
+      {
+        name: 'inner',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'FailedSendToBeneficiary',
+    inputs: [
+      {
+        name: 'beneficiary',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'amount',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'revertData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InsufficientDeposit',
+    inputs: [
+      {
+        name: 'currentDeposit',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'withdrawAmount',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InternalFunction',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidBeneficiary',
+    inputs: [
+      {
+        name: 'beneficiary',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InvalidPaymaster',
+    inputs: [
+      {
+        name: 'paymaster',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InvalidPaymasterData',
+    inputs: [
+      {
+        name: 'paymasterAndDataLength',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InvalidPaymasterSignatureLength',
+    inputs: [
+      {
+        name: 'dataLength',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'pmSignatureLength',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InvalidShortString',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidStake',
+    inputs: [
+      {
+        name: 'msgValue',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'currentStake',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InvalidUnstakeDelay',
+    inputs: [
+      {
+        name: 'newUnstakeDelaySec',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'currentUnstakeDelaySec',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'NotStaked',
+    inputs: [
+      {
+        name: 'currentStake',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'unstakeDelaySec',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'staked',
+        type: 'bool',
+        internalType: 'bool',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'PostOpReverted',
+    inputs: [
+      {
+        name: 'returnData',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'Reentrancy',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'SenderAddressResult',
+    inputs: [
+      {
+        name: 'sender',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'SignatureValidationFailed',
+    inputs: [
+      {
+        name: 'aggregator',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'StakeNotUnlocked',
+    inputs: [
+      {
+        name: 'withdrawTime',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'blockTimestamp',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'StakeWithdrawalFailed',
+    inputs: [
+      {
+        name: 'account',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'withdrawAddress',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'amount',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'revertReason',
+        type: 'bytes',
+        internalType: 'bytes',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'StringTooLong',
+    inputs: [
+      {
+        name: 'str',
+        type: 'string',
+        internalType: 'string',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'WithdrawalNotDue',
+    inputs: [
+      {
+        name: 'withdrawTime',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+      {
+        name: 'blockTimestamp',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
     ],
   },
 ] as const
