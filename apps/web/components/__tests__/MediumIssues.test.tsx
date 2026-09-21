@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Address, Hex } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { IncomingPaymentsCard } from '@/components/stealth/cards/IncomingPaymentsCard'
 
 // AuditLogCard uses useChainId from wagmi
 vi.mock('wagmi', () => ({
@@ -28,7 +29,6 @@ describe('IncomingPaymentsCard', () => {
   ]
 
   it('should call onWithdraw callback when withdraw button clicked', async () => {
-    const { IncomingPaymentsCard } = await import('@/components/stealth/cards/IncomingPaymentsCard')
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
 
     render(
@@ -49,7 +49,6 @@ describe('IncomingPaymentsCard', () => {
   })
 
   it('should show loading state during withdrawal', async () => {
-    const { IncomingPaymentsCard } = await import('@/components/stealth/cards/IncomingPaymentsCard')
     const onWithdraw = vi
       .fn()
       .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)))
