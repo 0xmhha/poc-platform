@@ -1,6 +1,6 @@
 'use client'
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Address, Hex } from 'viem'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,7 +41,7 @@ describe('IncomingPaymentsCard', () => {
     )
 
     const withdrawButton = screen.getByRole('button', { name: /withdraw/i })
-    await userEvent.click(withdrawButton)
+    fireEvent.click(withdrawButton)
 
     await waitFor(() => {
       expect(onWithdraw).toHaveBeenCalledWith(mockAnnouncements[0])
