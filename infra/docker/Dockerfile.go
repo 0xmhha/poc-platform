@@ -1,5 +1,5 @@
 # Go Service Dockerfile
-FROM golang:1.26.8-alpine AS builder
+FROM golang:1.26.9-alpine AS builder
 
 # Install build dependencies and update CA certificates
 RUN apk add --no-cache git ca-certificates tzdata && \
