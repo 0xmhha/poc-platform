@@ -191,22 +191,30 @@ type FlashLoanCallbackConfig struct {
 	Data   types.Hex
 }
 
-// EncodeFlashLoanInit encodes flash loan fallback initialization data.
+// Flash loan callback selectors handled by FlashLoanFallback. Register the one(s) matching the
+// lender as fallback selectors on the account.
+var (
+	SelectorAaveExecuteOperation     = CalculateSelector("executeOperation(address[],uint256[],uint256[],address,bytes)")
+	SelectorUniswapV3FlashCallback   = CalculateSelector("uniswapV3FlashCallback(uint256,uint256,bytes)")
+	SelectorBalancerReceiveFlashLoan = CalculateSelector("receiveFlashLoan(address[],uint256[],uint256[],bytes)")
+	SelectorERC3156OnFlashLoan       = CalculateSelector("onFlashLoan(address,address,uint256,uint256,bytes)")
+)
+
+// EncodeFlashLoanInit encodes FlashLoanFallback onInstall data: abi.encode(bool requireWhitelist, bool logFlashLoans).
+//
+// FlashLoanFallback must be installed as both a fallback (for the lender callback) and an executor
+// (it repays and runs strategy calls through executeFromExecutor). The second install may pass empty
+// data; the module keeps the first install's config. Without data the module defaults to
+// requireWhitelist = true and logFlashLoans = true.
 func EncodeFlashLoanInit(config types.FlashLoanConfig) (types.Hex, error) {
-	addressType := mustNewType("address")
-	addressArrayType := mustNewType("address[]")
+	boolType := mustNewType("bool")
 
 	arguments := abi.Arguments{
-		{Type: addressType, Name: "authorizedBorrower"},
-		{Type: addressArrayType, Name: "allowedTokens"},
+		{Type: boolType, Name: "requireWhitelist"},
+		{Type: boolType, Name: "logFlashLoans"},
 	}
 
-	tokens := make([]common.Address, len(config.AllowedTokens))
-	for i, t := range config.AllowedTokens {
-		tokens[i] = t
-	}
-
-	encoded, err := arguments.Pack(common.Address(config.AuthorizedBorrower), tokens)
+	encoded, err := arguments.Pack(config.RequireWhitelistedProtocol, config.LogFlashLoans)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode flash loan init: %w", err)
 	}
@@ -214,63 +222,27 @@ func EncodeFlashLoanInit(config types.FlashLoanConfig) (types.Hex, error) {
 	return types.Hex(encoded), nil
 }
 
-// ValidateFlashLoanConfig validates flash loan configuration.
-func ValidateFlashLoanConfig(config types.FlashLoanConfig) *ValidationResult {
-	result := &ValidationResult{Valid: true}
-
-	// Validate authorized borrower
-	if config.AuthorizedBorrower == (types.Address{}) || config.AuthorizedBorrower == ZeroAddress {
-		result.AddError("Authorized borrower address is required and cannot be zero address")
+// EncodeBeginFlashLoan encodes FlashLoanFallback.beginFlashLoan(lender).
+//
+// The account must call this on the module in the same transaction as the loan request, right
+// before it (for example as the first call of an executeBatch). The module rejects a lender
+// callback that was not announced this way.
+func EncodeBeginFlashLoan(lender types.Address) (types.Hex, error) {
+	encoded, err := abi.Arguments{{Type: mustNewType("address")}}.Pack(common.Address(lender))
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode beginFlashLoan: %w", err)
 	}
-
-	// Validate allowed tokens
-	if len(config.AllowedTokens) == 0 {
-		result.AddError("At least one allowed token is required")
-	}
-
-	for i, token := range config.AllowedTokens {
-		if token == ZeroAddress {
-			result.AddError(fmt.Sprintf("Allowed token %d cannot be zero address (use native token address instead)", i+1))
-		}
-	}
-
-	// Validate max loan amounts
-	for token, amount := range config.MaxLoanAmounts {
-		if amount == nil || amount.Sign() <= 0 {
-			result.AddError(fmt.Sprintf("Max loan amount for token %s must be positive", token.Hex()))
-		}
-	}
-
-	return result
+	return types.Hex(append(CalculateSelector("beginFlashLoan(address)").Bytes(), encoded...)), nil
 }
 
-// IsFlashLoanAuthorized checks if a flash loan request is authorized.
-func IsFlashLoanAuthorized(config types.FlashLoanConfig, borrower types.Address, token types.Address, amount *big.Int) bool {
-	// Check borrower
-	if config.AuthorizedBorrower != borrower && config.AuthorizedBorrower != ZeroAddress {
-		return false
+// EncodeFlashLoanAddToWhitelist encodes FlashLoanFallback.addToWhitelist(protocol). Lenders must be
+// whitelisted while requireWhitelist is enabled.
+func EncodeFlashLoanAddToWhitelist(protocol types.Address) (types.Hex, error) {
+	encoded, err := abi.Arguments{{Type: mustNewType("address")}}.Pack(common.Address(protocol))
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode addToWhitelist: %w", err)
 	}
-
-	// Check token
-	tokenAllowed := false
-	for _, t := range config.AllowedTokens {
-		if t == token {
-			tokenAllowed = true
-			break
-		}
-	}
-	if !tokenAllowed {
-		return false
-	}
-
-	// Check amount
-	if maxAmount, ok := config.MaxLoanAmounts[token]; ok {
-		if amount.Cmp(maxAmount) > 0 {
-			return false
-		}
-	}
-
-	return true
+	return types.Hex(append(CalculateSelector("addToWhitelist(address)").Bytes(), encoded...)), nil
 }
 
 // ============================================================================

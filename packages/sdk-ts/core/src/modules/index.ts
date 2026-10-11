@@ -60,6 +60,8 @@ export {
   encodeAuditHookInit,
   encodeBatchExecutorCalls,
   encodeBatchFallbackRegistration,
+  // Flash Loan
+  encodeBeginFlashLoan,
   encodeECDSASignature,
   // ECDSA
   encodeECDSAValidatorInit,
@@ -71,7 +73,7 @@ export {
   encodeExecutorCall,
   // Generic Fallback
   encodeFallbackHandlerRegistration,
-  // Flash Loan
+  encodeFlashLoanAddToWhitelist,
   encodeFlashLoanInit,
   encodeMultipleSpendingLimitsInit,
   encodeMultiSigSignature,
@@ -98,6 +100,7 @@ export {
   type FallbackHandlerRegistration,
   // Types
   type FallbackValidationResult,
+  FLASH_LOAN_CALLBACK_SELECTORS,
   type FlashLoanCallbackConfig,
   // Aggregated
   fallbackUtils,
@@ -118,7 +121,6 @@ export {
   INTERFACE_SELECTORS,
   // Common
   identifyValidatorType,
-  isFlashLoanAuthorized,
   isValidSignatureFormat,
   PERIOD_PRESETS,
   type PermissionCheckResult,
@@ -131,7 +133,6 @@ export {
   type ValidatorValidationResult,
   validateAuditHookConfig,
   validateECDSAValidatorConfig,
-  validateFlashLoanConfig,
   validateMultiSigValidatorConfig,
   validateRecurringPaymentConfig,
   validateSessionKeyConfig,

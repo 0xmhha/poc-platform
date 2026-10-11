@@ -432,21 +432,14 @@ export interface TokenReceiverConfig {
 }
 
 /**
- * Flash Loan Fallback configuration
+ * Flash Loan Fallback configuration (FlashLoanFallback onInstall: abi.encode(bool, bool))
  */
 export interface FlashLoanConfig {
-  /** Authorized borrower address */
-  authorizedBorrower: Address
+  /** Accept callbacks only from lenders added with addToWhitelist */
+  requireWhitelistedProtocol: boolean
 
-  /** Allowed tokens for flash loan */
-  allowedTokens: Address[]
-
-  /**
-   * Maximum loan amount per token.
-   * Keys MUST be checksummed (EIP-55) addresses for consistent lookups,
-   * since Record keys are case-sensitive but Ethereum addresses are not.
-   */
-  maxLoanAmounts: Record<Address, bigint>
+  /** Record each flash loan on-chain */
+  logFlashLoans: boolean
 }
 
 // ============================================================================
