@@ -283,12 +283,12 @@ export const SPENDING_LIMIT_HOOK_ABI = [
         internalType: 'address',
       },
       {
-        name: '',
+        name: 'msgValue',
         type: 'uint256',
         internalType: 'uint256',
       },
       {
-        name: '',
+        name: 'msgData',
         type: 'bytes',
         internalType: 'bytes',
       },
@@ -497,6 +497,22 @@ export const SPENDING_LIMIT_HOOK_ABI = [
   },
   {
     type: 'error',
+    name: 'AllowanceChangeNotAllowed',
+    inputs: [
+      {
+        name: 'token',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'selector',
+        type: 'bytes4',
+        internalType: 'bytes4',
+      },
+    ],
+  },
+  {
+    type: 'error',
     name: 'AlreadyInitialized',
     inputs: [
       {
@@ -505,6 +521,27 @@ export const SPENDING_LIMIT_HOOK_ABI = [
         internalType: 'address',
       },
     ],
+  },
+  {
+    type: 'error',
+    name: 'DelegatecallNotAllowed',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'ForbiddenExecutionTarget',
+    inputs: [
+      {
+        name: 'target',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'InvalidExecutionCalldata',
+    inputs: [],
   },
   {
     type: 'error',
@@ -545,6 +582,17 @@ export const SPENDING_LIMIT_HOOK_ABI = [
         name: 'allowance',
         type: 'uint256',
         internalType: 'uint256',
+      },
+    ],
+  },
+  {
+    type: 'error',
+    name: 'UnsupportedCallType',
+    inputs: [
+      {
+        name: 'callType',
+        type: 'bytes1',
+        internalType: 'CallType',
       },
     ],
   },
@@ -1004,7 +1052,23 @@ export const HEALTH_FACTOR_HOOK_ABI = [
   },
   {
     type: 'error',
+    name: 'ForbiddenExecutionTarget',
+    inputs: [
+      {
+        name: 'target',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
     name: 'HealthFactorTooLow',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidExecutionCalldata',
     inputs: [],
   },
   {
@@ -1042,5 +1106,16 @@ export const HEALTH_FACTOR_HOOK_ABI = [
     type: 'error',
     name: 'TargetNotMonitored',
     inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'UnsupportedCallType',
+    inputs: [
+      {
+        name: 'callType',
+        type: 'bytes1',
+        internalType: 'CallType',
+      },
+    ],
   },
 ] as const
