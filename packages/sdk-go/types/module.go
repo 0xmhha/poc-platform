@@ -230,8 +230,8 @@ type TokenReceiverConfig struct {
 }
 
 // FlashLoanConfig represents flash loan fallback configuration.
+// Mirrors FlashLoanFallback.onInstall(abi.encode(bool, bool)).
 type FlashLoanConfig struct {
-	AuthorizedBorrower Address            `json:"authorizedBorrower"`
-	AllowedTokens      []Address          `json:"allowedTokens"`
-	MaxLoanAmounts     map[Address]*big.Int `json:"maxLoanAmounts,omitempty"`
+	RequireWhitelistedProtocol bool `json:"requireWhitelistedProtocol"`
+	LogFlashLoans              bool `json:"logFlashLoans"`
 }

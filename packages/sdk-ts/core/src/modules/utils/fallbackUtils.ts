@@ -43,17 +43,14 @@ export interface TokenReceiverCapability {
 }
 
 /**
- * Flash loan callback configuration
+ * FlashLoanFallback onInstall configuration: abi.encode(bool requireWhitelist, bool logFlashLoans)
  */
 export interface FlashLoanCallbackConfig {
-  /** Allowed flash loan providers */
-  allowedProviders: Address[]
+  /** Accept callbacks only from lenders added with addToWhitelist */
+  requireWhitelistedProtocol: boolean
 
-  /** Maximum flash loan amount (0 for unlimited) */
-  maxLoanAmount: bigint
-
-  /** Allowed callback executors */
-  allowedExecutors: Address[]
+  /** Record each flash loan on-chain */
+  logFlashLoans: boolean
 }
 
 /**
@@ -73,12 +70,6 @@ export interface FallbackHandlerRegistration {
 // ============================================================================
 // Constants
 // ============================================================================
-
-/** Address validation regex */
-const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
-
-/** Zero address */
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
 /** Standard interface selectors */
 export const INTERFACE_SELECTORS = {
@@ -238,116 +229,82 @@ export function encodeERC1155BatchReceivedReturn(): Hex {
 // ============================================================================
 
 /**
- * Encode Flash Loan fallback initialization data
+ * Flash loan callback selectors handled by FlashLoanFallback. Register the one(s) matching the
+ * lender as fallback selectors on the account.
+ */
+export const FLASH_LOAN_CALLBACK_SELECTORS = {
+  /** Aave: executeOperation(address[],uint256[],uint256[],address,bytes) */
+  AAVE_EXECUTE_OPERATION: '0x920f5c84' as Hex,
+  /** Uniswap V3: uniswapV3FlashCallback(uint256,uint256,bytes) */
+  UNISWAP_V3_FLASH_CALLBACK: '0xe9cbafb0' as Hex,
+  /** Balancer: receiveFlashLoan(address[],uint256[],uint256[],bytes) */
+  BALANCER_RECEIVE_FLASH_LOAN: '0xf04f2707' as Hex,
+  /** ERC-3156: onFlashLoan(address,address,uint256,uint256,bytes) */
+  ERC3156_ON_FLASH_LOAN: '0x23e30c8b' as Hex,
+} as const
+
+const FLASH_LOAN_FALLBACK_ABI = [
+  {
+    type: 'function',
+    name: 'beginFlashLoan',
+    inputs: [{ name: 'protocol', type: 'address' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'addToWhitelist',
+    inputs: [{ name: 'protocol', type: 'address' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+] as const
+
+/**
+ * Encode FlashLoanFallback onInstall data
+ *
+ * FlashLoanFallback must be installed as both a fallback (for the lender callback) and an executor
+ * (it repays and runs strategy calls through executeFromExecutor). The second install may pass empty
+ * data; the module keeps the first install's config. Without data the module defaults to
+ * requireWhitelistedProtocol = true and logFlashLoans = true.
  *
  * @example
  * ```typescript
- * const initData = encodeFlashLoanInit({
- *   allowedProviders: [AAVE_POOL_ADDRESS, UNISWAP_V3_FACTORY],
- *   maxLoanAmount: parseEther('1000'),
- *   allowedExecutors: [ARBITRAGE_CONTRACT],
- * })
+ * const initData = encodeFlashLoanInit({ requireWhitelistedProtocol: true, logFlashLoans: true })
  * ```
  */
 export function encodeFlashLoanInit(config: FlashLoanCallbackConfig): Hex {
-  return encodeAbiParameters(
-    parseAbiParameters(
-      'address[] allowedProviders, uint256 maxLoanAmount, address[] allowedExecutors'
-    ),
-    [config.allowedProviders, config.maxLoanAmount, config.allowedExecutors]
-  )
+  return encodeAbiParameters(parseAbiParameters('bool requireWhitelist, bool logFlashLoans'), [
+    config.requireWhitelistedProtocol,
+    config.logFlashLoans,
+  ])
 }
 
 /**
- * Validate Flash Loan configuration
+ * Encode FlashLoanFallback.beginFlashLoan(lender)
+ *
+ * The account must call this on the module in the same transaction as the loan request, right
+ * before it (for example as the first call of an executeBatch). The module rejects a lender
+ * callback that was not announced this way.
  */
-export function validateFlashLoanConfig(config: FlashLoanCallbackConfig): FallbackValidationResult {
-  const errors: string[] = []
-  const warnings: string[] = []
-
-  // Validate providers
-  if (!config.allowedProviders || config.allowedProviders.length === 0) {
-    errors.push('At least one flash loan provider is required')
-  } else {
-    config.allowedProviders.forEach((provider, index) => {
-      if (!ADDRESS_REGEX.test(provider)) {
-        errors.push(`Provider ${index + 1} must be a valid address`)
-      }
-      if (provider === ZERO_ADDRESS) {
-        errors.push(`Provider ${index + 1} cannot be zero address`)
-      }
-    })
-  }
-
-  // Validate executors
-  if (!config.allowedExecutors || config.allowedExecutors.length === 0) {
-    errors.push('At least one executor is required')
-  } else {
-    config.allowedExecutors.forEach((executor, index) => {
-      if (!ADDRESS_REGEX.test(executor)) {
-        errors.push(`Executor ${index + 1} must be a valid address`)
-      }
-    })
-  }
-
-  // Warnings
-  if (config.maxLoanAmount === 0n) {
-    warnings.push('Unlimited loan amount - consider setting a maximum for safety')
-  }
-
-  if (config.maxLoanAmount > 10n ** 24n) {
-    warnings.push('Very high max loan amount (>1M WKRC equivalent) - verify this is intentional')
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings: warnings.length > 0 ? warnings : undefined,
-  }
+export function encodeBeginFlashLoan(lender: Address): Hex {
+  return encodeFunctionData({
+    abi: FLASH_LOAN_FALLBACK_ABI,
+    functionName: 'beginFlashLoan',
+    args: [lender],
+  })
 }
 
 /**
- * Check if a flash loan callback is authorized
+ * Encode FlashLoanFallback.addToWhitelist(protocol). Lenders must be whitelisted while
+ * requireWhitelistedProtocol is enabled.
  */
-export function isFlashLoanAuthorized(
-  config: FlashLoanCallbackConfig,
-  provider: Address,
-  executor: Address,
-  amount: bigint
-): { authorized: boolean; reason?: string } {
-  // Check provider
-  const providerAllowed = config.allowedProviders.some(
-    (allowed) => allowed.toLowerCase() === provider.toLowerCase()
-  )
-
-  if (!providerAllowed) {
-    return {
-      authorized: false,
-      reason: `Provider ${provider} is not in allowed list`,
-    }
-  }
-
-  // Check executor
-  const executorAllowed = config.allowedExecutors.some(
-    (allowed) => allowed.toLowerCase() === executor.toLowerCase()
-  )
-
-  if (!executorAllowed) {
-    return {
-      authorized: false,
-      reason: `Executor ${executor} is not in allowed list`,
-    }
-  }
-
-  // Check amount
-  if (config.maxLoanAmount > 0n && amount > config.maxLoanAmount) {
-    return {
-      authorized: false,
-      reason: `Loan amount ${amount} exceeds maximum ${config.maxLoanAmount}`,
-    }
-  }
-
-  return { authorized: true }
+export function encodeFlashLoanAddToWhitelist(protocol: Address): Hex {
+  return encodeFunctionData({
+    abi: FLASH_LOAN_FALLBACK_ABI,
+    functionName: 'addToWhitelist',
+    args: [protocol],
+  })
 }
 
 // ============================================================================
@@ -446,8 +403,9 @@ export const fallbackUtils = {
 
   // Flash Loan
   encodeFlashLoanInit,
-  validateFlashLoanConfig,
-  isFlashLoanAuthorized,
+  encodeBeginFlashLoan,
+  encodeFlashLoanAddToWhitelist,
+  FLASH_LOAN_CALLBACK_SELECTORS,
 
   // Generic
   encodeFallbackHandlerRegistration,

@@ -30,12 +30,14 @@ export {
   calculateSelector,
   decodeTokenReceiverFlags,
   encodeBatchFallbackRegistration,
+  // Flash Loan
+  encodeBeginFlashLoan,
   encodeERC721ReceivedReturn,
   encodeERC1155BatchReceivedReturn,
   encodeERC1155ReceivedReturn,
   // Generic Fallback
   encodeFallbackHandlerRegistration,
-  // Flash Loan
+  encodeFlashLoanAddToWhitelist,
   encodeFlashLoanInit,
   encodeSupportsInterfaceCall,
   // Token Receiver
@@ -43,6 +45,7 @@ export {
   type FallbackHandlerRegistration,
   // Types
   type FallbackValidationResult,
+  FLASH_LOAN_CALLBACK_SELECTORS,
   type FlashLoanCallbackConfig,
   // Aggregated export
   fallbackUtils,
@@ -51,9 +54,7 @@ export {
   INTERFACE_IDS,
   // Constants
   INTERFACE_SELECTORS,
-  isFlashLoanAuthorized,
   type TokenReceiverCapability,
-  validateFlashLoanConfig,
   validateTokenReceiverConfig,
 } from './fallbackUtils'
 
