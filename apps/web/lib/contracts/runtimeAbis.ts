@@ -3600,6 +3600,19 @@ export const STAKING_VAULT_ABI = [
   },
   {
     type: 'function',
+    name: 'rewardsAllocated',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     name: 'setPaused',
     inputs: [
       {
@@ -5792,7 +5805,23 @@ export const HEALTH_HOOK_ABI = [
   },
   {
     type: 'error',
+    name: 'ForbiddenExecutionTarget',
+    inputs: [
+      {
+        name: 'target',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+  },
+  {
+    type: 'error',
     name: 'HealthFactorTooLow',
+    inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'InvalidExecutionCalldata',
     inputs: [],
   },
   {
@@ -5830,5 +5859,16 @@ export const HEALTH_HOOK_ABI = [
     type: 'error',
     name: 'TargetNotMonitored',
     inputs: [],
+  },
+  {
+    type: 'error',
+    name: 'UnsupportedCallType',
+    inputs: [
+      {
+        name: 'callType',
+        type: 'bytes1',
+        internalType: 'CallType',
+      },
+    ],
   },
 ] as const

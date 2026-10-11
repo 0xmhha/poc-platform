@@ -28,6 +28,32 @@ export const KERNEL_FACTORY_ABI = [
   },
   {
     type: 'function',
+    name: 'SENDER_CREATOR',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'STAKER',
+    inputs: [],
+    outputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     name: 'createAccount',
     inputs: [
       {
