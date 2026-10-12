@@ -29,7 +29,7 @@
     "nanoid": "^5.1.16",
     "pino": "^9.5.0",
     "pino-pretty": "^13.0.0",
-    "yargs": "^17.7.2",
+    "yargs": "^18.2.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
