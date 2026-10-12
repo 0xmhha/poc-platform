@@ -30,11 +30,11 @@
     "@stablenet/plugin-stealth": "workspace:*",
     "bip39": "^3.1.0",
     "buffer": "^6.0.3",
-    "i18next": "^25.8.4",
+    "i18next": "^26.4.4",
     "qrcode": "^1.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-i18next": "^16.5.6",
+    "react-i18next": "^17.0.15",
     "viem": "^2.57.4",
     "zustand": "^5.0.11"
   },
