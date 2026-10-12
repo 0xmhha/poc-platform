@@ -29,7 +29,7 @@
     "@noble/curves": "^1.7.0",
     "@noble/hashes": "^1.6.1",
     "@stablenet/core": "workspace:*",
-    "viem": "^2.47.6"
+    "viem": "^2.57.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
