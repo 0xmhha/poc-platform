@@ -26,7 +26,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@noble/curves": "^1.7.0",
+    "@noble/curves": "^2.4.0",
     "@noble/hashes": "^1.6.1",
     "@stablenet/core": "workspace:*",
     "viem": "^2.57.4"

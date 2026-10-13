@@ -1,5 +1,5 @@
-import type { ProjPointType } from '@noble/curves/abstract/weierstrass'
-import { secp256k1 } from '@noble/curves/secp256k1'
+import type { WeierstrassPoint } from '@noble/curves/abstract/weierstrass.js'
+import { secp256k1 } from '@noble/curves/secp256k1.js'
 import { keccak_256 } from '@noble/hashes/sha3'
 import type { Hex } from 'viem'
 import { bytesToHex, getAddress, hexToBytes, toHex } from 'viem'
@@ -13,7 +13,7 @@ import type {
 import { computeViewTag } from './viewTag'
 
 /** Type alias for secp256k1 projective point */
-type Secp256k1Point = ProjPointType<bigint>
+type Secp256k1Point = WeierstrassPoint<bigint>
 
 /**
  * Validate a private key
@@ -27,7 +27,7 @@ function validatePrivateKey(privateKey: Hex): void {
     throw new Error('Invalid private key: cannot be zero')
   }
 
-  if (privKeyBigInt >= secp256k1.CURVE.n) {
+  if (privKeyBigInt >= secp256k1.Point.Fn.ORDER) {
     throw new Error('Invalid private key: must be less than curve order')
   }
 }
@@ -39,10 +39,10 @@ function validatePrivateKey(privateKey: Hex): void {
  */
 function validatePublicKey(publicKey: Hex): Secp256k1Point {
   try {
-    const point = secp256k1.ProjectivePoint.fromHex(hexToBytes(publicKey))
+    const point = secp256k1.Point.fromBytes(hexToBytes(publicKey))
 
     // Check for point at infinity
-    if (point.equals(secp256k1.ProjectivePoint.ZERO)) {
+    if (point.equals(secp256k1.Point.ZERO)) {
       throw new Error('Invalid public key: point at infinity')
     }
 
@@ -61,7 +61,7 @@ function validatePublicKey(publicKey: Hex): Secp256k1Point {
  * Generate a random private key
  */
 export function generatePrivateKey(): Hex {
-  const privateKey = secp256k1.utils.randomPrivateKey()
+  const privateKey = secp256k1.utils.randomSecretKey()
   return bytesToHex(privateKey)
 }
 
@@ -115,7 +115,7 @@ export function generateStealthAddress(
     throw new Error('ephemeralPubKeyOverride requires using computeStealthAddressFromSharedSecret')
   }
 
-  const ephemeralPrivateKey = secp256k1.utils.randomPrivateKey()
+  const ephemeralPrivateKey = secp256k1.utils.randomSecretKey()
   const ephemeralPubKey = secp256k1.getPublicKey(ephemeralPrivateKey, true)
   const ephemeralPrivKeyBigInt = BigInt(bytesToHex(ephemeralPrivateKey))
 
@@ -123,20 +123,20 @@ export function generateStealthAddress(
   const sharedSecretPoint = viewingPoint.multiply(ephemeralPrivKeyBigInt)
 
   // 3. Hash the shared secret: H(S)
-  const sharedSecretBytes = sharedSecretPoint.toRawBytes(true)
+  const sharedSecretBytes = sharedSecretPoint.toBytes(true)
   const hashedSecret = keccak_256(sharedSecretBytes)
 
   // 4. Compute stealth public key: P = spendingPubKey + H(S) * G
-  const hashScalar = BigInt(bytesToHex(hashedSecret)) % secp256k1.CURVE.n
-  const hashPoint = secp256k1.ProjectivePoint.BASE.multiply(hashScalar)
+  const hashScalar = BigInt(bytesToHex(hashedSecret)) % secp256k1.Point.Fn.ORDER
+  const hashPoint = secp256k1.Point.BASE.multiply(hashScalar)
   const stealthPubKeyPoint = spendingPoint.add(hashPoint)
 
   // Check for degenerate case (extremely unlikely but handle it)
-  if (stealthPubKeyPoint.equals(secp256k1.ProjectivePoint.ZERO)) {
+  if (stealthPubKeyPoint.equals(secp256k1.Point.ZERO)) {
     throw new Error('Degenerate stealth public key generated (point at infinity)')
   }
 
-  const stealthPubKey = stealthPubKeyPoint.toRawBytes(false) // uncompressed
+  const stealthPubKey = stealthPubKeyPoint.toBytes(false) // uncompressed
 
   // 5. Derive Ethereum address from stealth public key
   const addressHash = keccak_256(stealthPubKey.slice(1))
@@ -175,17 +175,17 @@ export function computeStealthPrivateKey(
   const ephemeralPoint = validatePublicKey(ephemeralPubKey)
 
   // 1. Compute shared secret: S = viewingPrivateKey * ephemeralPubKey
-  const viewingPrivKeyBigInt = BigInt(viewingPrivateKey) % secp256k1.CURVE.n
+  const viewingPrivKeyBigInt = BigInt(viewingPrivateKey) % secp256k1.Point.Fn.ORDER
   const sharedSecretPoint = ephemeralPoint.multiply(viewingPrivKeyBigInt)
 
   // 2. Hash the shared secret
-  const sharedSecretBytes = sharedSecretPoint.toRawBytes(true)
+  const sharedSecretBytes = sharedSecretPoint.toBytes(true)
   const hashedSecret = keccak_256(sharedSecretBytes)
 
   // 3. Compute stealth private key: p = spendingPrivateKey + H(S) mod n
   const spendingPrivKeyBigInt = BigInt(spendingPrivateKey)
-  const hashScalar = BigInt(bytesToHex(hashedSecret)) % secp256k1.CURVE.n
-  const stealthPrivKeyBigInt = (spendingPrivKeyBigInt + hashScalar) % secp256k1.CURVE.n
+  const hashScalar = BigInt(bytesToHex(hashedSecret)) % secp256k1.Point.Fn.ORDER
+  const stealthPrivKeyBigInt = (spendingPrivKeyBigInt + hashScalar) % secp256k1.Point.Fn.ORDER
 
   // Handle edge case where result could be zero (extremely unlikely)
   if (stealthPrivKeyBigInt === 0n) {
@@ -225,9 +225,9 @@ export function checkViewTag(
   const ephemeralPoint = validatePublicKey(ephemeralPubKey)
 
   // Compute shared secret
-  const viewingPrivKeyBigInt = BigInt(viewingPrivateKey) % secp256k1.CURVE.n
+  const viewingPrivKeyBigInt = BigInt(viewingPrivateKey) % secp256k1.Point.Fn.ORDER
   const sharedSecretPoint = ephemeralPoint.multiply(viewingPrivKeyBigInt)
-  const sharedSecretBytes = sharedSecretPoint.toRawBytes(true)
+  const sharedSecretBytes = sharedSecretPoint.toBytes(true)
 
   // Compute view tag
   const computedViewTag = computeViewTag(sharedSecretBytes)
