@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.75-slim-bookworm AS builder
+FROM rust:1.98.1-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -16,14 +16,14 @@ COPY Cargo.toml Cargo.lock* ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 
 # Build dependencies only
-RUN cargo build --release && rm -rf src
+RUN cargo build --release --locked && rm -rf src
 
 # Copy source code
 COPY src ./src
 COPY migrations ./migrations
 
 # Build the actual application
-RUN touch src/main.rs && cargo build --release
+RUN touch src/main.rs && cargo build --release --locked
 
 # Runtime stage
 FROM debian:bookworm-slim
