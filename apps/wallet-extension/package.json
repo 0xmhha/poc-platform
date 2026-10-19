@@ -57,7 +57,7 @@
     "playwright": "^1.58.2",
     "postcss": "^8.5.29",
     "tailwindcss": "^4.2.1",
-    "ts-jest": "^29.1.2",
+    "ts-jest": "^29.4.15",
     "typescript": "^5.7.2",
     "vite": "^6.4.3"
   }
