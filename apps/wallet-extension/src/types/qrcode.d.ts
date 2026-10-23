@@ -13,6 +13,6 @@ declare module 'qrcode' {
   // biome-ignore lint/suspicious/noShadowRestrictedNames: matches qrcode library API
   function toString(text: string, options?: QRCodeOptions): Promise<string>
 
-  export { toDataURL, toCanvas, toString }
+  export { toCanvas, toDataURL, toString }
   export default { toDataURL, toCanvas, toString }
 }

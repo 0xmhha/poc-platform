@@ -163,21 +163,21 @@ describe('durable payment domain', () => {
     await create(e, 'onramp', 'success', '6000000')
     await expect(create(e, 'onramp', 'success', '6000000')).rejects.toThrow('daily_limit_exceeded')
   })
-  it.each([
-    'onramp',
-    'offramp',
-  ] as const)('completes %s only after simulated funds arrive', async (kind) => {
-    const { e } = setup()
-    const o = await create(e, kind)
-    await drain(e)
-    expect(current(e, o).status).toBe(kind === 'onramp' ? 'payment_pending' : 'deposit_pending')
-    expect(e.store.journal('m1', o.id)).toHaveLength(0)
-    e.action('m1', o.id, 'fund-0000001', kind === 'onramp' ? 'fund' : 'deposit')
-    await drain(e)
-    expect(current(e, o).status).toBe('completed')
-    expect(e.store.journal('m1', o.id)).toHaveLength(6)
-    expect(e.store.reconcile('m1').balanced).toBe(true)
-  })
+  it.each(['onramp', 'offramp'] as const)(
+    'completes %s only after simulated funds arrive',
+    async (kind) => {
+      const { e } = setup()
+      const o = await create(e, kind)
+      await drain(e)
+      expect(current(e, o).status).toBe(kind === 'onramp' ? 'payment_pending' : 'deposit_pending')
+      expect(e.store.journal('m1', o.id)).toHaveLength(0)
+      e.action('m1', o.id, 'fund-0000001', kind === 'onramp' ? 'fund' : 'deposit')
+      await drain(e)
+      expect(current(e, o).status).toBe('completed')
+      expect(e.store.journal('m1', o.id)).toHaveLength(6)
+      expect(e.store.reconcile('m1').balanced).toBe(true)
+    }
+  )
   it.each([
     ['onramp', 'transfer_failed'],
     ['offramp', 'payout_failed'],

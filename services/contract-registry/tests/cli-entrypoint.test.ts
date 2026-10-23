@@ -35,43 +35,43 @@ describe('built registry CLI', () => {
     })
   })
 
-  it.each([
-    'list',
-    'export',
-  ])('awaits the %s handler and preserves option parsing', async (command) => {
-    const requests: string[] = []
-    const contracts = [
-      {
-        chainId: 31337,
-        name: 'CliFixture',
-        address: '0x0000000000000000000000000000000000000001',
-        version: '1.0.0',
-        tags: ['demo'],
-      },
-    ]
-    const server = createServer((req, res) => {
-      requests.push(req.url ?? '')
-      res.setHeader('Content-Type', 'application/json')
-      setTimeout(() => res.end(JSON.stringify(contracts)), 50)
-    })
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(0, '127.0.0.1', resolve)
-    })
-    try {
-      const { port } = server.address() as { port: number }
-      const args = [command, '--chain', '31337', '--url', `http://127.0.0.1:${port}`]
-      if (command === 'list') args.push('--tag', 'demo')
-      const { stdout } = await exec(process.execPath, [cli, ...args], options)
-      expect(requests).toEqual([
-        `/api/v1/contracts?chainId=31337${command === 'list' ? '&tag=demo' : ''}`,
-      ])
-      if (command === 'list') expect(stdout).toContain('CliFixture (chain: 31337)')
-      else expect(JSON.parse(stdout)).toEqual(contracts)
-    } finally {
-      await new Promise<void>((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()))
+  it.each(['list', 'export'])(
+    'awaits the %s handler and preserves option parsing',
+    async (command) => {
+      const requests: string[] = []
+      const contracts = [
+        {
+          chainId: 31337,
+          name: 'CliFixture',
+          address: '0x0000000000000000000000000000000000000001',
+          version: '1.0.0',
+          tags: ['demo'],
+        },
+      ]
+      const server = createServer((req, res) => {
+        requests.push(req.url ?? '')
+        res.setHeader('Content-Type', 'application/json')
+        setTimeout(() => res.end(JSON.stringify(contracts)), 50)
       })
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', resolve)
+      })
+      try {
+        const { port } = server.address() as { port: number }
+        const args = [command, '--chain', '31337', '--url', `http://127.0.0.1:${port}`]
+        if (command === 'list') args.push('--tag', 'demo')
+        const { stdout } = await exec(process.execPath, [cli, ...args], options)
+        expect(requests).toEqual([
+          `/api/v1/contracts?chainId=31337${command === 'list' ? '&tag=demo' : ''}`,
+        ])
+        if (command === 'list') expect(stdout).toContain('CliFixture (chain: 31337)')
+        else expect(JSON.parse(stdout)).toEqual(contracts)
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          server.close((error) => (error ? reject(error) : resolve()))
+        })
+      }
     }
-  })
+  )
 })

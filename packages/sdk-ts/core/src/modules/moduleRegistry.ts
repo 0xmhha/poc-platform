@@ -313,13 +313,13 @@ export type ModuleRegistry = ReturnType<typeof createModuleRegistry>
 
 // Re-export module definitions for backwards compatibility
 export {
-  type ModuleRegistryEntry,
+  BUILT_IN_MODULES,
   ECDSA_VALIDATOR,
-  WEBAUTHN_VALIDATOR,
+  type ModuleRegistryEntry,
   MULTISIG_VALIDATOR,
-  SESSION_KEY_EXECUTOR,
   RECURRING_PAYMENT_EXECUTOR,
+  SESSION_KEY_EXECUTOR,
   SPENDING_LIMIT_HOOK,
   TOKEN_RECEIVER_FALLBACK,
-  BUILT_IN_MODULES,
+  WEBAUTHN_VALIDATOR,
 }

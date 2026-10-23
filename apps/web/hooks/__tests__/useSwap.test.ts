@@ -100,29 +100,27 @@ describe('swap API and transaction integrity', () => {
     })
     expect(send).toHaveBeenCalledTimes(3)
   })
-  it.each([
-    'recipient',
-    'minimum',
-    'router',
-    'value',
-  ])('rejects a changed %s before requesting any signature', async (change) => {
-    const { result, quote, send } = await setup()
-    vi.mocked(fetch).mockResolvedValueOnce(
-      response({
-        to: change === 'router' ? recipient : router,
-        data: swapData(
-          change === 'minimum' ? 1n : 1990000n,
-          change === 'recipient' ? router : recipient
-        ),
-        value: change === 'value' ? '1' : '0',
+  it.each(['recipient', 'minimum', 'router', 'value'])(
+    'rejects a changed %s before requesting any signature',
+    async (change) => {
+      const { result, quote, send } = await setup()
+      vi.mocked(fetch).mockResolvedValueOnce(
+        response({
+          to: change === 'router' ? recipient : router,
+          data: swapData(
+            change === 'minimum' ? 1n : 1990000n,
+            change === 'recipient' ? router : recipient
+          ),
+          value: change === 'value' ? '1' : '0',
+        })
+      )
+      await act(async () => {
+        expect(await result.current.executeSwap(quote, recipient)).toBeNull()
       })
-    )
-    await act(async () => {
-      expect(await result.current.executeSwap(quote, recipient)).toBeNull()
-    })
-    expect(send).not.toHaveBeenCalled()
-    expect(result.current.error).toBeTruthy()
-  })
+      expect(send).not.toHaveBeenCalled()
+      expect(result.current.error).toBeTruthy()
+    }
+  )
   it('rejects unknown or expired quotes and unbounded slippage', async () => {
     const { result, quote, send } = await setup()
     await act(async () => {
