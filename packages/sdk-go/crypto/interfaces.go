@@ -95,12 +95,12 @@ type RpcClient interface {
 
 // ContractCallParams contains parameters for a contract call.
 type ContractCallParams struct {
-	To       types.Address `json:"to"`
+	To       types.Address  `json:"to"`
 	From     *types.Address `json:"from,omitempty"`
-	Data     types.Hex     `json:"data"`
-	Value    *big.Int      `json:"value,omitempty"`
-	Gas      *big.Int      `json:"gas,omitempty"`
-	GasPrice *big.Int      `json:"gasPrice,omitempty"`
+	Data     types.Hex      `json:"data"`
+	Value    *big.Int       `json:"value,omitempty"`
+	Gas      *big.Int       `json:"gas,omitempty"`
+	GasPrice *big.Int       `json:"gasPrice,omitempty"`
 }
 
 // EstimateGasParams contains parameters for gas estimation.

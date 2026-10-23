@@ -69,9 +69,9 @@ func DefaultRetryOptions() RetryOptions {
 
 // LockInfo contains information about a lock.
 type LockInfo struct {
-	Key       string
-	Token     string
-	HeldBy    string
+	Key        string
+	Token      string
+	HeldBy     string
 	AcquiredAt time.Time
-	ExpiresAt time.Time
+	ExpiresAt  time.Time
 }

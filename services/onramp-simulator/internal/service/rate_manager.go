@@ -11,14 +11,14 @@ import (
 
 // RateManager manages exchange rates and supported assets/networks
 type RateManager struct {
-	assets       []model.SupportedAsset
-	chains       []model.SupportedChain
-	fiats        []model.SupportedFiat
-	pairs        []model.TradingPair
-	rates        map[string]*big.Float // "USD/USDC" -> rate
-	fees         map[string]model.FeeStructure // "USD/USDC" -> fee structure
-	mu           sync.RWMutex
-	lastUpdated  time.Time
+	assets      []model.SupportedAsset
+	chains      []model.SupportedChain
+	fiats       []model.SupportedFiat
+	pairs       []model.TradingPair
+	rates       map[string]*big.Float         // "USD/USDC" -> rate
+	fees        map[string]model.FeeStructure // "USD/USDC" -> fee structure
+	mu          sync.RWMutex
+	lastUpdated time.Time
 }
 
 // NewRateManager creates a new rate manager with default data
@@ -37,38 +37,38 @@ func NewRateManager() *RateManager {
 func (rm *RateManager) initSupportedData() {
 	rm.assets = []model.SupportedAsset{
 		{
-			Symbol:   "USDC",
-			Name:     "USD Coin",
-			Decimals: 6,
-			IsNative: false,
-			ChainIDs: []int{1, 137, 42161, 10, 8453, 11155111},
+			Symbol:    "USDC",
+			Name:      "USD Coin",
+			Decimals:  6,
+			IsNative:  false,
+			ChainIDs:  []int{1, 137, 42161, 10, 8453, 11155111},
 			MinAmount: "1.00",
 			MaxAmount: "100000.00",
 		},
 		{
-			Symbol:   "USDT",
-			Name:     "Tether USD",
-			Decimals: 6,
-			IsNative: false,
-			ChainIDs: []int{1, 137, 42161, 10},
+			Symbol:    "USDT",
+			Name:      "Tether USD",
+			Decimals:  6,
+			IsNative:  false,
+			ChainIDs:  []int{1, 137, 42161, 10},
 			MinAmount: "1.00",
 			MaxAmount: "100000.00",
 		},
 		{
-			Symbol:   "ETH",
-			Name:     "Ethereum",
-			Decimals: 18,
-			IsNative: true,
-			ChainIDs: []int{1, 11155111},
+			Symbol:    "ETH",
+			Name:      "Ethereum",
+			Decimals:  18,
+			IsNative:  true,
+			ChainIDs:  []int{1, 11155111},
 			MinAmount: "0.001",
 			MaxAmount: "50.00",
 		},
 		{
-			Symbol:   "MATIC",
-			Name:     "Polygon",
-			Decimals: 18,
-			IsNative: true,
-			ChainIDs: []int{137},
+			Symbol:    "MATIC",
+			Name:      "Polygon",
+			Decimals:  18,
+			IsNative:  true,
+			ChainIDs:  []int{137},
 			MinAmount: "1.00",
 			MaxAmount: "100000.00",
 		},
@@ -76,58 +76,58 @@ func (rm *RateManager) initSupportedData() {
 
 	rm.chains = []model.SupportedChain{
 		{
-			ChainID:   1,
-			Name:      "Ethereum Mainnet",
-			ShortName: "ethereum",
+			ChainID:        1,
+			Name:           "Ethereum Mainnet",
+			ShortName:      "ethereum",
 			NativeCurrency: model.NativeCurrency{Name: "Ether", Symbol: "ETH", Decimals: 18},
-			ExplorerURL: "https://etherscan.io",
-			IsTestnet:   false,
-			Assets:      []string{"USDC", "USDT", "ETH"},
+			ExplorerURL:    "https://etherscan.io",
+			IsTestnet:      false,
+			Assets:         []string{"USDC", "USDT", "ETH"},
 		},
 		{
-			ChainID:   137,
-			Name:      "Polygon",
-			ShortName: "polygon",
+			ChainID:        137,
+			Name:           "Polygon",
+			ShortName:      "polygon",
 			NativeCurrency: model.NativeCurrency{Name: "MATIC", Symbol: "MATIC", Decimals: 18},
-			ExplorerURL: "https://polygonscan.com",
-			IsTestnet:   false,
-			Assets:      []string{"USDC", "USDT", "MATIC"},
+			ExplorerURL:    "https://polygonscan.com",
+			IsTestnet:      false,
+			Assets:         []string{"USDC", "USDT", "MATIC"},
 		},
 		{
-			ChainID:   42161,
-			Name:      "Arbitrum One",
-			ShortName: "arbitrum",
+			ChainID:        42161,
+			Name:           "Arbitrum One",
+			ShortName:      "arbitrum",
 			NativeCurrency: model.NativeCurrency{Name: "Ether", Symbol: "ETH", Decimals: 18},
-			ExplorerURL: "https://arbiscan.io",
-			IsTestnet:   false,
-			Assets:      []string{"USDC", "USDT"},
+			ExplorerURL:    "https://arbiscan.io",
+			IsTestnet:      false,
+			Assets:         []string{"USDC", "USDT"},
 		},
 		{
-			ChainID:   10,
-			Name:      "OP Mainnet",
-			ShortName: "optimism",
+			ChainID:        10,
+			Name:           "OP Mainnet",
+			ShortName:      "optimism",
 			NativeCurrency: model.NativeCurrency{Name: "Ether", Symbol: "ETH", Decimals: 18},
-			ExplorerURL: "https://optimistic.etherscan.io",
-			IsTestnet:   false,
-			Assets:      []string{"USDC", "USDT"},
+			ExplorerURL:    "https://optimistic.etherscan.io",
+			IsTestnet:      false,
+			Assets:         []string{"USDC", "USDT"},
 		},
 		{
-			ChainID:   8453,
-			Name:      "Base",
-			ShortName: "base",
+			ChainID:        8453,
+			Name:           "Base",
+			ShortName:      "base",
 			NativeCurrency: model.NativeCurrency{Name: "Ether", Symbol: "ETH", Decimals: 18},
-			ExplorerURL: "https://basescan.org",
-			IsTestnet:   false,
-			Assets:      []string{"USDC"},
+			ExplorerURL:    "https://basescan.org",
+			IsTestnet:      false,
+			Assets:         []string{"USDC"},
 		},
 		{
-			ChainID:   11155111,
-			Name:      "Sepolia Testnet",
-			ShortName: "sepolia",
+			ChainID:        11155111,
+			Name:           "Sepolia Testnet",
+			ShortName:      "sepolia",
 			NativeCurrency: model.NativeCurrency{Name: "Sepolia ETH", Symbol: "ETH", Decimals: 18},
-			ExplorerURL: "https://sepolia.etherscan.io",
-			IsTestnet:   true,
-			Assets:      []string{"USDC", "ETH"},
+			ExplorerURL:    "https://sepolia.etherscan.io",
+			IsTestnet:      true,
+			Assets:         []string{"USDC", "ETH"},
 		},
 	}
 
@@ -168,7 +168,7 @@ func (rm *RateManager) initRates() {
 	rm.rates["USD/USDC"], _ = new(big.Float).SetString("0.998")
 	rm.rates["USD/USDT"], _ = new(big.Float).SetString("0.999")
 	rm.rates["USD/ETH"], _ = new(big.Float).SetString("0.000303") // ~$3300/ETH
-	rm.rates["USD/MATIC"], _ = new(big.Float).SetString("2.5")     // ~$0.40/MATIC
+	rm.rates["USD/MATIC"], _ = new(big.Float).SetString("2.5")    // ~$0.40/MATIC
 
 	// KRW rates
 	rm.rates["KRW/USDC"], _ = new(big.Float).SetString("0.000714") // ~1400 KRW/USD
@@ -177,7 +177,7 @@ func (rm *RateManager) initRates() {
 	rm.rates["KRW/MATIC"], _ = new(big.Float).SetString("0.00179")
 
 	// EUR rates
-	rm.rates["EUR/USDC"], _ = new(big.Float).SetString("1.08")  // EUR stronger than USD
+	rm.rates["EUR/USDC"], _ = new(big.Float).SetString("1.08") // EUR stronger than USD
 	rm.rates["EUR/USDT"], _ = new(big.Float).SetString("1.081")
 	rm.rates["EUR/ETH"], _ = new(big.Float).SetString("0.000327") // EUR/ETH
 

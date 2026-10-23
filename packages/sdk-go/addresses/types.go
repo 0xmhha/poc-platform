@@ -14,8 +14,8 @@ type CoreAddresses struct {
 
 // ValidatorAddresses contains validator module addresses.
 type ValidatorAddresses struct {
-	ECDSAValidator     types.Address `json:"ecdsaValidator"`
-	WebAuthnValidator  types.Address `json:"webAuthnValidator"`
+	ECDSAValidator      types.Address `json:"ecdsaValidator"`
+	WebAuthnValidator   types.Address `json:"webAuthnValidator"`
 	MultiECDSAValidator types.Address `json:"multiEcdsaValidator"`
 }
 
@@ -49,9 +49,9 @@ type ComplianceAddresses struct {
 
 // SubscriptionAddresses contains subscription contract addresses.
 type SubscriptionAddresses struct {
-	SubscriptionManager       types.Address `json:"subscriptionManager"`
+	SubscriptionManager      types.Address `json:"subscriptionManager"`
 	RecurringPaymentExecutor types.Address `json:"recurringPaymentExecutor"`
-	PermissionManager         types.Address `json:"permissionManager"`
+	PermissionManager        types.Address `json:"permissionManager"`
 }
 
 // DelegatePreset represents an EIP-7702 delegate preset.

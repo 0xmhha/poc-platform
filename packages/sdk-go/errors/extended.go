@@ -17,23 +17,23 @@ import (
 // Additional SDK error codes.
 const (
 	// Security errors
-	ErrSecurityRisk        SdkErrorCode = "SECURITY_RISK"
-	ErrPhishingDetected    SdkErrorCode = "PHISHING_DETECTED"
-	ErrSuspiciousActivity  SdkErrorCode = "SUSPICIOUS_ACTIVITY"
-	ErrRateLimitExceeded   SdkErrorCode = "RATE_LIMIT_EXCEEDED"
-	ErrInvalidTypedData    SdkErrorCode = "INVALID_TYPED_DATA"
+	ErrSecurityRisk       SdkErrorCode = "SECURITY_RISK"
+	ErrPhishingDetected   SdkErrorCode = "PHISHING_DETECTED"
+	ErrSuspiciousActivity SdkErrorCode = "SUSPICIOUS_ACTIVITY"
+	ErrRateLimitExceeded  SdkErrorCode = "RATE_LIMIT_EXCEEDED"
+	ErrInvalidTypedData   SdkErrorCode = "INVALID_TYPED_DATA"
 
 	// EIP-7702 errors
-	ErrEIP7702NotSupported    SdkErrorCode = "EIP7702_NOT_SUPPORTED"
-	ErrEIP7702InvalidAuth     SdkErrorCode = "EIP7702_INVALID_AUTH"
+	ErrEIP7702NotSupported     SdkErrorCode = "EIP7702_NOT_SUPPORTED"
+	ErrEIP7702InvalidAuth      SdkErrorCode = "EIP7702_INVALID_AUTH"
 	ErrEIP7702DelegationFailed SdkErrorCode = "EIP7702_DELEGATION_FAILED"
 	ErrEIP7702AlreadyDelegated SdkErrorCode = "EIP7702_ALREADY_DELEGATED"
 
 	// Module errors (extended)
-	ErrModuleUninstallFailed   SdkErrorCode = "MODULE_UNINSTALL_FAILED"
-	ErrModuleAlreadyInstalled  SdkErrorCode = "MODULE_ALREADY_INSTALLED"
-	ErrModuleNotSupported      SdkErrorCode = "MODULE_NOT_SUPPORTED"
-	ErrModuleVersionMismatch   SdkErrorCode = "MODULE_VERSION_MISMATCH"
+	ErrModuleUninstallFailed  SdkErrorCode = "MODULE_UNINSTALL_FAILED"
+	ErrModuleAlreadyInstalled SdkErrorCode = "MODULE_ALREADY_INSTALLED"
+	ErrModuleNotSupported     SdkErrorCode = "MODULE_NOT_SUPPORTED"
+	ErrModuleVersionMismatch  SdkErrorCode = "MODULE_VERSION_MISMATCH"
 
 	// RPC errors (extended)
 	ErrRPCMethodNotFound   SdkErrorCode = "RPC_METHOD_NOT_FOUND"
@@ -68,17 +68,17 @@ const (
 	RPCErrInternalError  RPCErrorCode = -32603
 
 	// Custom RPC error codes
-	RPCErrResourceNotFound RPCErrorCode = -32001
+	RPCErrResourceNotFound    RPCErrorCode = -32001
 	RPCErrResourceUnavailable RPCErrorCode = -32002
 	RPCErrTransactionRejected RPCErrorCode = -32003
-	RPCErrExecutionError   RPCErrorCode = -32004
+	RPCErrExecutionError      RPCErrorCode = -32004
 )
 
 // RPCError represents a JSON-RPC error.
 type RPCError struct {
 	*SdkError
-	RPCCode RPCErrorCode   `json:"rpcCode"`
-	Data    interface{}    `json:"data,omitempty"`
+	RPCCode RPCErrorCode `json:"rpcCode"`
+	Data    interface{}  `json:"data,omitempty"`
 }
 
 // NewRPCError creates a new RPC error.
@@ -140,9 +140,9 @@ func (e *SecurityError) GetUserMessage() string {
 // EIP7702Error represents an EIP-7702 delegation error.
 type EIP7702Error struct {
 	*SdkError
-	DelegateAddress *types.Address `json:"delegateAddress,omitempty"`
-	AuthorizationHash *types.Hash  `json:"authorizationHash,omitempty"`
-	Reason          string         `json:"reason,omitempty"`
+	DelegateAddress   *types.Address `json:"delegateAddress,omitempty"`
+	AuthorizationHash *types.Hash    `json:"authorizationHash,omitempty"`
+	Reason            string         `json:"reason,omitempty"`
 }
 
 // NewEIP7702Error creates a new EIP-7702 error.
@@ -237,14 +237,14 @@ func (c *ErrorCollection) ToError() error {
 
 // ErrorResult wraps an error with additional metadata.
 type ErrorResult struct {
-	Error       error         `json:"error"`
-	Code        SdkErrorCode  `json:"code"`
-	Message     string        `json:"message"`
-	Timestamp   time.Time     `json:"timestamp"`
-	RequestID   string        `json:"requestId,omitempty"`
-	TraceID     string        `json:"traceId,omitempty"`
-	Recoverable bool          `json:"recoverable"`
-	Suggestions []string      `json:"suggestions,omitempty"`
+	Error       error        `json:"error"`
+	Code        SdkErrorCode `json:"code"`
+	Message     string       `json:"message"`
+	Timestamp   time.Time    `json:"timestamp"`
+	RequestID   string       `json:"requestId,omitempty"`
+	TraceID     string       `json:"traceId,omitempty"`
+	Recoverable bool         `json:"recoverable"`
+	Suggestions []string     `json:"suggestions,omitempty"`
 }
 
 // NewErrorResult creates a new error result.

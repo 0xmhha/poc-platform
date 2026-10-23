@@ -28,10 +28,10 @@ var GasConfig = struct {
 	GasBufferDivisor    *big.Int // 100
 
 	// UserOperation overhead
-	UserOpFixedGas           *big.Int // Fixed overhead for UserOp processing
-	UserOpPerByteGas         *big.Int // Gas per byte of calldata
-	UserOpPerZeroByteGas     *big.Int // Gas per zero byte of calldata
-	UserOpPerNonZeroByteGas  *big.Int // Gas per non-zero byte of calldata
+	UserOpFixedGas          *big.Int // Fixed overhead for UserOp processing
+	UserOpPerByteGas        *big.Int // Gas per byte of calldata
+	UserOpPerZeroByteGas    *big.Int // Gas per zero byte of calldata
+	UserOpPerNonZeroByteGas *big.Int // Gas per non-zero byte of calldata
 
 	// EIP-7702 specific
 	EIP7702DelegationGas *big.Int // Gas for delegation setup
@@ -82,10 +82,10 @@ var GasLimits = struct {
 	MinPreVerificationGas   *big.Int
 }{
 	// Maximum limits (aligned with StableNet genesis block gas limit 105M)
-	MaxVerificationGasLimit: big.NewInt(10_000_000),   // 10M
-	MaxCallGasLimit:         big.NewInt(105_000_000),  // 105M
-	MaxPreVerificationGas:   big.NewInt(1_000_000),    // 1M
-	MaxTotalGas:             big.NewInt(105_000_000),  // 105M
+	MaxVerificationGasLimit: big.NewInt(10_000_000),  // 10M
+	MaxCallGasLimit:         big.NewInt(105_000_000), // 105M
+	MaxPreVerificationGas:   big.NewInt(1_000_000),   // 1M
+	MaxTotalGas:             big.NewInt(105_000_000), // 105M
 
 	// Minimum limits
 	MinVerificationGasLimit: big.NewInt(10_000),

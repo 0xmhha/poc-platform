@@ -184,7 +184,7 @@ func (e *Estimator) GetGasPrices(ctx context.Context) (*GasPriceInfo, error) {
 	}
 
 	// Default values when RPC is unavailable
-	baseFee := new(big.Int).Mul(big.NewInt(30), big.NewInt(1e9)) // 30 gwei
+	baseFee := new(big.Int).Mul(big.NewInt(30), big.NewInt(1e9))       // 30 gwei
 	maxPriorityFee := new(big.Int).Mul(big.NewInt(2), big.NewInt(1e9)) // 2 gwei
 	maxFee := new(big.Int).Add(
 		new(big.Int).Mul(baseFee, big.NewInt(2)),

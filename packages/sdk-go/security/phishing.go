@@ -29,13 +29,13 @@ type PhishingPatternType string
 
 // PhishingPatternType constants.
 const (
-	PatternBlocklisted        PhishingPatternType = "blocklisted"
-	PatternTyposquatting      PhishingPatternType = "typosquatting"
-	PatternHomograph          PhishingPatternType = "homograph"
+	PatternBlocklisted         PhishingPatternType = "blocklisted"
+	PatternTyposquatting       PhishingPatternType = "typosquatting"
+	PatternHomograph           PhishingPatternType = "homograph"
 	PatternSuspiciousSubdomain PhishingPatternType = "suspicious_subdomain"
-	PatternIPAddress          PhishingPatternType = "ip_address"
-	PatternInvalidURL         PhishingPatternType = "invalid_url"
-	PatternSuspiciousTLD      PhishingPatternType = "suspicious_tld"
+	PatternIPAddress           PhishingPatternType = "ip_address"
+	PatternInvalidURL          PhishingPatternType = "invalid_url"
+	PatternSuspiciousTLD       PhishingPatternType = "suspicious_tld"
 )
 
 // ============================================================================

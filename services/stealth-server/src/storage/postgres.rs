@@ -199,7 +199,7 @@ impl Storage {
     /// * `view_tag` - Filter: view_tag = view_tag
     /// * `limit` - Maximum number of results (default: 100)
     /// * `cursor` - Cursor from previous page: (block_number, log_index)
-    ///              For first page, pass None
+    ///   For first page, pass None
     pub async fn get_announcements_cursor(
         &self,
         from_block: Option<u64>,

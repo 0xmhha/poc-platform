@@ -7,9 +7,9 @@ import (
 
 // Signature represents an ECDSA signature with r, s, v components.
 type Signature struct {
-	R Hex    `json:"r"`
-	S Hex    `json:"s"`
-	V uint8  `json:"v"`
+	R Hex   `json:"r"`
+	S Hex   `json:"s"`
+	V uint8 `json:"v"`
 }
 
 // YParity returns the y-parity value (0 or 1) from the V value.
@@ -66,8 +66,8 @@ type TypedDataField struct {
 
 // TypedData represents a complete EIP-712 typed data structure.
 type TypedData struct {
-	Domain      TypedDataDomain              `json:"domain"`
-	Types       map[string][]TypedDataField  `json:"types"`
-	PrimaryType string                       `json:"primaryType"`
-	Message     map[string]interface{}       `json:"message"`
+	Domain      TypedDataDomain             `json:"domain"`
+	Types       map[string][]TypedDataField `json:"types"`
+	PrimaryType string                      `json:"primaryType"`
+	Message     map[string]interface{}      `json:"message"`
 }

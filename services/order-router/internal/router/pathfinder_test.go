@@ -73,7 +73,7 @@ func (m *MockAggregator) BuildSwap(ctx context.Context, req *model.SwapRequest) 
 	return nil, nil
 }
 
-func (m *MockAggregator) IsAvailable() bool       { return m.available }
+func (m *MockAggregator) IsAvailable() bool      { return m.available }
 func (m *MockAggregator) SupportedChains() []int { return []int{1} }
 
 func TestNewPathFinder(t *testing.T) {

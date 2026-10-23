@@ -231,15 +231,15 @@ type WebhookPayload struct {
 
 // SupportedAsset represents a supported crypto asset
 type SupportedAsset struct {
-	Symbol       string   `json:"symbol"`
-	Name         string   `json:"name"`
-	Decimals     int      `json:"decimals"`
-	ContractAddr string   `json:"contractAddress,omitempty"` // Empty for native assets
-	IsNative     bool     `json:"isNative"`
-	ChainIDs     []int    `json:"chainIds"`
-	MinAmount    string   `json:"minAmount"`
-	MaxAmount    string   `json:"maxAmount"`
-	IconURL      string   `json:"iconUrl,omitempty"`
+	Symbol       string `json:"symbol"`
+	Name         string `json:"name"`
+	Decimals     int    `json:"decimals"`
+	ContractAddr string `json:"contractAddress,omitempty"` // Empty for native assets
+	IsNative     bool   `json:"isNative"`
+	ChainIDs     []int  `json:"chainIds"`
+	MinAmount    string `json:"minAmount"`
+	MaxAmount    string `json:"maxAmount"`
+	IconURL      string `json:"iconUrl,omitempty"`
 }
 
 // SupportedChain represents a supported blockchain network
@@ -272,12 +272,12 @@ type SupportedFiat struct {
 
 // TradingPair represents a supported fiat-to-crypto trading pair
 type TradingPair struct {
-	FiatCode       string `json:"fiatCode"`
-	CryptoSymbol   string `json:"cryptoSymbol"`
-	MinFiatAmount  string `json:"minFiatAmount"`
-	MaxFiatAmount  string `json:"maxFiatAmount"`
-	FeePercent     string `json:"feePercent"`
-	Available      bool   `json:"available"`
+	FiatCode      string `json:"fiatCode"`
+	CryptoSymbol  string `json:"cryptoSymbol"`
+	MinFiatAmount string `json:"minFiatAmount"`
+	MaxFiatAmount string `json:"maxFiatAmount"`
+	FeePercent    string `json:"feePercent"`
+	Available     bool   `json:"available"`
 }
 
 // SupportedAssetsResponse is returned by GET /supported-assets

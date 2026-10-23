@@ -28,12 +28,12 @@ const defaultFeeRate = "0.03"
 
 // SettlementService handles settlement operations
 type SettlementService struct {
-	paymentService   *PaymentService
-	merchants        map[string]*model.Merchant        // merchantID -> Merchant
-	batches          map[string]*model.SettlementBatch  // batchID -> SettlementBatch
-	settlements      map[string]*model.Settlement       // settlementID -> Settlement
-	adjustments      map[string][]*model.Adjustment     // settlementID -> []Adjustment
-	mu               sync.RWMutex
+	paymentService *PaymentService
+	merchants      map[string]*model.Merchant        // merchantID -> Merchant
+	batches        map[string]*model.SettlementBatch // batchID -> SettlementBatch
+	settlements    map[string]*model.Settlement      // settlementID -> Settlement
+	adjustments    map[string][]*model.Adjustment    // settlementID -> []Adjustment
+	mu             sync.RWMutex
 }
 
 // NewSettlementService creates a new settlement service

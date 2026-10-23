@@ -8,9 +8,9 @@ import (
 type AccountStatus string
 
 const (
-	AccountStatusActive   AccountStatus = "active"
-	AccountStatusFrozen   AccountStatus = "frozen"
-	AccountStatusClosed   AccountStatus = "closed"
+	AccountStatusActive AccountStatus = "active"
+	AccountStatusFrozen AccountStatus = "frozen"
+	AccountStatusClosed AccountStatus = "closed"
 )
 
 // Account represents a simulated bank account
@@ -38,16 +38,16 @@ const (
 
 // Transfer represents a bank transfer
 type Transfer struct {
-	ID              string         `json:"id"`
-	FromAccountNo   string         `json:"fromAccountNo"`
-	ToAccountNo     string         `json:"toAccountNo"`
-	Amount          string         `json:"amount"`
-	Currency        string         `json:"currency"`
-	Reference       string         `json:"reference"`
-	Status          TransferStatus `json:"status"`
-	FailureReason   string         `json:"failureReason,omitempty"`
-	CreatedAt       time.Time      `json:"createdAt"`
-	CompletedAt     *time.Time     `json:"completedAt,omitempty"`
+	ID            string         `json:"id"`
+	FromAccountNo string         `json:"fromAccountNo"`
+	ToAccountNo   string         `json:"toAccountNo"`
+	Amount        string         `json:"amount"`
+	Currency      string         `json:"currency"`
+	Reference     string         `json:"reference"`
+	Status        TransferStatus `json:"status"`
+	FailureReason string         `json:"failureReason,omitempty"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	CompletedAt   *time.Time     `json:"completedAt,omitempty"`
 }
 
 // CreateAccountRequest represents a request to create an account

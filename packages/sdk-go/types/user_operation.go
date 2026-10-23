@@ -75,39 +75,39 @@ type PartialUserOperation struct {
 type PackedUserOperation struct {
 	Sender             Address  `json:"sender"`
 	Nonce              *big.Int `json:"nonce"`
-	InitCode           Hex      `json:"initCode"`           // factory + factoryData
+	InitCode           Hex      `json:"initCode"` // factory + factoryData
 	CallData           Hex      `json:"callData"`
-	AccountGasLimits   Hash     `json:"accountGasLimits"`   // verificationGasLimit + callGasLimit
+	AccountGasLimits   Hash     `json:"accountGasLimits"` // verificationGasLimit + callGasLimit
 	PreVerificationGas *big.Int `json:"preVerificationGas"`
-	GasFees            Hash     `json:"gasFees"`            // maxPriorityFeePerGas + maxFeePerGas
-	PaymasterAndData   Hex      `json:"paymasterAndData"`   // paymaster + limits + data
+	GasFees            Hash     `json:"gasFees"`          // maxPriorityFeePerGas + maxFeePerGas
+	PaymasterAndData   Hex      `json:"paymasterAndData"` // paymaster + limits + data
 	Signature          Hex      `json:"signature"`
 }
 
 // UserOperationReceipt represents the receipt after a UserOp is executed.
 type UserOperationReceipt struct {
-	UserOpHash    Hash     `json:"userOpHash"`
-	Sender        Address  `json:"sender"`
-	Nonce         *big.Int `json:"nonce"`
-	Paymaster     *Address `json:"paymaster,omitempty"`
-	ActualGasCost *big.Int `json:"actualGasCost"`
-	ActualGasUsed *big.Int `json:"actualGasUsed"`
-	Success       bool     `json:"success"`
-	Logs          []Log    `json:"logs"`
+	UserOpHash    Hash                `json:"userOpHash"`
+	Sender        Address             `json:"sender"`
+	Nonce         *big.Int            `json:"nonce"`
+	Paymaster     *Address            `json:"paymaster,omitempty"`
+	ActualGasCost *big.Int            `json:"actualGasCost"`
+	ActualGasUsed *big.Int            `json:"actualGasUsed"`
+	Success       bool                `json:"success"`
+	Logs          []Log               `json:"logs"`
 	Receipt       *TransactionReceipt `json:"receipt"`
 }
 
 // Log represents an Ethereum event log.
 type Log struct {
-	Address          Address  `json:"address"`
-	Topics           []Hash   `json:"topics"`
-	Data             Hex      `json:"data"`
-	BlockNumber      uint64   `json:"blockNumber"`
-	TransactionHash  Hash     `json:"transactionHash"`
-	TransactionIndex uint     `json:"transactionIndex"`
-	BlockHash        Hash     `json:"blockHash"`
-	LogIndex         uint     `json:"logIndex"`
-	Removed          bool     `json:"removed"`
+	Address          Address `json:"address"`
+	Topics           []Hash  `json:"topics"`
+	Data             Hex     `json:"data"`
+	BlockNumber      uint64  `json:"blockNumber"`
+	TransactionHash  Hash    `json:"transactionHash"`
+	TransactionIndex uint    `json:"transactionIndex"`
+	BlockHash        Hash    `json:"blockHash"`
+	LogIndex         uint    `json:"logIndex"`
+	Removed          bool    `json:"removed"`
 }
 
 // TransactionReceipt represents an Ethereum transaction receipt.

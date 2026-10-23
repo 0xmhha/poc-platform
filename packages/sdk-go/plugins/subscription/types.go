@@ -311,9 +311,9 @@ type SubscriptionCancelledEvent struct {
 
 // PaymentProcessedEvent represents a payment processing event.
 type PaymentProcessedEvent struct {
-	SubscriptionID *big.Int      `json:"subscriptionId"`
-	Amount         *big.Int      `json:"amount"`
-	Timestamp      uint64        `json:"timestamp"`
+	SubscriptionID *big.Int `json:"subscriptionId"`
+	Amount         *big.Int `json:"amount"`
+	Timestamp      uint64   `json:"timestamp"`
 }
 
 // ScheduleCreatedEvent represents a schedule creation event.

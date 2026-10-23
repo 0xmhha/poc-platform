@@ -329,10 +329,10 @@ func TestValidateAssetAndChain(t *testing.T) {
 		{"MATIC on Polygon", "MATIC", 137, false},
 
 		// Invalid combinations
-		{"USDC on unsupported chain", "USDC", 56, true},   // BSC not supported
-		{"MATIC on Ethereum", "MATIC", 1, true},           // MATIC only on Polygon
-		{"ETH on Polygon", "ETH", 137, true},              // ETH not on Polygon
-		{"Unknown asset", "BTC", 1, true},                 // BTC not supported
+		{"USDC on unsupported chain", "USDC", 56, true}, // BSC not supported
+		{"MATIC on Ethereum", "MATIC", 1, true},         // MATIC only on Polygon
+		{"ETH on Polygon", "ETH", 137, true},            // ETH not on Polygon
+		{"Unknown asset", "BTC", 1, true},               // BTC not supported
 		{"Unknown asset on unknown chain", "BTC", 56, true},
 	}
 

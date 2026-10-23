@@ -77,15 +77,15 @@ type DomainWarningType string
 
 // DomainWarningType constants.
 const (
-	WarningChainMismatch           DomainWarningType = "chain_mismatch"
-	WarningDomainOriginMismatch    DomainWarningType = "domain_origin_mismatch"
-	WarningMissingChainID          DomainWarningType = "missing_chain_id"
+	WarningChainMismatch            DomainWarningType = "chain_mismatch"
+	WarningDomainOriginMismatch     DomainWarningType = "domain_origin_mismatch"
+	WarningMissingChainID           DomainWarningType = "missing_chain_id"
 	WarningMissingVerifyingContract DomainWarningType = "missing_verifying_contract"
 	WarningInvalidVerifyingContract DomainWarningType = "invalid_verifying_contract"
-	WarningSuspiciousDomainName    DomainWarningType = "suspicious_domain_name"
-	WarningEmptyDomain             DomainWarningType = "empty_domain"
-	WarningPermitSignature         DomainWarningType = "permit_signature"
-	WarningHighValueApproval       DomainWarningType = "high_value_approval"
+	WarningSuspiciousDomainName     DomainWarningType = "suspicious_domain_name"
+	WarningEmptyDomain              DomainWarningType = "empty_domain"
+	WarningPermitSignature          DomainWarningType = "permit_signature"
+	WarningHighValueApproval        DomainWarningType = "high_value_approval"
 )
 
 // WarningSeverity represents the severity of a warning.

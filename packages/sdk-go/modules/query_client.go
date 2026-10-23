@@ -268,14 +268,14 @@ func (c *QueryClient) GetModuleCount(ctx context.Context, account types.Address,
 
 // AccountModuleSummary contains a summary of installed modules.
 type AccountModuleSummary struct {
-	ValidatorCount int                      `json:"validatorCount"`
-	ExecutorCount  int                      `json:"executorCount"`
-	HookCount      int                      `json:"hookCount"`
-	FallbackCount  int                      `json:"fallbackCount"`
-	Validators     []types.InstalledModule  `json:"validators"`
-	Executors      []types.InstalledModule  `json:"executors"`
-	Hooks          []types.InstalledModule  `json:"hooks"`
-	Fallbacks      []types.InstalledModule  `json:"fallbacks"`
+	ValidatorCount int                     `json:"validatorCount"`
+	ExecutorCount  int                     `json:"executorCount"`
+	HookCount      int                     `json:"hookCount"`
+	FallbackCount  int                     `json:"fallbackCount"`
+	Validators     []types.InstalledModule `json:"validators"`
+	Executors      []types.InstalledModule `json:"executors"`
+	Hooks          []types.InstalledModule `json:"hooks"`
+	Fallbacks      []types.InstalledModule `json:"fallbacks"`
 }
 
 // GetAccountModuleSummary returns a summary of all installed modules on an account.

@@ -17,10 +17,10 @@ import (
 
 // Standard ERC interface IDs.
 var (
-	InterfaceERC165   = types.Hex([]byte{0x01, 0xff, 0xc9, 0xa7}) // supportsInterface(bytes4)
-	InterfaceERC721   = types.Hex([]byte{0x80, 0xac, 0x58, 0xcd})
-	InterfaceERC1155  = types.Hex([]byte{0xd9, 0xb6, 0x7a, 0x26})
-	InterfaceERC777   = types.Hex([]byte{0x90, 0x5a, 0xe9, 0xfd})
+	InterfaceERC165  = types.Hex([]byte{0x01, 0xff, 0xc9, 0xa7}) // supportsInterface(bytes4)
+	InterfaceERC721  = types.Hex([]byte{0x80, 0xac, 0x58, 0xcd})
+	InterfaceERC1155 = types.Hex([]byte{0xd9, 0xb6, 0x7a, 0x26})
+	InterfaceERC777  = types.Hex([]byte{0x90, 0x5a, 0xe9, 0xfd})
 )
 
 // ERC721 and ERC1155 callback selectors.
@@ -351,13 +351,13 @@ func EncodeSupportsInterfaceCall(interfaceId types.Hex) (types.Hex, error) {
 // GetSupportedInterfaceIds returns a list of commonly supported interface IDs.
 func GetSupportedInterfaceIds() map[string]types.Hex {
 	return map[string]types.Hex{
-		"ERC165":              InterfaceERC165,
-		"ERC721":              InterfaceERC721,
-		"ERC721Receiver":      SelectorERC721Received,
-		"ERC1155":             InterfaceERC1155,
-		"ERC1155Receiver":     SelectorERC1155Received,
+		"ERC165":               InterfaceERC165,
+		"ERC721":               InterfaceERC721,
+		"ERC721Receiver":       SelectorERC721Received,
+		"ERC1155":              InterfaceERC1155,
+		"ERC1155Receiver":      SelectorERC1155Received,
 		"ERC1155BatchReceiver": SelectorERC1155BatchReceived,
-		"ERC777":              InterfaceERC777,
-		"ERC777Receiver":      SelectorERC777TokensReceived,
+		"ERC777":               InterfaceERC777,
+		"ERC777Receiver":       SelectorERC777TokensReceived,
 	}
 }

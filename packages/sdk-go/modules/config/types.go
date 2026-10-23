@@ -11,10 +11,10 @@ import (
 
 // Chain IDs for module deployment.
 const (
-	ChainIDMainnet    = 1
-	ChainIDSepolia    = 11155111
-	ChainIDLocal      = 31337
-	ChainIDStableNet  = 8283
+	ChainIDMainnet   = 1
+	ChainIDSepolia   = 11155111
+	ChainIDLocal     = 31337
+	ChainIDStableNet = 8283
 )
 
 // DefaultSupportedChains are the chains supported by default.

@@ -105,20 +105,20 @@ func TestBridgeRequest_Fields(t *testing.T) {
 	fee := big.NewInt(1000000000000000)
 
 	req := BridgeRequest{
-		RequestID:    [32]byte{1, 2, 3, 4},
-		Sender:       "0x1234567890abcdef1234567890abcdef12345678",
-		Recipient:    "0xabcdef1234567890abcdef1234567890abcdef12",
-		Token:        "0x9876543210fedcba9876543210fedcba98765432",
-		Amount:       amount,
-		SourceChain:  1,
-		TargetChain:  137,
-		Nonce:        42,
-		Deadline:     uint64(now.Add(1 * time.Hour).Unix()),
-		Fee:          fee,
-		Status:       StatusPending,
-		InitiatedAt:  now,
-		BlockNumber:  12345678,
-		TxHash:       "0xtxhash123",
+		RequestID:   [32]byte{1, 2, 3, 4},
+		Sender:      "0x1234567890abcdef1234567890abcdef12345678",
+		Recipient:   "0xabcdef1234567890abcdef1234567890abcdef12",
+		Token:       "0x9876543210fedcba9876543210fedcba98765432",
+		Amount:      amount,
+		SourceChain: 1,
+		TargetChain: 137,
+		Nonce:       42,
+		Deadline:    uint64(now.Add(1 * time.Hour).Unix()),
+		Fee:         fee,
+		Status:      StatusPending,
+		InitiatedAt: now,
+		BlockNumber: 12345678,
+		TxHash:      "0xtxhash123",
 	}
 
 	if req.Sender != "0x1234567890abcdef1234567890abcdef12345678" {

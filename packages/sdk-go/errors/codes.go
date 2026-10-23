@@ -7,14 +7,14 @@ type SdkErrorCode string
 // SDK error codes.
 const (
 	// General errors
-	ErrUnknown           SdkErrorCode = "UNKNOWN_ERROR"
-	ErrInvalidConfig     SdkErrorCode = "INVALID_CONFIG"
-	ErrValidation        SdkErrorCode = "VALIDATION_ERROR"
-	ErrNetworkError      SdkErrorCode = "NETWORK_ERROR"
-	ErrRPCError          SdkErrorCode = "RPC_ERROR"
-	ErrUnauthorized      SdkErrorCode = "UNAUTHORIZED"
-	ErrNotSupported      SdkErrorCode = "NOT_SUPPORTED"
-	ErrTimeout           SdkErrorCode = "TIMEOUT"
+	ErrUnknown       SdkErrorCode = "UNKNOWN_ERROR"
+	ErrInvalidConfig SdkErrorCode = "INVALID_CONFIG"
+	ErrValidation    SdkErrorCode = "VALIDATION_ERROR"
+	ErrNetworkError  SdkErrorCode = "NETWORK_ERROR"
+	ErrRPCError      SdkErrorCode = "RPC_ERROR"
+	ErrUnauthorized  SdkErrorCode = "UNAUTHORIZED"
+	ErrNotSupported  SdkErrorCode = "NOT_SUPPORTED"
+	ErrTimeout       SdkErrorCode = "TIMEOUT"
 
 	// Account errors
 	ErrAccountNotDeployed SdkErrorCode = "ACCOUNT_NOT_DEPLOYED"
@@ -45,13 +45,13 @@ const (
 	ErrBundlerError SdkErrorCode = "BUNDLER_ERROR"
 
 	// Paymaster errors
-	ErrPaymasterError            SdkErrorCode = "PAYMASTER_ERROR"
-	ErrPaymasterNotAvailable     SdkErrorCode = "PAYMASTER_NOT_AVAILABLE"
-	ErrPaymasterRejected         SdkErrorCode = "PAYMASTER_REJECTED"
+	ErrPaymasterError             SdkErrorCode = "PAYMASTER_ERROR"
+	ErrPaymasterNotAvailable      SdkErrorCode = "PAYMASTER_NOT_AVAILABLE"
+	ErrPaymasterRejected          SdkErrorCode = "PAYMASTER_REJECTED"
 	ErrInsufficientSponsorBalance SdkErrorCode = "INSUFFICIENT_SPONSOR_BALANCE"
 
 	// Module errors
-	ErrModuleNotInstalled SdkErrorCode = "MODULE_NOT_INSTALLED"
+	ErrModuleNotInstalled  SdkErrorCode = "MODULE_NOT_INSTALLED"
 	ErrModuleInstallFailed SdkErrorCode = "MODULE_INSTALL_FAILED"
 	ErrInvalidModuleConfig SdkErrorCode = "INVALID_MODULE_CONFIG"
 )
@@ -61,18 +61,18 @@ type BundlerErrorCode int
 
 // Bundler error codes from ERC-4337 specification.
 const (
-	BundlerErrInvalidFields           BundlerErrorCode = -32602
-	BundlerErrSimulationFailed        BundlerErrorCode = -32500
-	BundlerErrRejectedByEPOrAccount   BundlerErrorCode = -32501
-	BundlerErrRejectedByPaymaster     BundlerErrorCode = -32502
-	BundlerErrBannedOpcode            BundlerErrorCode = -32503
-	BundlerErrShortDeadline           BundlerErrorCode = -32504
-	BundlerErrInvalidSignature        BundlerErrorCode = -32505
-	BundlerErrInvalidPaymasterData    BundlerErrorCode = -32506
-	BundlerErrBannedOrThrottled       BundlerErrorCode = -32507
-	BundlerErrStakeOrDelayTooLow      BundlerErrorCode = -32508
-	BundlerErrUnsupportedSignature    BundlerErrorCode = -32509
-	BundlerErrInternalError           BundlerErrorCode = -32000
+	BundlerErrInvalidFields         BundlerErrorCode = -32602
+	BundlerErrSimulationFailed      BundlerErrorCode = -32500
+	BundlerErrRejectedByEPOrAccount BundlerErrorCode = -32501
+	BundlerErrRejectedByPaymaster   BundlerErrorCode = -32502
+	BundlerErrBannedOpcode          BundlerErrorCode = -32503
+	BundlerErrShortDeadline         BundlerErrorCode = -32504
+	BundlerErrInvalidSignature      BundlerErrorCode = -32505
+	BundlerErrInvalidPaymasterData  BundlerErrorCode = -32506
+	BundlerErrBannedOrThrottled     BundlerErrorCode = -32507
+	BundlerErrStakeOrDelayTooLow    BundlerErrorCode = -32508
+	BundlerErrUnsupportedSignature  BundlerErrorCode = -32509
+	BundlerErrInternalError         BundlerErrorCode = -32000
 )
 
 // String returns the string representation of the bundler error code.
@@ -112,14 +112,14 @@ type PaymasterErrorCode string
 
 // Paymaster error codes.
 const (
-	PaymasterErrNotAvailable           PaymasterErrorCode = "SPONSOR_NOT_AVAILABLE"
-	PaymasterErrInsufficientBalance    PaymasterErrorCode = "INSUFFICIENT_SPONSOR_BALANCE"
-	PaymasterErrTokenNotSupported      PaymasterErrorCode = "TOKEN_NOT_SUPPORTED"
-	PaymasterErrInsufficientAllowance  PaymasterErrorCode = "INSUFFICIENT_TOKEN_ALLOWANCE"
-	PaymasterErrTimeout                PaymasterErrorCode = "TIMEOUT"
-	PaymasterErrHTTPError              PaymasterErrorCode = "HTTP_ERROR"
-	PaymasterErrInvalidResponse        PaymasterErrorCode = "INVALID_RESPONSE"
-	PaymasterErrRejected               PaymasterErrorCode = "REJECTED"
+	PaymasterErrNotAvailable          PaymasterErrorCode = "SPONSOR_NOT_AVAILABLE"
+	PaymasterErrInsufficientBalance   PaymasterErrorCode = "INSUFFICIENT_SPONSOR_BALANCE"
+	PaymasterErrTokenNotSupported     PaymasterErrorCode = "TOKEN_NOT_SUPPORTED"
+	PaymasterErrInsufficientAllowance PaymasterErrorCode = "INSUFFICIENT_TOKEN_ALLOWANCE"
+	PaymasterErrTimeout               PaymasterErrorCode = "TIMEOUT"
+	PaymasterErrHTTPError             PaymasterErrorCode = "HTTP_ERROR"
+	PaymasterErrInvalidResponse       PaymasterErrorCode = "INVALID_RESPONSE"
+	PaymasterErrRejected              PaymasterErrorCode = "REJECTED"
 )
 
 // retryableSdkErrors contains error codes that are retryable.
@@ -138,8 +138,8 @@ func (c SdkErrorCode) IsRetryable() bool {
 
 // retryableBundlerErrors contains bundler error codes that are retryable.
 var retryableBundlerErrors = map[BundlerErrorCode]bool{
-	BundlerErrInternalError:  true,
-	BundlerErrShortDeadline:  true,
+	BundlerErrInternalError: true,
+	BundlerErrShortDeadline: true,
 }
 
 // IsRetryable returns whether the bundler error code is retryable.
