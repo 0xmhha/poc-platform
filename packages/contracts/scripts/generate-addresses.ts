@@ -8,6 +8,7 @@
  *   pnpm generate --input ../../poc-contract/deployments
  */
 
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
@@ -187,6 +188,21 @@ async function findDeploymentFiles(basePath: string): Promise<string[]> {
   }
 
   return files
+}
+
+/**
+ * True when git ignores the file, e.g. local anvil output in poc-contract/deployments/31337.
+ * Files outside a git repository, or when git is unavailable, count as not ignored.
+ */
+function isGitIgnored(filePath: string): boolean {
+  try {
+    execFileSync('git', ['-C', dirname(filePath), 'check-ignore', '-q', filePath], {
+      stdio: 'ignore',
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function loadDeployment(filePath: string): Promise<ChainDeployment | null> {
@@ -671,8 +687,11 @@ async function main() {
     }
   }
 
-  // Find deployment files
-  const files = await findDeploymentFiles(inputPath)
+  // Find deployment files. The check compares committed manifests only, so local
+  // deployments that git ignores do not report drift.
+  const files = (await findDeploymentFiles(inputPath)).filter(
+    (file) => !checkOnly || !isGitIgnored(file)
+  )
 
   if (files.length === 0) {
     console.error(`No deployment files found in ${inputPath}`)
