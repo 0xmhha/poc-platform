@@ -15,10 +15,14 @@ describe('built paymaster CLI', () => {
   it.each([
     { args: ['--help'], text: 'run' },
     { args: ['run', '--help'], text: '--chain-ids' },
-  ])('loads ESM dependencies for $args', async ({ args, text }) => {
-    const { stdout } = await exec(process.execPath, [cli, ...args], options)
-    expect(stdout).toContain(text)
-  }, 20000)
+  ])(
+    'loads ESM dependencies for $args',
+    async ({ args, text }) => {
+      const { stdout } = await exec(process.execPath, [cli, ...args], options)
+      expect(stdout).toContain(text)
+    },
+    20000
+  )
 
   it('requires a command', async () => {
     await expect(exec(process.execPath, [cli], options)).rejects.toMatchObject({

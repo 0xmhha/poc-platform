@@ -29,12 +29,12 @@
     "@stablenet/contracts": "workspace:*",
     "@stablenet/core": "workspace:*",
     "@stablenet/sdk-types": "workspace:*",
-    "viem": "^2.57.4"
+    "viem": "^2.57.7"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.6",
+    "@biomejs/biome": "^2.5.15",
     "@types/node": "^25.3.5",
-    "tsup": "^8.3.5",
+    "tsup": "^8.5.1",
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"
   },

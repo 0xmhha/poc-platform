@@ -25,14 +25,13 @@ import {
 } from '@stablenet/contracts'
 
 /**
- * Re-export contract data from @stablenet/contracts (single source of truth)
- */
-export { CHAIN_ADDRESSES, DEFAULT_TOKENS, SERVICE_URLS, ZERO_ADDRESS, isChainSupported }
-
-/**
  * Re-export types for convenience
  */
 export type { ChainAddresses, ChainConfig, ServiceUrls, TokenDefinition }
+/**
+ * Re-export contract data from @stablenet/contracts (single source of truth)
+ */
+export { CHAIN_ADDRESSES, DEFAULT_TOKENS, isChainSupported, SERVICE_URLS, ZERO_ADDRESS }
 
 /**
  * Get chain configuration by chain ID

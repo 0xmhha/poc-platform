@@ -15,10 +15,14 @@ describe('built bundler CLI', () => {
   it.each([
     { args: ['--help'], text: 'bundler <command>' },
     { args: ['run', '--help'], text: '--chain-id' },
-  ])('loads ESM dependencies for $args', async ({ args, text }) => {
-    const { stdout } = await exec(process.execPath, [cli, ...args], options)
-    expect(stdout).toContain(text)
-  }, 20000)
+  ])(
+    'loads ESM dependencies for $args',
+    async ({ args, text }) => {
+      const { stdout } = await exec(process.execPath, [cli, ...args], options)
+      expect(stdout).toContain(text)
+    },
+    20000
+  )
 
   it('rejects missing credentials before contacting the chain', async () => {
     await expect(

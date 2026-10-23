@@ -68,7 +68,7 @@ export interface ModuleInstallResult {
 }
 
 // Re-export types from operation client
-export type { ModuleCalldata, ValidationResult, ConflictCheckResult }
+export type { ConflictCheckResult, ModuleCalldata, ValidationResult }
 
 // ============================================================================
 // Module Client
