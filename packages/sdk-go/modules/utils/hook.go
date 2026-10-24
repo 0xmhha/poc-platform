@@ -16,13 +16,13 @@ import (
 
 // Period presets in seconds.
 const (
-	PeriodMinute   uint64 = 60
-	PeriodHour     uint64 = 3600
-	PeriodDay      uint64 = 86400
-	PeriodWeek     uint64 = 604800
-	PeriodMonth    uint64 = 2592000  // 30 days
-	PeriodQuarter  uint64 = 7776000  // 90 days
-	PeriodYear     uint64 = 31536000 // 365 days
+	PeriodMinute  uint64 = 60
+	PeriodHour    uint64 = 3600
+	PeriodDay     uint64 = 86400
+	PeriodWeek    uint64 = 604800
+	PeriodMonth   uint64 = 2592000  // 30 days
+	PeriodQuarter uint64 = 7776000  // 90 days
+	PeriodYear    uint64 = 31536000 // 365 days
 )
 
 // PeriodPresets maps period names to durations.
@@ -165,15 +165,15 @@ func ValidateSpendingLimitConfig(config types.SpendingLimitConfig) *ValidationRe
 
 // SpendingLimitStatus contains the current status of a spending limit.
 type SpendingLimitStatus struct {
-	Token         types.Address
-	Limit         *big.Int
-	Spent         *big.Int
-	Remaining     *big.Int
-	Period        uint64
-	PeriodStart   uint64
-	PeriodEnd     uint64
-	ResetIn       uint64
-	UsagePercent  float64
+	Token        types.Address
+	Limit        *big.Int
+	Spent        *big.Int
+	Remaining    *big.Int
+	Period       uint64
+	PeriodStart  uint64
+	PeriodEnd    uint64
+	ResetIn      uint64
+	UsagePercent float64
 }
 
 // CalculateSpendingLimitStatus calculates the current status of a spending limit.

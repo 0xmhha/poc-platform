@@ -42,19 +42,19 @@ type RiskType string
 
 // Risk type constants.
 const (
-	RiskTypeHighValue          RiskType = "high_value"
-	RiskTypeTokenApproval      RiskType = "token_approval"
-	RiskTypeUnlimitedApproval  RiskType = "unlimited_approval"
-	RiskTypeNFTApprovalAll     RiskType = "nft_approval_all"
-	RiskTypeTokenTransfer      RiskType = "token_transfer"
+	RiskTypeHighValue           RiskType = "high_value"
+	RiskTypeTokenApproval       RiskType = "token_approval"
+	RiskTypeUnlimitedApproval   RiskType = "unlimited_approval"
+	RiskTypeNFTApprovalAll      RiskType = "nft_approval_all"
+	RiskTypeTokenTransfer       RiskType = "token_transfer"
 	RiskTypeContractInteraction RiskType = "contract_interaction"
-	RiskTypeZeroAddress        RiskType = "zero_address"
-	RiskTypeSelfTransfer       RiskType = "self_transfer"
-	RiskTypeHighGasPrice       RiskType = "high_gas_price"
-	RiskTypeSuspiciousData     RiskType = "suspicious_data"
-	RiskTypeUnknownContract    RiskType = "unknown_contract"
-	RiskTypeEmptyDataWithValue RiskType = "empty_data_with_value"
-	RiskTypePossiblePhishing   RiskType = "possible_phishing"
+	RiskTypeZeroAddress         RiskType = "zero_address"
+	RiskTypeSelfTransfer        RiskType = "self_transfer"
+	RiskTypeHighGasPrice        RiskType = "high_gas_price"
+	RiskTypeSuspiciousData      RiskType = "suspicious_data"
+	RiskTypeUnknownContract     RiskType = "unknown_contract"
+	RiskTypeEmptyDataWithValue  RiskType = "empty_data_with_value"
+	RiskTypePossiblePhishing    RiskType = "possible_phishing"
 )
 
 // ============================================================================
@@ -137,11 +137,11 @@ var erc20Selectors = map[string]string{
 
 // NFT method selectors.
 var nftSelectors = map[string]string{
-	"setApprovalForAll":           "0xa22cb465",
-	"safeTransferFrom721":         "0x42842e0e",
-	"safeTransferFrom721Data":     "0xb88d4fde",
-	"safeTransferFrom1155":        "0xf242432a",
-	"safeBatchTransferFrom1155":   "0x2eb2c2d6",
+	"setApprovalForAll":         "0xa22cb465",
+	"safeTransferFrom721":       "0x42842e0e",
+	"safeTransferFrom721Data":   "0xb88d4fde",
+	"safeTransferFrom1155":      "0xf242432a",
+	"safeBatchTransferFrom1155": "0x2eb2c2d6",
 }
 
 // Dangerous selectors.
@@ -403,18 +403,18 @@ func (a *TransactionRiskAnalyzer) decodeMethod(data types.Hex) *DecodedMethod {
 	selector := "0x" + hex.EncodeToString(data[:4])
 
 	knownMethods := map[string]string{
-		erc20Selectors["transfer"]:             "transfer",
-		erc20Selectors["approve"]:              "approve",
-		erc20Selectors["transferFrom"]:         "transferFrom",
-		erc20Selectors["increaseAllowance"]:    "increaseAllowance",
-		erc20Selectors["decreaseAllowance"]:    "decreaseAllowance",
-		nftSelectors["setApprovalForAll"]:      "setApprovalForAll",
-		nftSelectors["safeTransferFrom721"]:    "safeTransferFrom",
-		nftSelectors["safeTransferFrom721Data"]: "safeTransferFrom",
-		nftSelectors["safeTransferFrom1155"]:   "safeTransferFrom",
+		erc20Selectors["transfer"]:                "transfer",
+		erc20Selectors["approve"]:                 "approve",
+		erc20Selectors["transferFrom"]:            "transferFrom",
+		erc20Selectors["increaseAllowance"]:       "increaseAllowance",
+		erc20Selectors["decreaseAllowance"]:       "decreaseAllowance",
+		nftSelectors["setApprovalForAll"]:         "setApprovalForAll",
+		nftSelectors["safeTransferFrom721"]:       "safeTransferFrom",
+		nftSelectors["safeTransferFrom721Data"]:   "safeTransferFrom",
+		nftSelectors["safeTransferFrom1155"]:      "safeTransferFrom",
 		nftSelectors["safeBatchTransferFrom1155"]: "safeBatchTransferFrom",
-		dangerousSelectors["multicall"]:        "multicall",
-		dangerousSelectors["execute"]:          "execute",
+		dangerousSelectors["multicall"]:           "multicall",
+		dangerousSelectors["execute"]:             "execute",
 	}
 
 	name := "unknown"
@@ -443,19 +443,19 @@ func (a *TransactionRiskAnalyzer) generateSummary(riskLevel RiskLevel, riskTypes
 	}
 
 	typeDescriptions := map[RiskType]string{
-		RiskTypeHighValue:          "high value",
-		RiskTypeTokenApproval:      "token approval",
-		RiskTypeUnlimitedApproval:  "unlimited approval",
-		RiskTypeNFTApprovalAll:     "NFT collection approval",
-		RiskTypeTokenTransfer:      "token transfer",
+		RiskTypeHighValue:           "high value",
+		RiskTypeTokenApproval:       "token approval",
+		RiskTypeUnlimitedApproval:   "unlimited approval",
+		RiskTypeNFTApprovalAll:      "NFT collection approval",
+		RiskTypeTokenTransfer:       "token transfer",
 		RiskTypeContractInteraction: "contract interaction",
-		RiskTypeZeroAddress:        "zero address",
-		RiskTypeSelfTransfer:       "self transfer",
-		RiskTypeHighGasPrice:       "high gas",
-		RiskTypeSuspiciousData:     "suspicious",
-		RiskTypeUnknownContract:    "unknown contract",
-		RiskTypeEmptyDataWithValue: "unusual",
-		RiskTypePossiblePhishing:   "possible phishing",
+		RiskTypeZeroAddress:         "zero address",
+		RiskTypeSelfTransfer:        "self transfer",
+		RiskTypeHighGasPrice:        "high gas",
+		RiskTypeSuspiciousData:      "suspicious",
+		RiskTypeUnknownContract:     "unknown contract",
+		RiskTypeEmptyDataWithValue:  "unusual",
+		RiskTypePossiblePhishing:    "possible phishing",
 	}
 
 	descriptions := []string{}

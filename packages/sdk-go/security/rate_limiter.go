@@ -293,17 +293,17 @@ func (r *RateLimiter) registerDefaultMethods() {
 
 // SlidingWindowLimiter implements a sliding window rate limiter.
 type SlidingWindowLimiter struct {
-	mu        sync.Mutex
-	window    time.Duration
-	maxCount  int
+	mu         sync.Mutex
+	window     time.Duration
+	maxCount   int
 	timestamps []time.Time
 }
 
 // NewSlidingWindowLimiter creates a new sliding window rate limiter.
 func NewSlidingWindowLimiter(maxCount int, window time.Duration) *SlidingWindowLimiter {
 	return &SlidingWindowLimiter{
-		window:    window,
-		maxCount:  maxCount,
+		window:     window,
+		maxCount:   maxCount,
 		timestamps: make([]time.Time, 0, maxCount),
 	}
 }

@@ -116,9 +116,9 @@ func TestValidateEVMAddress(t *testing.T) {
 
 func TestToChecksumAddress(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		want    string
+		name  string
+		input string
+		want  string
 	}{
 		{
 			name:  "Standard address 1",

@@ -20,11 +20,11 @@ type Config struct {
 	ZeroXAPIKey   string
 
 	// DEX settings
-	UniswapV2Router    string
-	UniswapV3Router    string
-	UniswapV3Quoter    string
-	SushiSwapRouter    string
-	CurveRegistry      string
+	UniswapV2Router string
+	UniswapV3Router string
+	UniswapV3Quoter string
+	SushiSwapRouter string
+	CurveRegistry   string
 
 	// Cache settings
 	PriceCacheTTL int // seconds

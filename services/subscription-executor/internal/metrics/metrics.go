@@ -36,16 +36,16 @@ type Metrics struct {
 	PermissionErrors *prometheus.CounterVec
 
 	// External service metrics
-	BundlerRequests  *prometheus.CounterVec
-	BundlerLatency   *prometheus.HistogramVec
+	BundlerRequests   *prometheus.CounterVec
+	BundlerLatency    *prometheus.HistogramVec
 	PaymasterRequests *prometheus.CounterVec
 	PaymasterLatency  *prometheus.HistogramVec
 	RPCRequests       *prometheus.CounterVec
 	RPCLatency        *prometheus.HistogramVec
 
 	// Circuit breaker metrics
-	CircuitBreakerState  *prometheus.GaugeVec
-	CircuitBreakerTrips  *prometheus.CounterVec
+	CircuitBreakerState *prometheus.GaugeVec
+	CircuitBreakerTrips *prometheus.CounterVec
 
 	// HTTP metrics
 	HTTPRequestsTotal   *prometheus.CounterVec

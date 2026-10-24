@@ -11,8 +11,8 @@ import (
 
 // Validation constraints
 const (
-	MinFiatAmount    = "1.00"    // Minimum $1
-	MaxFiatAmount    = "50000"   // Maximum $50,000
+	MinFiatAmount    = "1.00"  // Minimum $1
+	MaxFiatAmount    = "50000" // Maximum $50,000
 	MinUserIDLength  = 3
 	MaxUserIDLength  = 128
 	WalletAddrLength = 42 // "0x" + 40 hex chars

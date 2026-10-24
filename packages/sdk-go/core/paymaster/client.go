@@ -76,8 +76,8 @@ type PaymasterWithTokenResponse struct {
 
 // SponsorPolicy contains information about sponsorship availability.
 type SponsorPolicy struct {
-	IsAvailable   bool   `json:"isAvailable"`
-	Reason        string `json:"reason,omitempty"`
+	IsAvailable    bool     `json:"isAvailable"`
+	Reason         string   `json:"reason,omitempty"`
 	RemainingQuota *big.Int `json:"remainingQuota,omitempty"`
 }
 

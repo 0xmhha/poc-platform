@@ -149,6 +149,16 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: go mod download
 
+      - name: Check formatting
+        working-directory: ${{ matrix.service }}
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Run gofmt -w on:"
+            echo "$unformatted"
+            exit 1
+          fi
+
       - name: Build
         working-directory: ${{ matrix.service }}
         run: go build -v ./...
@@ -176,6 +186,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          components: clippy, rustfmt
 
       - name: Cache cargo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -192,6 +204,10 @@ jobs:
       - name: Check formatting
         working-directory: services/stealth-server
         run: cargo fmt --check
+
+      - name: Lint
+        working-directory: services/stealth-server
+        run: cargo clippy --locked --all-targets -- -D clippy::all
 
       - name: Build
         working-directory: services/stealth-server

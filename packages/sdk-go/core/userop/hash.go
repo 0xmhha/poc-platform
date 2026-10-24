@@ -43,11 +43,11 @@ func ComputeDomainSeparator(entryPoint common.Address, chainID *big.Int) (common
 	addressType := mustNewType("address")
 
 	args := abi.Arguments{
-		{Type: bytes32Type},  // DOMAIN_TYPEHASH
-		{Type: bytes32Type},  // nameHash
-		{Type: bytes32Type},  // versionHash
-		{Type: uint256Type},  // chainId
-		{Type: addressType},  // verifyingContract
+		{Type: bytes32Type}, // DOMAIN_TYPEHASH
+		{Type: bytes32Type}, // nameHash
+		{Type: bytes32Type}, // versionHash
+		{Type: uint256Type}, // chainId
+		{Type: addressType}, // verifyingContract
 	}
 
 	encoded, err := args.Pack(
@@ -118,15 +118,15 @@ func GetUserOperationHash(userOp *types.UserOperation, entryPoint types.Address,
 	uint256Type := mustNewType("uint256")
 
 	structArgs := abi.Arguments{
-		{Type: bytes32Type},  // PACKED_USEROP_TYPEHASH
-		{Type: addressType},  // sender
-		{Type: uint256Type},  // nonce
-		{Type: bytes32Type},  // hashInitCode
-		{Type: bytes32Type},  // hashCallData
-		{Type: bytes32Type},  // accountGasLimits
-		{Type: uint256Type},  // preVerificationGas
-		{Type: bytes32Type},  // gasFees
-		{Type: bytes32Type},  // hashPaymasterAndData
+		{Type: bytes32Type}, // PACKED_USEROP_TYPEHASH
+		{Type: addressType}, // sender
+		{Type: uint256Type}, // nonce
+		{Type: bytes32Type}, // hashInitCode
+		{Type: bytes32Type}, // hashCallData
+		{Type: bytes32Type}, // accountGasLimits
+		{Type: uint256Type}, // preVerificationGas
+		{Type: bytes32Type}, // gasFees
+		{Type: bytes32Type}, // hashPaymasterAndData
 	}
 
 	structEncoded, err := structArgs.Pack(

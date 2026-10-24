@@ -39,11 +39,11 @@ var DefaultHistogramBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5
 
 // Collector manages metrics for a service.
 type Collector struct {
-	service   string
-	counters  map[string]*Counter
-	gauges    map[string]*Gauge
+	service    string
+	counters   map[string]*Counter
+	gauges     map[string]*Gauge
 	histograms map[string]*Histogram
-	mu        sync.RWMutex
+	mu         sync.RWMutex
 }
 
 // NewCollector creates a new metrics collector.

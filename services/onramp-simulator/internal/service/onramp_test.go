@@ -823,11 +823,11 @@ func TestGetRandomRejectionReason(t *testing.T) {
 	svc.rng = rand.New(rand.NewSource(42))
 
 	validReasons := map[string]bool{
-		"document_unclear":      true,
-		"document_expired":      true,
-		"information_mismatch":  true,
-		"suspicious_activity":   true,
-		"unsupported_country":   true,
+		"document_unclear":     true,
+		"document_expired":     true,
+		"information_mismatch": true,
+		"suspicious_activity":  true,
+		"unsupported_country":  true,
 	}
 
 	seen := make(map[string]bool)

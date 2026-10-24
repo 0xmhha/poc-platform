@@ -73,13 +73,13 @@ type Payment struct {
 // ThreeDSecureData contains 3D Secure authentication data
 type ThreeDSecureData struct {
 	Status            ThreeDSecureStatus `json:"status"`
-	Version           string             `json:"version"`             // "1.0" or "2.0"
-	ACSTransactionID  string             `json:"acsTransactionId"`    // Access Control Server transaction ID
-	DSTransactionID   string             `json:"dsTransactionId"`     // Directory Server transaction ID
-	AuthenticationURL string             `json:"authenticationUrl"`   // URL for cardholder authentication
-	ChallengeRequired bool               `json:"challengeRequired"`   // Whether challenge is required
-	ECI               string             `json:"eci,omitempty"`       // Electronic Commerce Indicator
-	CAVV              string             `json:"cavv,omitempty"`      // Cardholder Authentication Verification Value
+	Version           string             `json:"version"`           // "1.0" or "2.0"
+	ACSTransactionID  string             `json:"acsTransactionId"`  // Access Control Server transaction ID
+	DSTransactionID   string             `json:"dsTransactionId"`   // Directory Server transaction ID
+	AuthenticationURL string             `json:"authenticationUrl"` // URL for cardholder authentication
+	ChallengeRequired bool               `json:"challengeRequired"` // Whether challenge is required
+	ECI               string             `json:"eci,omitempty"`     // Electronic Commerce Indicator
+	CAVV              string             `json:"cavv,omitempty"`    // Cardholder Authentication Verification Value
 	AuthenticatedAt   *time.Time         `json:"authenticatedAt,omitempty"`
 }
 
@@ -177,13 +177,13 @@ const (
 
 // Wallet represents a registered payment wallet
 type Wallet struct {
-	ID         string       `json:"id"`
-	UserID     string       `json:"userId"`
-	Name       string       `json:"name"`
-	Type       WalletType   `json:"type"`
-	CardLast4  string       `json:"cardLast4"`
-	CardBrand  string       `json:"cardBrand"`
-	Status     WalletStatus `json:"status"`
+	ID        string       `json:"id"`
+	UserID    string       `json:"userId"`
+	Name      string       `json:"name"`
+	Type      WalletType   `json:"type"`
+	CardLast4 string       `json:"cardLast4"`
+	CardBrand string       `json:"cardBrand"`
+	Status    WalletStatus `json:"status"`
 	// Internal fields (not included in response)
 	CardNumber string    `json:"-"`
 	CardExpiry string    `json:"-"`

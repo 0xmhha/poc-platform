@@ -28,21 +28,21 @@ const (
 type SignatureRiskType string
 
 const (
-	SignatureRiskTypePermit           SignatureRiskType = "permit"
-	SignatureRiskTypePermit2          SignatureRiskType = "permit2"
-	SignatureRiskTypeSeaport          SignatureRiskType = "seaport"
-	SignatureRiskTypeDelegation       SignatureRiskType = "delegation"
-	SignatureRiskTypeUnlimitedAmount  SignatureRiskType = "unlimited_amount"
-	SignatureRiskTypeLongExpiry       SignatureRiskType = "long_expiry"
-	SignatureRiskTypeUnknownDomain    SignatureRiskType = "unknown_domain"
-	SignatureRiskTypeUnknownType      SignatureRiskType = "unknown_type"
-	SignatureRiskTypeMalformedData    SignatureRiskType = "malformed_data"
+	SignatureRiskTypePermit              SignatureRiskType = "permit"
+	SignatureRiskTypePermit2             SignatureRiskType = "permit2"
+	SignatureRiskTypeSeaport             SignatureRiskType = "seaport"
+	SignatureRiskTypeDelegation          SignatureRiskType = "delegation"
+	SignatureRiskTypeUnlimitedAmount     SignatureRiskType = "unlimited_amount"
+	SignatureRiskTypeLongExpiry          SignatureRiskType = "long_expiry"
+	SignatureRiskTypeUnknownDomain       SignatureRiskType = "unknown_domain"
+	SignatureRiskTypeUnknownType         SignatureRiskType = "unknown_type"
+	SignatureRiskTypeMalformedData       SignatureRiskType = "malformed_data"
 	SignatureRiskTypeContractInteraction SignatureRiskType = "contract_interaction"
 )
 
 // SignatureRiskFactor represents a single risk factor found in analysis.
 type SignatureRiskFactor struct {
-	Type        SignatureRiskType `json:"type"`
+	Type        SignatureRiskType  `json:"type"`
 	Level       SignatureRiskLevel `json:"level"`
 	Description string             `json:"description"`
 	Details     map[string]any     `json:"details,omitempty"`
@@ -582,10 +582,10 @@ func (d *SimplePhishingDetector) CheckURL(url string) *SimplePhishingCheckResult
 	}
 
 	return &SimplePhishingCheckResult{
-		IsPhishing:     isPhishing,
-		IsSuspicious:   isSuspicious,
-		Confidence:     min(confidence, 1.0),
-		Reasons:        reasons,
+		IsPhishing:      isPhishing,
+		IsSuspicious:    isSuspicious,
+		Confidence:      min(confidence, 1.0),
+		Reasons:         reasons,
 		Recommendations: recommendations,
 	}
 }

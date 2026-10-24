@@ -211,9 +211,9 @@ func TestSubscription_IntervalConversion(t *testing.T) {
 		intervalSeconds int64
 		wantDays        int
 	}{
-		{86400, 1},      // 1 day
-		{86400 * 7, 7},  // 7 days
-		{86400 * 30, 30}, // 30 days
+		{86400, 1},         // 1 day
+		{86400 * 7, 7},     // 7 days
+		{86400 * 30, 30},   // 30 days
 		{86400 * 365, 365}, // 365 days
 	}
 

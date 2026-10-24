@@ -5,25 +5,25 @@ type ChainID uint64
 
 // Supported chain IDs
 const (
-	ChainIDEthereum      ChainID = 1
-	ChainIDGoerli        ChainID = 5
-	ChainIDSepolia       ChainID = 11155111
-	ChainIDPolygon       ChainID = 137
-	ChainIDPolygonMumbai ChainID = 80001
-	ChainIDPolygonAmoy   ChainID = 80002
-	ChainIDArbitrum      ChainID = 42161
+	ChainIDEthereum       ChainID = 1
+	ChainIDGoerli         ChainID = 5
+	ChainIDSepolia        ChainID = 11155111
+	ChainIDPolygon        ChainID = 137
+	ChainIDPolygonMumbai  ChainID = 80001
+	ChainIDPolygonAmoy    ChainID = 80002
+	ChainIDArbitrum       ChainID = 42161
 	ChainIDArbitrumGoerli ChainID = 421613
-	ChainIDOptimism      ChainID = 10
+	ChainIDOptimism       ChainID = 10
 	ChainIDOptimismGoerli ChainID = 420
-	ChainIDBase          ChainID = 8453
-	ChainIDBaseGoerli    ChainID = 84531
-	ChainIDBSC           ChainID = 56
-	ChainIDBSCTestnet    ChainID = 97
-	ChainIDAvalanche     ChainID = 43114
-	ChainIDAvalancheFuji ChainID = 43113
-	ChainIDLocal         ChainID = 31337
-	ChainIDAnvil         ChainID = 31337
-	ChainIDStableNet     ChainID = 8283
+	ChainIDBase           ChainID = 8453
+	ChainIDBaseGoerli     ChainID = 84531
+	ChainIDBSC            ChainID = 56
+	ChainIDBSCTestnet     ChainID = 97
+	ChainIDAvalanche      ChainID = 43114
+	ChainIDAvalancheFuji  ChainID = 43113
+	ChainIDLocal          ChainID = 31337
+	ChainIDAnvil          ChainID = 31337
+	ChainIDStableNet      ChainID = 8283
 )
 
 // String returns the string representation of the chain ID.

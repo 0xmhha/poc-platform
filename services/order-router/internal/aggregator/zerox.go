@@ -182,21 +182,21 @@ func (a *ZeroXAggregator) BuildSwap(ctx context.Context, req *model.SwapRequest)
 // Response types
 
 type zeroXQuoteResponse struct {
-	Price             string   `json:"price"`
-	GuaranteedPrice   string   `json:"guaranteedPrice"`
-	EstimatedPriceImpact string `json:"estimatedPriceImpact"`
-	To                string   `json:"to"`
-	Data              string   `json:"data"`
-	Value             string   `json:"value"`
-	Gas               string   `json:"gas"`
-	EstimatedGas      int      `json:"estimatedGas"`
-	GasPrice          string   `json:"gasPrice"`
-	ProtocolFee       string   `json:"protocolFee"`
-	MinimumProtocolFee string  `json:"minimumProtocolFee"`
-	BuyTokenAddress   string   `json:"buyTokenAddress"`
-	SellTokenAddress  string   `json:"sellTokenAddress"`
-	BuyAmount         string   `json:"buyAmount"`
-	SellAmount        string   `json:"sellAmount"`
-	Sources           []string `json:"sources"`
-	AllowanceTarget   string   `json:"allowanceTarget"`
+	Price                string   `json:"price"`
+	GuaranteedPrice      string   `json:"guaranteedPrice"`
+	EstimatedPriceImpact string   `json:"estimatedPriceImpact"`
+	To                   string   `json:"to"`
+	Data                 string   `json:"data"`
+	Value                string   `json:"value"`
+	Gas                  string   `json:"gas"`
+	EstimatedGas         int      `json:"estimatedGas"`
+	GasPrice             string   `json:"gasPrice"`
+	ProtocolFee          string   `json:"protocolFee"`
+	MinimumProtocolFee   string   `json:"minimumProtocolFee"`
+	BuyTokenAddress      string   `json:"buyTokenAddress"`
+	SellTokenAddress     string   `json:"sellTokenAddress"`
+	BuyAmount            string   `json:"buyAmount"`
+	SellAmount           string   `json:"sellAmount"`
+	Sources              []string `json:"sources"`
+	AllowanceTarget      string   `json:"allowanceTarget"`
 }

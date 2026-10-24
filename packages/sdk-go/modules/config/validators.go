@@ -86,8 +86,8 @@ var WebAuthnValidator = CreateModuleEntry(
 		},
 	},
 	map[uint64]types.Address{
-		ChainIDMainnet: common.HexToAddress("0x0000000000000000000000000000000000000000"),
-		ChainIDSepolia: common.HexToAddress("0x0000000000000000000000000000000000000000"),
+		ChainIDMainnet:   common.HexToAddress("0x0000000000000000000000000000000000000000"),
+		ChainIDSepolia:   common.HexToAddress("0x0000000000000000000000000000000000000000"),
 		ChainIDLocal:     common.HexToAddress("0x0000000000000000000000000000000000000000"),
 		ChainIDStableNet: common.HexToAddress("0x169844994bd5b64c3a264c54d6b0863bb7df0487"),
 	},
@@ -134,8 +134,8 @@ var MultiSigValidator = CreateModuleEntry(
 		},
 	},
 	map[uint64]types.Address{
-		ChainIDMainnet: common.HexToAddress("0x0000000000000000000000000000000000000000"),
-		ChainIDSepolia: common.HexToAddress("0x0000000000000000000000000000000000000000"),
+		ChainIDMainnet:   common.HexToAddress("0x0000000000000000000000000000000000000000"),
+		ChainIDSepolia:   common.HexToAddress("0x0000000000000000000000000000000000000000"),
 		ChainIDLocal:     common.HexToAddress("0x0000000000000000000000000000000000000000"),
 		ChainIDStableNet: common.HexToAddress("0x284d8e1d4864bfab4ea1dfe283f7f849c075bfa5"),
 	},

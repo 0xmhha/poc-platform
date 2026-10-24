@@ -553,4 +553,3 @@ func EncodePolicyHookInitData(config PolicyHookConfig) types.Hex {
 
 	return types.Hex(result)
 }
-

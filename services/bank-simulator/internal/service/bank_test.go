@@ -648,9 +648,9 @@ func TestMaskAccountNo(t *testing.T) {
 
 func TestMaskName(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		want     string
+		name  string
+		input string
+		want  string
 	}{
 		{"Normal name", "Alice", "A****"},
 		{"Two chars", "Al", "A****"},

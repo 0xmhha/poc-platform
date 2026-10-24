@@ -14,14 +14,14 @@ var ErrInvalidHex = errors.New("invalid hexadecimal format")
 
 // PermissionClient validates ERC-7715 permissions via RPC calls.
 type PermissionClient struct {
-	rpcClient            *RPCClient
+	rpcClient             *RPCClient
 	permissionManagerAddr string
 }
 
 // NewPermissionClient creates a new permission validation client.
 func NewPermissionClient(rpcClient *RPCClient, permissionManagerAddr string) *PermissionClient {
 	return &PermissionClient{
-		rpcClient:            rpcClient,
+		rpcClient:             rpcClient,
 		permissionManagerAddr: permissionManagerAddr,
 	}
 }

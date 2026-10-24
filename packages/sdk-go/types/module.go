@@ -98,11 +98,11 @@ func (s *ModuleStatus) UnmarshalJSON(data []byte) error {
 
 // InstalledModule represents an installed module on a smart account.
 type InstalledModule struct {
-	Type       ModuleType   `json:"type"`
-	Address    Address      `json:"address"`
-	InitData   Hex          `json:"initData,omitempty"`
-	Status     ModuleStatus `json:"status"`
-	InstalledAt *big.Int    `json:"installedAt,omitempty"`
+	Type        ModuleType   `json:"type"`
+	Address     Address      `json:"address"`
+	InitData    Hex          `json:"initData,omitempty"`
+	Status      ModuleStatus `json:"status"`
+	InstalledAt *big.Int     `json:"installedAt,omitempty"`
 }
 
 // ModuleMetadata provides metadata about a module.
@@ -193,12 +193,12 @@ type MultiSigValidatorConfig struct {
 
 // SessionKeyConfig represents session key executor initialization config.
 type SessionKeyConfig struct {
-	SessionKey      Address   `json:"sessionKey"`
-	AllowedTargets  []Address `json:"allowedTargets"`
-	AllowedSelectors []Hex    `json:"allowedSelectors,omitempty"`
-	SpendLimit      *big.Int  `json:"spendLimit,omitempty"`
-	ValidAfter      uint64    `json:"validAfter"`
-	ValidUntil      uint64    `json:"validUntil"`
+	SessionKey       Address   `json:"sessionKey"`
+	AllowedTargets   []Address `json:"allowedTargets"`
+	AllowedSelectors []Hex     `json:"allowedSelectors,omitempty"`
+	SpendLimit       *big.Int  `json:"spendLimit,omitempty"`
+	ValidAfter       uint64    `json:"validAfter"`
+	ValidUntil       uint64    `json:"validUntil"`
 }
 
 // RecurringPaymentConfig represents recurring payment executor config.

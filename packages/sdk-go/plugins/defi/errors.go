@@ -99,18 +99,18 @@ func NewMerchantRegistryError(code, message string, details interface{}) *Mercha
 // Error codes.
 const (
 	// Swap errors
-	ErrCodeSlippageExceeded   = "SLIPPAGE_EXCEEDED"
-	ErrCodeDailyLimitExceeded = "DAILY_LIMIT_EXCEEDED"
+	ErrCodeSlippageExceeded    = "SLIPPAGE_EXCEEDED"
+	ErrCodeDailyLimitExceeded  = "DAILY_LIMIT_EXCEEDED"
 	ErrCodeTokenNotWhitelisted = "TOKEN_NOT_WHITELISTED"
-	ErrCodeInvalidAmount      = "INVALID_AMOUNT"
-	ErrCodeDeadlineExpired    = "DEADLINE_EXPIRED"
+	ErrCodeInvalidAmount       = "INVALID_AMOUNT"
+	ErrCodeDeadlineExpired     = "DEADLINE_EXPIRED"
 
 	// Lending errors
-	ErrCodeLTVExceeded           = "LTV_EXCEEDED"
-	ErrCodeHealthFactorTooLow    = "HEALTH_FACTOR_TOO_LOW"
-	ErrCodePoolNotWhitelisted    = "POOL_NOT_WHITELISTED"
-	ErrCodeAssetNotEnabled       = "ASSET_NOT_ENABLED"
-	ErrCodeBorrowLimitExceeded   = "BORROW_LIMIT_EXCEEDED"
+	ErrCodeLTVExceeded            = "LTV_EXCEEDED"
+	ErrCodeHealthFactorTooLow     = "HEALTH_FACTOR_TOO_LOW"
+	ErrCodePoolNotWhitelisted     = "POOL_NOT_WHITELISTED"
+	ErrCodeAssetNotEnabled        = "ASSET_NOT_ENABLED"
+	ErrCodeBorrowLimitExceeded    = "BORROW_LIMIT_EXCEEDED"
 	ErrCodeInsufficientCollateral = "INSUFFICIENT_COLLATERAL"
 
 	// Staking errors
@@ -124,8 +124,8 @@ const (
 	ErrCodeLiquidationRisk       = "LIQUIDATION_RISK"
 
 	// Merchant errors
-	ErrCodeMerchantNotFound      = "MERCHANT_NOT_FOUND"
-	ErrCodeMerchantNotVerified   = "MERCHANT_NOT_VERIFIED"
-	ErrCodeMerchantSuspended     = "MERCHANT_SUSPENDED"
-	ErrCodeInvalidMerchantFee    = "INVALID_MERCHANT_FEE"
+	ErrCodeMerchantNotFound    = "MERCHANT_NOT_FOUND"
+	ErrCodeMerchantNotVerified = "MERCHANT_NOT_VERIFIED"
+	ErrCodeMerchantSuspended   = "MERCHANT_SUSPENDED"
+	ErrCodeInvalidMerchantFee  = "INVALID_MERCHANT_FEE"
 )

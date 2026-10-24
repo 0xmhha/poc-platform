@@ -32,9 +32,10 @@ func EncodeExecutionMode(callType CallType, execMode ExecMode) [32]byte {
 // EncodeSingleCall encodes a single call for Kernel execution.
 // Format: abi.encodePacked(address target[20], uint256 value[32], bytes callData[variable])
 // This matches Solady LibERC7579.decodeSingle() which reads:
-//   target = executionData[0:20]
-//   value  = executionData[20:52]
-//   data   = executionData[52:]
+//
+//	target = executionData[0:20]
+//	value  = executionData[20:52]
+//	data   = executionData[52:]
 func EncodeSingleCall(call accounts.Call) ([]byte, error) {
 	value := call.Value.Int
 	if value == nil {

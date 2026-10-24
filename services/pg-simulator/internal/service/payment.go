@@ -47,8 +47,8 @@ var (
 // Payment processing constants
 const (
 	// Card validation
-	minCardNumberLength = 13
-	maxCardNumberLength = 19
+	minCardNumberLength   = 13
+	maxCardNumberLength   = 19
 	twoDigitYearThreshold = 100
 	yearOffset            = 2000
 	maxFutureExpiryYears  = 20
@@ -59,8 +59,8 @@ const (
 	httpStatusServerErr  = 500
 
 	// Risk-based 3DS challenge thresholds
-	highValueThreshold            = 1000
-	mediumValueThreshold          = 100
+	highValueThreshold              = 1000
+	mediumValueThreshold            = 100
 	mediumValueChallengeProbability = 50
 	lowValueChallengeProbability    = 20
 	challengeVerificationRate       = 95
@@ -71,10 +71,10 @@ const (
 // PaymentService handles payment operations
 type PaymentService struct {
 	cfg              *config.Config
-	payments         map[string]*model.Payment          // paymentID -> Payment
-	idempotencyKeys  map[string]string                  // idempotencyKey -> paymentID (for duplicate detection)
-	wallets          map[string]*model.Wallet           // walletID -> Wallet
-	checkoutSessions map[string]*model.CheckoutSession  // sessionID -> CheckoutSession
+	payments         map[string]*model.Payment         // paymentID -> Payment
+	idempotencyKeys  map[string]string                 // idempotencyKey -> paymentID (for duplicate detection)
+	wallets          map[string]*model.Wallet          // walletID -> Wallet
+	checkoutSessions map[string]*model.CheckoutSession // sessionID -> CheckoutSession
 	bankClient       *BankClient
 	mu               sync.RWMutex
 	rng              *rand.Rand
@@ -1160,8 +1160,8 @@ func maskName(name string) string {
 
 // Checkout session errors
 var (
-	ErrCheckoutSessionNotFound = fmt.Errorf("checkout session not found")
-	ErrCheckoutSessionExpired  = fmt.Errorf("checkout session has expired")
+	ErrCheckoutSessionNotFound   = fmt.Errorf("checkout session not found")
+	ErrCheckoutSessionExpired    = fmt.Errorf("checkout session has expired")
 	ErrCheckoutSessionNotPending = fmt.Errorf("checkout session is not in pending state")
 )
 
@@ -1176,19 +1176,19 @@ func (s *PaymentService) CreateCheckoutSession(req *model.CreateCheckoutSessionR
 	sessionID := uuid.New().String()
 
 	session := &model.CheckoutSession{
-		ID:         sessionID,
-		MerchantID: req.MerchantID,
-		OrderID:    req.OrderID,
-		OrderName:  req.OrderName,
-		Amount:     req.Amount,
-		Currency:   req.Currency,
-		ReturnURL:  req.ReturnURL,
-		CancelURL:  req.CancelURL,
+		ID:          sessionID,
+		MerchantID:  req.MerchantID,
+		OrderID:     req.OrderID,
+		OrderName:   req.OrderName,
+		Amount:      req.Amount,
+		Currency:    req.Currency,
+		ReturnURL:   req.ReturnURL,
+		CancelURL:   req.CancelURL,
 		CheckoutURL: fmt.Sprintf("%s/checkout/%s", s.cfg.BaseURL, sessionID),
-		Status:     model.CheckoutSessionStatusPending,
-		ExpiresAt:  now.Add(checkoutSessionExpiry),
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		Status:      model.CheckoutSessionStatusPending,
+		ExpiresAt:   now.Add(checkoutSessionExpiry),
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
 	s.checkoutSessions[sessionID] = session

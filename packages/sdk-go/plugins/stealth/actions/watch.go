@@ -21,16 +21,16 @@ const (
 
 // Watcher watches for stealth announcements.
 type Watcher struct {
-	client            *client.Client
-	options           stealth.WatchAnnouncementsOptions
-	onAnnouncement    stealth.AnnouncementCallback
-	onError           stealth.ErrorCallback
-	spendingPrivKey   types.Hex
+	client             *client.Client
+	options            stealth.WatchAnnouncementsOptions
+	onAnnouncement     stealth.AnnouncementCallback
+	onError            stealth.ErrorCallback
+	spendingPrivKey    types.Hex
 	lastProcessedBlock *big.Int
-	stopCh            chan struct{}
-	stoppedCh         chan struct{}
-	mu                sync.Mutex
-	running           bool
+	stopCh             chan struct{}
+	stoppedCh          chan struct{}
+	mu                 sync.Mutex
+	running            bool
 }
 
 // NewWatcher creates a new announcement watcher.

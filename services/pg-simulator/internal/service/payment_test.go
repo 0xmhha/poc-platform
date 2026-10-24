@@ -10,9 +10,9 @@ import (
 
 func TestValidateLuhn(t *testing.T) {
 	tests := []struct {
-		name      string
-		cardNum   string
-		wantErr   bool
+		name    string
+		cardNum string
+		wantErr bool
 	}{
 		// Valid test card numbers (from Stripe test cards)
 		{"Valid Visa", "4242424242424242", false},
@@ -99,10 +99,10 @@ func TestValidateExpiry(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		expMonth  string
-		expYear   string
-		wantErr   bool
+		name     string
+		expMonth string
+		expYear  string
+		wantErr  bool
 	}{
 		// Valid expiry
 		{"Current month (valid until end of month)", intToStr(currentMonth), intToStr(currentYear), false},
@@ -136,9 +136,9 @@ func TestValidateCard(t *testing.T) {
 	futureYear := intToStr(now.Year() + 1)
 
 	tests := []struct {
-		name      string
-		card      *model.CardDetails
-		wantErr   bool
+		name       string
+		card       *model.CardDetails
+		wantErr    bool
 		wantReason string
 	}{
 		{
@@ -252,10 +252,10 @@ func TestDetectCardBrand(t *testing.T) {
 
 func TestMaskCardInfo(t *testing.T) {
 	tests := []struct {
-		name      string
-		last4     string
-		brand     string
-		want      string
+		name  string
+		last4 string
+		brand string
+		want  string
 	}{
 		{"Full info", "1234", "visa", "visa:****1234"},
 		{"No last4", "", "visa", "visa:****"},
@@ -329,9 +329,9 @@ func TestMaskAccountNo(t *testing.T) {
 
 func TestMaskName(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		want     string
+		name  string
+		input string
+		want  string
 	}{
 		{"Korean 3 chars", "홍길동", "홍*동"},
 		{"Korean 2 chars", "홍길", "홍*"},

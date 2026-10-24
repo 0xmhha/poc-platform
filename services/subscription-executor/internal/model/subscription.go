@@ -9,29 +9,29 @@ import (
 type SubscriptionStatus string
 
 const (
-	StatusActive             SubscriptionStatus = "active"
-	StatusPaused             SubscriptionStatus = "paused"
-	StatusCancelled          SubscriptionStatus = "cancelled"
-	StatusExpired            SubscriptionStatus = "expired"
-	StatusPermissionRevoked  SubscriptionStatus = "permission_revoked"
+	StatusActive            SubscriptionStatus = "active"
+	StatusPaused            SubscriptionStatus = "paused"
+	StatusCancelled         SubscriptionStatus = "cancelled"
+	StatusExpired           SubscriptionStatus = "expired"
+	StatusPermissionRevoked SubscriptionStatus = "permission_revoked"
 )
 
 // Subscription represents a recurring payment subscription
 type Subscription struct {
-	ID              string             `json:"id" db:"id"`
-	SmartAccount    string             `json:"smartAccount" db:"smart_account"`
-	Recipient       string             `json:"recipient" db:"recipient"`
-	Token           string             `json:"token" db:"token"`
-	Amount          *big.Int           `json:"amount" db:"amount"`
-	Interval        int64              `json:"interval" db:"interval_seconds"` // in seconds
-	PermissionID    string             `json:"permissionId,omitempty" db:"permission_id"` // ERC-7715 permission ID
-	NextExecution   time.Time          `json:"nextExecution" db:"next_execution"`
-	LastExecution   *time.Time         `json:"lastExecution,omitempty" db:"last_execution"`
-	ExecutionCount  int64              `json:"executionCount" db:"execution_count"`
-	MaxExecutions   int64              `json:"maxExecutions" db:"max_executions"` // 0 = unlimited
-	Status          SubscriptionStatus `json:"status" db:"status"`
-	CreatedAt       time.Time          `json:"createdAt" db:"created_at"`
-	UpdatedAt       time.Time          `json:"updatedAt" db:"updated_at"`
+	ID             string             `json:"id" db:"id"`
+	SmartAccount   string             `json:"smartAccount" db:"smart_account"`
+	Recipient      string             `json:"recipient" db:"recipient"`
+	Token          string             `json:"token" db:"token"`
+	Amount         *big.Int           `json:"amount" db:"amount"`
+	Interval       int64              `json:"interval" db:"interval_seconds"`            // in seconds
+	PermissionID   string             `json:"permissionId,omitempty" db:"permission_id"` // ERC-7715 permission ID
+	NextExecution  time.Time          `json:"nextExecution" db:"next_execution"`
+	LastExecution  *time.Time         `json:"lastExecution,omitempty" db:"last_execution"`
+	ExecutionCount int64              `json:"executionCount" db:"execution_count"`
+	MaxExecutions  int64              `json:"maxExecutions" db:"max_executions"` // 0 = unlimited
+	Status         SubscriptionStatus `json:"status" db:"status"`
+	CreatedAt      time.Time          `json:"createdAt" db:"created_at"`
+	UpdatedAt      time.Time          `json:"updatedAt" db:"updated_at"`
 }
 
 // ExecutionRecord represents a single execution attempt

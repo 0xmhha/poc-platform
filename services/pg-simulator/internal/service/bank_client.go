@@ -56,16 +56,16 @@ type CreateDebitRequest struct {
 
 // DebitResponse represents the response from a debit request
 type DebitResponse struct {
-	ID            string  `json:"id"`
+	ID             string `json:"id"`
 	IdempotencyKey string `json:"idempotencyKey"`
-	AccountNo     string  `json:"accountNo"`
-	Amount        string  `json:"amount"`
-	Currency      string  `json:"currency"`
-	CreditorID    string  `json:"creditorId"`
-	CreditorName  string  `json:"creditorName"`
-	Status        string  `json:"status"`
-	FailureReason string  `json:"failureReason,omitempty"`
-	TransactionID string  `json:"transactionId,omitempty"`
+	AccountNo      string `json:"accountNo"`
+	Amount         string `json:"amount"`
+	Currency       string `json:"currency"`
+	CreditorID     string `json:"creditorId"`
+	CreditorName   string `json:"creditorName"`
+	Status         string `json:"status"`
+	FailureReason  string `json:"failureReason,omitempty"`
+	TransactionID  string `json:"transactionId,omitempty"`
 }
 
 // VerifyAccount verifies that an account exists and the holder name matches
