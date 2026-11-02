@@ -30,7 +30,7 @@
     "dev:payments": "turbo run build --filter=@stablenet/web^... --filter=@stablenet/payment-hub && node scripts/payment-lab/dev.mjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
+    "@biomejs/biome": "^2.6.4",
     "@changesets/cli": "^2.30.0",
     "turbo": "^2.11.8",
     "typescript": "^5.7.2",
