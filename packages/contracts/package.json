@@ -49,7 +49,7 @@
     "tsup": "^8.5.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.2",
-    "viem": "^2.57.7",
+    "viem": "^2.57.13",
     "vitest": "^5.0.5"
   },
   "peerDependencies": {
